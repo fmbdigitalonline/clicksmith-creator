@@ -33,10 +33,21 @@ export const SaveAdButton = ({
   const { toast } = useToast();
 
   const handleSave = async () => {
+    if (isSaving) return; // Prevent duplicate saves while in progress
+
     if (!rating) {
       toast({
         title: "Rating Required",
         description: "Please provide a rating before saving.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!image?.url) {
+      toast({
+        title: "Invalid Image",
+        description: "No valid image URL found to save.",
         variant: "destructive",
       });
       return;
@@ -84,8 +95,6 @@ export const SaveAdButton = ({
         Object.assign(feedbackData, { project_id: projectId });
       }
 
-      console.log('Saving feedback data:', feedbackData); // Debug log
-
       const { error: feedbackError } = await supabase
         .from('ad_feedback')
         .insert(feedbackData);
@@ -105,7 +114,9 @@ export const SaveAdButton = ({
       console.error('Error saving feedback:', error);
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to save feedback.",
+        description: error instanceof Error 
+          ? `Failed to save: ${error.message}`
+          : "Failed to save feedback. Please try again.",
         variant: "destructive",
       });
     } finally {
