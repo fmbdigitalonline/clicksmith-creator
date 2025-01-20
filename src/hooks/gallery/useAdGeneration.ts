@@ -25,7 +25,7 @@ export const useAdGeneration = (
     setGenerationStatus("Initializing generation...");
     
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
       
       setGenerationStatus("Generating ads...");
       
@@ -89,6 +89,7 @@ export const useAdGeneration = (
     } catch (error: any) {
       console.error('Ad generation error:', error);
       
+      const { data: { user } } = await supabase.auth.getUser();
       // More specific error message for anonymous users
       const errorMessage = !user 
         ? "Failed to generate ads. Please try again or register for more features."
