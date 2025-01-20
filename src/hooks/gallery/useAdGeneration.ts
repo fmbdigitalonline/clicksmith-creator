@@ -40,6 +40,12 @@ export const useAdGeneration = (
         throw new Error('No valid user session found');
       }
 
+      console.log('Generating ads with session:', { 
+        userId: user?.id, 
+        sessionId, 
+        isAnonymous: !user 
+      });
+
       setGenerationStatus("Generating ads...");
       
       const { data, error } = await supabase.functions.invoke('generate-ad-content', {
