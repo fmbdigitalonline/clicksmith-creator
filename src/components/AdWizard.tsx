@@ -213,17 +213,23 @@ export const AdWizard = () => {
           if (upsertError) throw upsertError;
         }
       } else if (sessionId) {
+        const anonymousData = {
+          session_id: sessionId,
+          used: true,
+          wizard_data: {
+            business_idea: businessIdea,
+            target_audience: targetAudience,
+            audience_analysis: audienceAnalysis,
+            selected_hooks: selectedHooks,
+            generated_ads: newAds,
+            created_at: new Date().toISOString()
+          },
+          expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+        };
+
         const { error: anonymousError } = await supabase
           .from('anonymous_usage')
-          .upsert({
-            session_id: sessionId,
-            used: true,
-            wizard_data: {
-              business_idea: businessIdea,
-              target_audience: targetAudience,
-              generated_ads: newAds
-            } as WizardData
-          }, {
+          .upsert(anonymousData, {
             onConflict: 'session_id'
           });
 
