@@ -13,6 +13,7 @@ import { Video, Image } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Database } from "@/integrations/supabase/types";
 import { useToast } from "@/hooks/use-toast";
+import { v4 as uuidv4 } from 'uuid';
 
 type WizardProgress = Database['public']['Tables']['wizard_progress']['Row'];
 type WizardData = {
@@ -21,11 +22,12 @@ type WizardData = {
   generated_ads?: any[];
 };
 
-const AdWizard = () => {
+export const AdWizard = () => {
   const [showCreateProject, setShowCreateProject] = useState(false);
   const [videoAdsEnabled, setVideoAdsEnabled] = useState(false);
   const [generatedAds, setGeneratedAds] = useState<any[]>([]);
   const [hasLoadedInitialAds, setHasLoadedInitialAds] = useState(false);
+  const [isAnonymous, setIsAnonymous] = useState(false);
   const navigate = useNavigate();
   const { projectId } = useParams();
   const { toast } = useToast();
@@ -45,7 +47,23 @@ const AdWizard = () => {
     setCurrentStep,
   } = useAdWizardState();
 
-  // Load saved progress including generated ads
+  // Initialize anonymous session if needed
+  useEffect(() => {
+    const initializeAnonymousSession = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        let sessionId = localStorage.getItem('anonymous_session_id');
+        if (!sessionId) {
+          sessionId = uuidv4();
+          localStorage.setItem('anonymous_session_id', sessionId);
+        }
+        setIsAnonymous(true);
+      }
+    };
+
+    initializeAnonymousSession();
+  }, []);
+
   useEffect(() => {
     const loadProgress = async () => {
       try {
@@ -305,5 +323,3 @@ const AdWizard = () => {
     </div>
   );
 };
-
-export default AdWizard;
