@@ -18,14 +18,15 @@ export const useAdGeneration = (
   const navigate = useNavigate();
   const { projectId } = useParams();
   const queryClient = useQueryClient();
-  const [sessionId] = useState(() => localStorage.getItem('anonymous_session_id') || crypto.randomUUID());
+  const [sessionId] = useState(() => localStorage.getItem('anonymous_session_id'));
 
-  // Ensure session ID is saved
   useEffect(() => {
-    if (!localStorage.getItem('anonymous_session_id')) {
-      localStorage.setItem('anonymous_session_id', sessionId);
-    }
-  }, [sessionId]);
+    console.log('Current session state:', {
+      sessionId,
+      isGenerating,
+      hasVariants: adVariants.length > 0
+    });
+  }, [sessionId, isGenerating, adVariants]);
 
   const generateAds = async (selectedPlatform: string) => {
     setIsGenerating(true);
@@ -33,18 +34,18 @@ export const useAdGeneration = (
     
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      const sessionId = localStorage.getItem('anonymous_session_id');
+      const currentSessionId = localStorage.getItem('anonymous_session_id');
       
+      console.log('Generation attempt:', {
+        hasUser: !!user,
+        sessionId: currentSessionId,
+        platform: selectedPlatform
+      });
+
       // Check for either authenticated user or valid anonymous session
-      if (!user && !sessionId) {
+      if (!user && !currentSessionId) {
         throw new Error('No valid user session found');
       }
-
-      console.log('Generating ads with session:', { 
-        userId: user?.id, 
-        sessionId, 
-        isAnonymous: !user 
-      });
 
       setGenerationStatus("Generating ads...");
       
@@ -55,16 +56,17 @@ export const useAdGeneration = (
           businessIdea,
           targetAudience,
           adHooks,
-          userId: user?.id || sessionId, // Use sessionId for anonymous users
-          isAnonymous: !user,  // Add flag to indicate anonymous status
+          userId: user?.id || currentSessionId,
+          isAnonymous: !user,
           numVariants: 10
         },
-        headers: !user ? {
-          'x-session-id': sessionId
+        headers: !user && currentSessionId ? {
+          'x-session-id': currentSessionId
         } : undefined
       });
 
       if (error) {
+        console.error('Generation error:', error);
         if (error.message.includes('No credits available')) {
           toast({
             title: "No credits available",
@@ -112,22 +114,29 @@ export const useAdGeneration = (
         } catch (saveError) {
           console.error('Error saving progress:', saveError);
         }
-      } else {
+      } else if (currentSessionId) {
         // For anonymous users, update anonymous_usage
+        console.log('Updating anonymous usage with generated ads');
         try {
-          await supabase
+          const { error: anonymousError } = await supabase
             .from('anonymous_usage')
-            .upsert({ 
-              session_id: sessionId,
+            .update({ 
               used: true,
               wizard_data: {
                 business_idea: businessIdea,
                 target_audience: targetAudience,
                 generated_ads: variants
-              }
-            }, {
-              onConflict: 'session_id'
-            });
+              },
+              completed: true
+            })
+            .eq('session_id', currentSessionId);
+
+          if (anonymousError) {
+            console.error('Error updating anonymous usage:', anonymousError);
+            throw anonymousError;
+          }
+          
+          console.log('Anonymous usage updated successfully');
         } catch (anonymousError) {
           console.error('Error updating anonymous usage:', anonymousError);
         }
