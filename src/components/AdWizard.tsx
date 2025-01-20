@@ -45,9 +45,24 @@ const AdWizard = () => {
     const loadProgress = async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
+        const sessionId = localStorage.getItem('anonymous_session_id');
         
         // Show auto-save message for anonymous users
         if (!user) {
+          console.log('Anonymous user detected, checking session:', sessionId);
+          if (sessionId) {
+            const { data: anonymousData } = await supabase
+              .from('anonymous_usage')
+              .select('wizard_data')
+              .eq('session_id', sessionId)
+              .maybeSingle();
+
+            if (anonymousData?.wizard_data?.generated_ads) {
+              console.log('Loading anonymous user ads:', anonymousData.wizard_data.generated_ads);
+              setGeneratedAds(anonymousData.wizard_data.generated_ads);
+            }
+          }
+          
           toast({
             title: "Auto-save disabled",
             description: "Register or log in to automatically save your progress and generated ads.",
@@ -149,27 +164,46 @@ const AdWizard = () => {
     setGeneratedAds(newAds);
     
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    const sessionId = localStorage.getItem('anonymous_session_id');
 
     try {
-      if (projectId && projectId !== 'new') {
-        const { error: updateError } = await supabase
-          .from('projects')
-          .update({ generated_ads: newAds })
-          .eq('id', projectId);
+      if (user) {
+        if (projectId && projectId !== 'new') {
+          const { error: updateError } = await supabase
+            .from('projects')
+            .update({ generated_ads: newAds })
+            .eq('id', projectId);
 
-        if (updateError) throw updateError;
-      } else {
-        const { error: upsertError } = await supabase
-          .from('wizard_progress')
+          if (updateError) throw updateError;
+        } else {
+          const { error: upsertError } = await supabase
+            .from('wizard_progress')
+            .upsert({
+              user_id: user.id,
+              generated_ads: newAds
+            }, {
+              onConflict: 'user_id'
+            });
+
+          if (upsertError) throw upsertError;
+        }
+      } else if (sessionId) {
+        // For anonymous users, update the anonymous_usage table
+        const { error: anonymousError } = await supabase
+          .from('anonymous_usage')
           .upsert({
-            user_id: user.id,
-            generated_ads: newAds
+            session_id: sessionId,
+            used: true,
+            wizard_data: {
+              business_idea: businessIdea,
+              target_audience: targetAudience,
+              generated_ads: newAds
+            }
           }, {
-            onConflict: 'user_id'
+            onConflict: 'session_id'
           });
 
-        if (upsertError) throw upsertError;
+        if (anonymousError) throw anonymousError;
       }
     } catch (error) {
       console.error('Error saving generated ads:', error);
