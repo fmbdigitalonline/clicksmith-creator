@@ -25,7 +25,7 @@ export const useAdGeneration = (
     setGenerationStatus("Initializing generation...");
     
     try {
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      const { data: { user } } = await supabase.auth.getUser();
       
       setGenerationStatus("Generating ads...");
       
@@ -69,30 +69,64 @@ export const useAdGeneration = (
       if (user) {
         queryClient.invalidateQueries({ queryKey: ['subscription'] });
         queryClient.invalidateQueries({ queryKey: ['free_tier_usage'] });
-      }
 
-      // Mark anonymous session as used
-      if (!user) {
+        // Save progress for authenticated users
+        try {
+          if (projectId && projectId !== 'new') {
+            await supabase
+              .from('projects')
+              .update({ generated_ads: variants })
+              .eq('id', projectId);
+          } else {
+            await supabase
+              .from('wizard_progress')
+              .upsert({
+                user_id: user.id,
+                generated_ads: variants
+              }, {
+                onConflict: 'user_id'
+              });
+          }
+        } catch (saveError) {
+          console.error('Error saving progress:', saveError);
+          // Don't show error toast for save failures
+        }
+      } else {
+        // For anonymous users, store in local storage
         const sessionId = localStorage.getItem('anonymous_session_id');
         if (sessionId) {
-          await supabase
-            .from('anonymous_usage')
-            .update({ used: true })
-            .eq('session_id', sessionId);
+          try {
+            await supabase
+              .from('anonymous_usage')
+              .update({ 
+                used: true,
+                wizard_data: {
+                  ...businessIdea,
+                  ...targetAudience,
+                  generated_ads: variants
+                }
+              })
+              .eq('session_id', sessionId);
+          } catch (anonymousError) {
+            console.error('Error updating anonymous usage:', anonymousError);
+          }
         }
       }
 
       toast({
         title: "Ads generated successfully",
-        description: `Your new ${selectedPlatform} ad variants are ready!`,
+        description: user 
+          ? `Your new ${selectedPlatform} ad variants are ready!`
+          : `Your ${selectedPlatform} ad variants are ready! Register to save them.`,
       });
     } catch (error: any) {
       console.error('Ad generation error:', error);
       
-      const { data: { user } } = await supabase.auth.getUser();
+      const isAnonymous = !await supabase.auth.getUser().then(({ data }) => data.user);
+      
       // More specific error message for anonymous users
-      const errorMessage = !user 
-        ? "Failed to generate ads. Please try again or register for more features."
+      const errorMessage = isAnonymous
+        ? "You can try one more time as a guest, or register for unlimited generations."
         : error.message || "Failed to generate ads. Please try again.";
       
       toast({
