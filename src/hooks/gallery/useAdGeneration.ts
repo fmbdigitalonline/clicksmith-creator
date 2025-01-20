@@ -27,28 +27,17 @@ export const useAdGeneration = (
     
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      const sessionId = localStorage.getItem('anonymous_session_id');
+      let sessionId = localStorage.getItem('anonymous_session_id');
       
       if (!user && !sessionId) {
-        const newSessionId = uuidv4();
-        localStorage.setItem('anonymous_session_id', newSessionId);
-        console.log('Created new anonymous session:', newSessionId);
+        sessionId = uuidv4();
+        localStorage.setItem('anonymous_session_id', sessionId);
+        console.log('Created new anonymous session:', sessionId);
       }
       
       setGenerationStatus("Generating ads...");
 
-      // Prepare headers for anonymous users
-      const headers: { [key: string]: string } = {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.SUPABASE_ANON_KEY}`,
-      };
-
-      // Add session ID header for anonymous users
-      if (!user && sessionId) {
-        headers['x-session-id'] = sessionId;
-      }
-      
-      const { data, error } = await supabase.functions.invoke('generate-ad-content', {
+      const functionOptions: any = {
         body: {
           type: 'complete_ads',
           platform: selectedPlatform,
@@ -58,11 +47,22 @@ export const useAdGeneration = (
           userId: user?.id || null,
           sessionId: !user ? sessionId : null,
           numVariants: 10
-        },
-        headers: !user && sessionId ? headers : undefined
-      });
+        }
+      };
+
+      // Add headers for anonymous users
+      if (!user && sessionId) {
+        functionOptions.headers = {
+          'x-session-id': sessionId
+        };
+      }
+
+      console.log('Invoking function with options:', functionOptions);
+      
+      const { data, error } = await supabase.functions.invoke('generate-ad-content', functionOptions);
 
       if (error) {
+        console.error('Generation error:', error);
         if (error.message.includes('No credits available')) {
           toast({
             title: "No credits available",
