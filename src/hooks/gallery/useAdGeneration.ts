@@ -37,7 +37,7 @@ export const useAdGeneration = (
       
       setGenerationStatus("Generating ads...");
 
-      const functionOptions: any = {
+      const functionOptions = {
         body: {
           type: 'complete_ads',
           platform: selectedPlatform,
@@ -47,15 +47,12 @@ export const useAdGeneration = (
           userId: user?.id || null,
           sessionId: !user ? sessionId : null,
           numVariants: 10
-        }
+        },
+        headers: !user && sessionId ? {
+          'x-session-id': sessionId,
+          'Content-Type': 'application/json'
+        } : undefined
       };
-
-      // Add headers for anonymous users
-      if (!user && sessionId) {
-        functionOptions.headers = {
-          'x-session-id': sessionId
-        };
-      }
 
       console.log('Invoking function with options:', functionOptions);
       
