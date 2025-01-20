@@ -119,7 +119,10 @@ export const useAdWizardState = () => {
       setAudienceAnalysis(analysis);
       await saveWizardProgress({ audience_analysis: analysis }, projectId);
 
-      const { data, error } = await supabase.functions.invoke('generate-ad-content', {
+      const sessionId = localStorage.getItem('anonymous_session_id');
+      const { data: { user } } = await supabase.auth.getUser();
+
+      const functionOptions = {
         body: { 
           type: 'hooks',
           businessIdea,
@@ -127,10 +130,27 @@ export const useAdWizardState = () => {
             ...targetAudience,
             audienceAnalysis: analysis
           }
-        }
-      });
+        },
+        headers: !user && sessionId ? {
+          'x-session-id': sessionId,
+          'Content-Type': 'application/json'
+        } : undefined
+      };
+
+      console.log('Invoking hooks generation with options:', functionOptions);
+      
+      const { data, error } = await supabase.functions.invoke('generate-ad-content', functionOptions);
 
       if (error) {
+        console.error('Error generating hooks:', error);
+        if (error.message.includes('Anonymous trial used')) {
+          toast({
+            title: "Trial Expired",
+            description: "Your anonymous trial has been used. Please sign up to continue.",
+            variant: "destructive",
+          });
+          return;
+        }
         toast({
           title: "Error generating hooks",
           description: error.message,
