@@ -5,6 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
 import { useState } from "react";
+import { v4 as uuidv4 } from 'uuid';
 
 export const useAdGeneration = (
   businessIdea: BusinessIdea,
