@@ -13,7 +13,17 @@ import Dashboard from "@/pages/Dashboard";
 import { SavedAdsGallery } from "@/components/gallery/SavedAdsGallery";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 5, // Data stays fresh for 5 minutes
+      cacheTime: 1000 * 60 * 30, // Cache persists for 30 minutes
+      refetchOnWindowFocus: false, // Prevent refetch on window focus
+      refetchOnMount: false, // Prevent refetch on component mount
+      retry: 1, // Only retry failed requests once
+    },
+  },
+});
 
 function App() {
   return (
