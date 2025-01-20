@@ -59,7 +59,6 @@ export const AdWizard = () => {
         }
         setIsAnonymous(true);
         
-        // Updated toast message for anonymous users
         toast({
           title: "Anonymous Mode",
           description: "Your progress will be saved temporarily. Register to keep your ads permanently.",
