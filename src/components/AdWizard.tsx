@@ -233,13 +233,18 @@ export const AdWizard = () => {
             onConflict: 'session_id'
           });
 
-        if (anonymousError) throw anonymousError;
+        if (anonymousError) {
+          console.error('Error saving anonymous data:', anonymousError);
+          throw anonymousError;
+        }
       }
     } catch (error) {
       console.error('Error saving generated ads:', error);
       toast({
         title: "Couldn't save your ads",
-        description: "Your ads were generated but we couldn't save them. Please try again.",
+        description: isAnonymous 
+          ? "We couldn't save your temporary progress. Please try again or create an account."
+          : "Your ads were generated but we couldn't save them. Please try again.",
         variant: "destructive",
       });
     }
