@@ -47,9 +47,29 @@ serve(async (req) => {
       throw new Error('Empty request body');
     }
 
-    const { type, businessIdea, targetAudience, platform = 'facebook', userId } = body;
+    const { type, businessIdea, targetAudience, platform = 'facebook', userId, sessionId } = body;
 
-    // Check and deduct credits
+    // Handle anonymous users
+    if (!userId && sessionId) {
+      console.log('Processing anonymous user request with session:', sessionId);
+      const { data: anonymousUsage } = await supabase
+        .from('anonymous_usage')
+        .select('used')
+        .eq('session_id', sessionId)
+        .single();
+
+      if (!anonymousUsage) {
+        // Create new anonymous usage record
+        await supabase
+          .from('anonymous_usage')
+          .insert({
+            session_id: sessionId,
+            used: false
+          });
+      }
+    }
+
+    // Check and deduct credits for authenticated users
     if (userId && type !== 'audience_analysis') {
       const { data: creditCheck, error: creditError } = await supabase.rpc(
         'check_user_credits',
