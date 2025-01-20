@@ -28,7 +28,24 @@ export const useAdGeneration = (
       const { data: { user } } = await supabase.auth.getUser();
       const sessionId = localStorage.getItem('anonymous_session_id');
       
+      if (!user && !sessionId) {
+        const newSessionId = uuidv4();
+        localStorage.setItem('anonymous_session_id', newSessionId);
+        console.log('Created new anonymous session:', newSessionId);
+      }
+      
       setGenerationStatus("Generating ads...");
+
+      // Prepare headers for anonymous users
+      const headers: { [key: string]: string } = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.SUPABASE_ANON_KEY}`,
+      };
+
+      // Add session ID header for anonymous users
+      if (!user && sessionId) {
+        headers['x-session-id'] = sessionId;
+      }
       
       const { data, error } = await supabase.functions.invoke('generate-ad-content', {
         body: {
@@ -41,9 +58,7 @@ export const useAdGeneration = (
           sessionId: !user ? sessionId : null,
           numVariants: 10
         },
-        headers: !user && sessionId ? {
-          'x-session-id': sessionId
-        } : undefined
+        headers: !user && sessionId ? headers : undefined
       });
 
       if (error) {
