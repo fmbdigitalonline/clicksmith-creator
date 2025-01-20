@@ -79,6 +79,46 @@ export const useAdGeneration = (
       if (user) {
         queryClient.invalidateQueries({ queryKey: ['subscription'] });
         queryClient.invalidateQueries({ queryKey: ['free_tier_usage'] });
+
+        // Save progress for authenticated users
+        try {
+          if (projectId && projectId !== 'new') {
+            await supabase
+              .from('projects')
+              .update({ generated_ads: variants })
+              .eq('id', projectId);
+          } else {
+            await supabase
+              .from('wizard_progress')
+              .upsert({
+                user_id: user.id,
+                generated_ads: variants
+              }, {
+                onConflict: 'user_id'
+              });
+          }
+        } catch (saveError) {
+          console.error('Error saving progress:', saveError);
+        }
+      } else {
+        // For anonymous users, update anonymous_usage
+        try {
+          await supabase
+            .from('anonymous_usage')
+            .upsert({ 
+              session_id: sessionId,
+              used: true,
+              wizard_data: {
+                business_idea: businessIdea,
+                target_audience: targetAudience,
+                generated_ads: variants
+              }
+            }, {
+              onConflict: 'session_id'
+            });
+        } catch (anonymousError) {
+          console.error('Error updating anonymous usage:', anonymousError);
+        }
       }
 
       toast({
