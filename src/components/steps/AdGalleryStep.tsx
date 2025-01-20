@@ -10,6 +10,7 @@ import AdGenerationControls from "./gallery/AdGenerationControls";
 import { useEffect, useState, useCallback } from "react";
 import { AdSizeSelector, AD_FORMATS } from "./gallery/components/AdSizeSelector";
 import { useParams } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
 
 interface AdGalleryStepProps {
   businessIdea: BusinessIdea;
@@ -57,8 +58,17 @@ const AdGalleryStep = ({
     generateAds,
   } = useAdGeneration(businessIdea, targetAudience, adHooks);
 
-  const handleGenerateAds = useCallback((selectedPlatform: string) => {
+  const handleGenerateAds = useCallback(async (selectedPlatform: string) => {
     if (!isGenerating) {
+      const { data: { user } } = await supabase.auth.getUser();
+      const sessionId = localStorage.getItem('anonymous_session_id');
+      
+      // Ensure either user or anonymous session exists
+      if (!user && !sessionId) {
+        console.error('No user or anonymous session found');
+        return;
+      }
+      
       generateAds(selectedPlatform);
     }
   }, [generateAds, isGenerating]);
@@ -85,16 +95,14 @@ const AdGalleryStep = ({
 
     const isNewProject = projectId === 'new';
     const updatedAds = isNewProject 
-      ? adVariants // For new projects, use only new variants
+      ? adVariants 
       : generatedAds.map(existingAd => {
-          // Find if there's a new variant for this ad
           const newVariant = adVariants.find(
             variant => variant.platform === existingAd.platform && variant.id === existingAd.id
           );
           return newVariant || existingAd;
         });
 
-    // Add any new variants that don't exist in the current ads
     if (!isNewProject) {
       adVariants.forEach(newVariant => {
         const exists = updatedAds.some(
