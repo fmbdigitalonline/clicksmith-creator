@@ -13,7 +13,6 @@ import { Video, Image } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Database } from "@/integrations/supabase/types";
 import { useToast } from "@/hooks/use-toast";
-import { v4 as uuidv4 } from 'uuid';
 
 type WizardProgress = Database['public']['Tables']['wizard_progress']['Row'];
 type WizardData = {
@@ -22,12 +21,11 @@ type WizardData = {
   generated_ads?: any[];
 };
 
-export const AdWizard = () => {
+const AdWizard = () => {
   const [showCreateProject, setShowCreateProject] = useState(false);
   const [videoAdsEnabled, setVideoAdsEnabled] = useState(false);
   const [generatedAds, setGeneratedAds] = useState<any[]>([]);
   const [hasLoadedInitialAds, setHasLoadedInitialAds] = useState(false);
-  const [isAnonymous, setIsAnonymous] = useState(false);
   const navigate = useNavigate();
   const { projectId } = useParams();
   const { toast } = useToast();
@@ -47,39 +45,12 @@ export const AdWizard = () => {
     setCurrentStep,
   } = useAdWizardState();
 
-  // Initialize anonymous session if needed
-  useEffect(() => {
-    const initializeAnonymousSession = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        let sessionId = localStorage.getItem('anonymous_session_id');
-        if (!sessionId) {
-          sessionId = uuidv4();
-          localStorage.setItem('anonymous_session_id', sessionId);
-        }
-        setIsAnonymous(true);
-        
-        toast({
-          title: "Anonymous Mode",
-          description: "Your progress will be saved temporarily. Register to keep your ads permanently.",
-          duration: 6000,
-        });
-      }
-    };
-
-    initializeAnonymousSession();
-  }, [toast]);
-
+  // Load saved progress including generated ads
   useEffect(() => {
     const loadProgress = async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         const sessionId = localStorage.getItem('anonymous_session_id');
-        
-        // Add validation for session existence
-        if (!user && !sessionId) {
-          throw new Error('No user or anonymous session found');
-        }
         
         if (!user) {
           console.log('Anonymous user detected, checking session:', sessionId);
@@ -95,15 +66,15 @@ export const AdWizard = () => {
               if (wizardData.generated_ads && Array.isArray(wizardData.generated_ads)) {
                 console.log('Loading anonymous user ads:', wizardData.generated_ads);
                 setGeneratedAds(wizardData.generated_ads);
-                
-                toast({
-                  title: "Progress Saved",
-                  description: "Your ads are saved temporarily. Create an account to keep them permanently.",
-                  duration: 4000,
-                });
               }
             }
           }
+          
+          toast({
+            title: "Auto-save disabled",
+            description: "Register or log in to automatically save your progress and generated ads.",
+            duration: 6000,
+          });
           setHasLoadedInitialAds(true);
           return;
         }
@@ -160,7 +131,7 @@ export const AdWizard = () => {
         console.error('Error loading progress:', error);
         toast({
           title: "Something went wrong",
-          description: error instanceof Error ? error.message : "We couldn't load your previous work. Please try refreshing the page.",
+          description: "We couldn't load your previous work. Please try refreshing the page.",
           variant: "destructive",
         });
         setHasLoadedInitialAds(true);
@@ -224,38 +195,27 @@ export const AdWizard = () => {
           if (upsertError) throw upsertError;
         }
       } else if (sessionId) {
-        const anonymousData = {
-          session_id: sessionId,
-          used: true,
-          wizard_data: {
-            business_idea: businessIdea,
-            target_audience: targetAudience,
-            audience_analysis: audienceAnalysis,
-            selected_hooks: selectedHooks,
-            generated_ads: newAds,
-            created_at: new Date().toISOString()
-          },
-          expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
-        };
-
         const { error: anonymousError } = await supabase
           .from('anonymous_usage')
-          .upsert(anonymousData, {
+          .upsert({
+            session_id: sessionId,
+            used: true,
+            wizard_data: {
+              business_idea: businessIdea,
+              target_audience: targetAudience,
+              generated_ads: newAds
+            } as WizardData
+          }, {
             onConflict: 'session_id'
           });
 
-        if (anonymousError) {
-          console.error('Error saving anonymous data:', anonymousError);
-          throw anonymousError;
-        }
+        if (anonymousError) throw anonymousError;
       }
     } catch (error) {
       console.error('Error saving generated ads:', error);
       toast({
         title: "Couldn't save your ads",
-        description: isAnonymous 
-          ? "We couldn't save your temporary progress. Please try again or create an account."
-          : "Your ads were generated but we couldn't save them. Please try again.",
+        description: "Your ads were generated but we couldn't save them. Please try again.",
         variant: "destructive",
       });
     }
@@ -345,3 +305,5 @@ export const AdWizard = () => {
     </div>
   );
 };
+
+export default AdWizard;

@@ -52,42 +52,46 @@ serve(async (req) => {
     // Handle anonymous users
     if (!userId && sessionId) {
       console.log('Processing anonymous user request with session:', sessionId);
-      const { data: anonymousUsage, error: usageError } = await supabase
+      const { data: anonymousUsage } = await supabase
         .from('anonymous_usage')
         .select('used')
         .eq('session_id', sessionId)
         .single();
 
-      if (usageError && usageError.code !== 'PGRST116') {
-        console.error('Error checking anonymous usage:', usageError);
-        throw usageError;
-      }
-
       if (!anonymousUsage) {
         // Create new anonymous usage record
-        const { error: insertError } = await supabase
+        await supabase
           .from('anonymous_usage')
           .insert({
             session_id: sessionId,
             used: false
           });
+      }
+    }
 
-        if (insertError) {
-          console.error('Error creating anonymous usage record:', insertError);
-          throw insertError;
-        }
-      } else if (anonymousUsage.used) {
+    // Check and deduct credits for authenticated users
+    if (userId && type !== 'audience_analysis') {
+      const { data: creditCheck, error: creditError } = await supabase.rpc(
+        'check_user_credits',
+        { p_user_id: userId, required_credits: 1 }
+      );
+
+      if (creditError) throw creditError;
+
+      const result = creditCheck[0];
+      if (!result.has_credits) {
         return new Response(
-          JSON.stringify({ 
-            error: 'Anonymous trial used',
-            message: 'Your trial has been used. Please sign up to continue.'
-          }),
-          { 
-            status: 402,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          }
+          JSON.stringify({ error: 'No credits available', message: result.error_message }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 402 }
         );
       }
+
+      const { error: deductError } = await supabase.rpc(
+        'deduct_user_credits',
+        { input_user_id: userId, credits_to_deduct: 1 }
+      );
+
+      if (deductError) throw deductError;
     }
 
     let responseData;
@@ -110,18 +114,6 @@ serve(async (req) => {
             size: format
           };
         });
-
-        // Mark anonymous session as used after successful generation
-        if (!userId && sessionId) {
-          const { error: updateError } = await supabase
-            .from('anonymous_usage')
-            .update({ used: true })
-            .eq('session_id', sessionId);
-
-          if (updateError) {
-            console.error('Error updating anonymous usage:', updateError);
-          }
-        }
 
         responseData = { variants };
         break;

@@ -10,8 +10,6 @@ import AdGenerationControls from "./gallery/AdGenerationControls";
 import { useEffect, useState, useCallback } from "react";
 import { AdSizeSelector, AD_FORMATS } from "./gallery/components/AdSizeSelector";
 import { useParams } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
-import { v4 as uuidv4 } from 'uuid';
 
 interface AdGalleryStepProps {
   businessIdea: BusinessIdea;
@@ -43,7 +41,6 @@ const AdGalleryStep = ({
   const [selectedFormat, setSelectedFormat] = useState(AD_FORMATS[0]);
   const [hasGeneratedInitialAds, setHasGeneratedInitialAds] = useState(false);
   const { projectId } = useParams();
-
   const {
     platform,
     showPlatformChangeDialog,
@@ -60,62 +57,44 @@ const AdGalleryStep = ({
     generateAds,
   } = useAdGeneration(businessIdea, targetAudience, adHooks);
 
-  const handleGenerateAds = useCallback(async (selectedPlatform: string) => {
+  const handleGenerateAds = useCallback((selectedPlatform: string) => {
     if (!isGenerating) {
-      const { data: { user } } = await supabase.auth.getUser();
-      const sessionId = localStorage.getItem('anonymous_session_id');
-      
-      if (!user && !sessionId) {
-        const newSessionId = uuidv4();
-        localStorage.setItem('anonymous_session_id', newSessionId);
-        console.log('Created new anonymous session:', newSessionId);
-      }
-      
       generateAds(selectedPlatform);
     }
   }, [generateAds, isGenerating]);
 
   // Effect for initial ad generation
   useEffect(() => {
-    const generateInitialAds = async () => {
-      if (!hasLoadedInitialAds || hasGeneratedInitialAds) return;
+    if (!hasLoadedInitialAds || hasGeneratedInitialAds) return;
 
-      const isNewProject = !projectId || projectId === 'new';
-      const existingPlatformAds = generatedAds.filter(ad => ad.platform === platform);
-      
-      // Only generate ads if we don't have any for the current platform
-      const shouldGenerateAds = isNewProject && existingPlatformAds.length === 0;
+    const isNewProject = projectId === 'new';
+    const existingPlatformAds = generatedAds.filter(ad => ad.platform === platform);
+    const shouldGenerateAds = isNewProject || existingPlatformAds.length === 0;
 
-      if (shouldGenerateAds) {
-        console.log('Generating initial ads:', { 
-          isNewProject, 
-          platform, 
-          existingAdsCount: existingPlatformAds.length,
-          hasLoadedInitialAds,
-          hasGeneratedInitialAds 
-        });
-        await handleGenerateAds(platform);
-      }
+    if (shouldGenerateAds) {
+      console.log('Generating initial ads:', { isNewProject, platform, existingAdsCount: existingPlatformAds.length });
+      handleGenerateAds(platform);
+    }
 
-      setHasGeneratedInitialAds(true);
-    };
-
-    generateInitialAds();
+    setHasGeneratedInitialAds(true);
   }, [hasLoadedInitialAds, hasGeneratedInitialAds, platform, projectId, generatedAds, handleGenerateAds]);
 
+  // Effect for managing generated ads state
   useEffect(() => {
     if (!onAdsGenerated || adVariants.length === 0) return;
 
     const isNewProject = projectId === 'new';
     const updatedAds = isNewProject 
-      ? adVariants 
+      ? adVariants // For new projects, use only new variants
       : generatedAds.map(existingAd => {
+          // Find if there's a new variant for this ad
           const newVariant = adVariants.find(
             variant => variant.platform === existingAd.platform && variant.id === existingAd.id
           );
           return newVariant || existingAd;
         });
 
+    // Add any new variants that don't exist in the current ads
     if (!isNewProject) {
       adVariants.forEach(newVariant => {
         const exists = updatedAds.some(
