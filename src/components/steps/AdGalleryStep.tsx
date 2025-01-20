@@ -11,6 +11,7 @@ import { useEffect, useState, useCallback } from "react";
 import { AdSizeSelector, AD_FORMATS } from "./gallery/components/AdSizeSelector";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { v4 as uuidv4 } from 'uuid';
 
 interface AdGalleryStepProps {
   businessIdea: BusinessIdea;
@@ -63,10 +64,12 @@ const AdGalleryStep = ({
       const { data: { user } } = await supabase.auth.getUser();
       const sessionId = localStorage.getItem('anonymous_session_id');
       
-      // Ensure either user or anonymous session exists
+      // Don't block ad generation for anonymous users
       if (!user && !sessionId) {
-        console.error('No user or anonymous session found');
-        return;
+        // Create new anonymous session if none exists
+        const newSessionId = uuidv4();
+        localStorage.setItem('anonymous_session_id', newSessionId);
+        console.log('Created new anonymous session:', newSessionId);
       }
       
       generateAds(selectedPlatform);
