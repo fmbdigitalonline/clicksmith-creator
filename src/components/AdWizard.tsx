@@ -76,6 +76,11 @@ export const AdWizard = () => {
         const { data: { user } } = await supabase.auth.getUser();
         const sessionId = localStorage.getItem('anonymous_session_id');
         
+        // Add validation for session existence
+        if (!user && !sessionId) {
+          throw new Error('No user or anonymous session found');
+        }
+        
         if (!user) {
           console.log('Anonymous user detected, checking session:', sessionId);
           if (sessionId) {
@@ -91,7 +96,6 @@ export const AdWizard = () => {
                 console.log('Loading anonymous user ads:', wizardData.generated_ads);
                 setGeneratedAds(wizardData.generated_ads);
                 
-                // Added success confirmation for anonymous users
                 toast({
                   title: "Progress Saved",
                   description: "Your ads are saved temporarily. Create an account to keep them permanently.",
@@ -156,7 +160,7 @@ export const AdWizard = () => {
         console.error('Error loading progress:', error);
         toast({
           title: "Something went wrong",
-          description: "We couldn't load your previous work. Please try refreshing the page.",
+          description: error instanceof Error ? error.message : "We couldn't load your previous work. Please try refreshing the page.",
           variant: "destructive",
         });
         setHasLoadedInitialAds(true);
