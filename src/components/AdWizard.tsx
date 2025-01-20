@@ -58,11 +58,18 @@ export const AdWizard = () => {
           localStorage.setItem('anonymous_session_id', sessionId);
         }
         setIsAnonymous(true);
+        
+        // Updated toast message for anonymous users
+        toast({
+          title: "Anonymous Mode",
+          description: "Your progress will be saved temporarily. Register to keep your ads permanently.",
+          duration: 6000,
+        });
       }
     };
 
     initializeAnonymousSession();
-  }, []);
+  }, [toast]);
 
   useEffect(() => {
     const loadProgress = async () => {
@@ -84,15 +91,16 @@ export const AdWizard = () => {
               if (wizardData.generated_ads && Array.isArray(wizardData.generated_ads)) {
                 console.log('Loading anonymous user ads:', wizardData.generated_ads);
                 setGeneratedAds(wizardData.generated_ads);
+                
+                // Added success confirmation for anonymous users
+                toast({
+                  title: "Progress Saved",
+                  description: "Your ads are saved temporarily. Create an account to keep them permanently.",
+                  duration: 4000,
+                });
               }
             }
           }
-          
-          toast({
-            title: "Auto-save disabled",
-            description: "Register or log in to automatically save your progress and generated ads.",
-            duration: 6000,
-          });
           setHasLoadedInitialAds(true);
           return;
         }
