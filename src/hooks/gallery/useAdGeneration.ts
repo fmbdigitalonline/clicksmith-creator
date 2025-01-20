@@ -69,6 +69,17 @@ export const useAdGeneration = (
           navigate('/pricing');
           return;
         }
+        
+        if (error.message.includes('Anonymous trial used')) {
+          toast({
+            title: "Trial Expired",
+            description: "Your anonymous trial has been used. Please sign up to continue.",
+            variant: "destructive",
+          });
+          navigate('/login');
+          return;
+        }
+        
         throw error;
       }
 
