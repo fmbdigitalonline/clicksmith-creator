@@ -15,6 +15,11 @@ import { Database } from "@/integrations/supabase/types";
 import { useToast } from "@/hooks/use-toast";
 
 type WizardProgress = Database['public']['Tables']['wizard_progress']['Row'];
+type WizardData = {
+  business_idea?: any;
+  target_audience?: any;
+  generated_ads?: any[];
+};
 
 const AdWizard = () => {
   const [showCreateProject, setShowCreateProject] = useState(false);
@@ -57,9 +62,10 @@ const AdWizard = () => {
               .eq('session_id', sessionId)
               .maybeSingle();
 
-            if (anonymousData?.wizard_data?.generated_ads) {
-              console.log('Loading anonymous user ads:', anonymousData.wizard_data.generated_ads);
-              setGeneratedAds(anonymousData.wizard_data.generated_ads);
+            const wizardData = anonymousData?.wizard_data as WizardData;
+            if (wizardData?.generated_ads) {
+              console.log('Loading anonymous user ads:', wizardData.generated_ads);
+              setGeneratedAds(wizardData.generated_ads);
             }
           }
           
@@ -198,7 +204,7 @@ const AdWizard = () => {
               business_idea: businessIdea,
               target_audience: targetAudience,
               generated_ads: newAds
-            }
+            } as WizardData
           }, {
             onConflict: 'session_id'
           });
