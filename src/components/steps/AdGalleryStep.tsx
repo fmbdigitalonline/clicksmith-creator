@@ -65,9 +65,7 @@ const AdGalleryStep = ({
       const { data: { user } } = await supabase.auth.getUser();
       const sessionId = localStorage.getItem('anonymous_session_id');
       
-      // Don't block ad generation for anonymous users
       if (!user && !sessionId) {
-        // Create new anonymous session if none exists
         const newSessionId = uuidv4();
         localStorage.setItem('anonymous_session_id', newSessionId);
         console.log('Created new anonymous session:', newSessionId);
@@ -84,7 +82,9 @@ const AdGalleryStep = ({
 
       const isNewProject = !projectId || projectId === 'new';
       const existingPlatformAds = generatedAds.filter(ad => ad.platform === platform);
-      const shouldGenerateAds = isNewProject || existingPlatformAds.length === 0;
+      
+      // Only generate ads if we don't have any for the current platform
+      const shouldGenerateAds = isNewProject && existingPlatformAds.length === 0;
 
       if (shouldGenerateAds) {
         console.log('Generating initial ads:', { 
