@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { v4 as uuidv4 } from "uuid";
 import { useToast } from "@/hooks/use-toast";
@@ -8,6 +8,7 @@ export const AnonymousRoute = ({ children }: { children: React.ReactNode }) => {
   const [canAccess, setCanAccess] = useState<boolean | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
+  const location = useLocation();
 
   useEffect(() => {
     const checkAnonymousAccess = async () => {
@@ -51,6 +52,19 @@ export const AnonymousRoute = ({ children }: { children: React.ReactNode }) => {
 
         console.log('[AnonymousRoute] Anonymous usage data:', usage);
 
+        // Check if the wizard is completed
+        if (usage?.completed) {
+          console.log('[AnonymousRoute] Wizard completed, redirecting to login');
+          toast({
+            title: "Trial Complete",
+            description: "Please sign up to save your progress and continue using the app.",
+            variant: "destructive",
+          });
+          setCanAccess(false);
+          setIsLoading(false);
+          return;
+        }
+
         if (!usage) {
           // First time user - create usage record
           console.log('[AnonymousRoute] Creating new anonymous usage record');
@@ -93,7 +107,7 @@ export const AnonymousRoute = ({ children }: { children: React.ReactNode }) => {
     };
 
     checkAnonymousAccess();
-  }, [toast]);
+  }, [toast, location.pathname]);
 
   if (isLoading) {
     return (
@@ -104,7 +118,7 @@ export const AnonymousRoute = ({ children }: { children: React.ReactNode }) => {
   }
 
   if (!canAccess) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/login" replace state={{ from: location }} />;
   }
 
   return <>{children}</>;
