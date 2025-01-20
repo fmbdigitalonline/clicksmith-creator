@@ -23,6 +23,21 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
           return;
         }
 
+        // Check for anonymous session
+        const anonymousSessionId = localStorage.getItem('anonymous_session_id');
+        if (!session && anonymousSessionId) {
+          const { data: usage } = await supabase
+            .from('anonymous_usage')
+            .select('used')
+            .eq('session_id', anonymousSessionId)
+            .single();
+
+          if (usage && !usage.used) {
+            navigate('/ad-wizard/new', { replace: true });
+            return;
+          }
+        }
+
         if (!session) {
           setIsAuthenticated(false);
           navigate('/login', { replace: true });

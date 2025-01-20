@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "@/components/ui/toaster";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { AnonymousRoute } from "@/components/auth/AnonymousRoute";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { OnboardingDialog } from "@/components/onboarding/OnboardingDialog";
@@ -16,11 +17,11 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 60 * 5, // Data stays fresh for 5 minutes
-      gcTime: 1000 * 60 * 30, // Cache persists for 30 minutes (renamed from cacheTime)
-      refetchOnWindowFocus: false, // Prevent refetch on window focus
-      refetchOnMount: false, // Prevent refetch on component mount
-      retry: 1, // Only retry failed requests once
+      staleTime: 1000 * 60 * 5,
+      gcTime: 1000 * 60 * 30,
+      refetchOnWindowFocus: false,
+      refetchOnMount: false,
+      retry: 1,
     },
   },
 });
@@ -36,9 +37,7 @@ function App() {
             <Route
               path="/"
               element={
-                <ProtectedRoute>
-                  <Navigate to="/ad-wizard/new" replace />
-                </ProtectedRoute>
+                <Navigate to="/ad-wizard/new" replace />
               }
             />
             <Route
@@ -79,6 +78,16 @@ function App() {
                     <SavedAdsGallery />
                   </AppLayout>
                 </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/ad-wizard/new"
+              element={
+                <AnonymousRoute>
+                  <AppLayout>
+                    <AdWizard />
+                  </AppLayout>
+                </AnonymousRoute>
               }
             />
             <Route
