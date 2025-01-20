@@ -52,7 +52,6 @@ const AdWizard = () => {
         const { data: { user } } = await supabase.auth.getUser();
         const sessionId = localStorage.getItem('anonymous_session_id');
         
-        // Show auto-save message for anonymous users
         if (!user) {
           console.log('Anonymous user detected, checking session:', sessionId);
           if (sessionId) {
@@ -62,10 +61,12 @@ const AdWizard = () => {
               .eq('session_id', sessionId)
               .maybeSingle();
 
-            const wizardData = anonymousData?.wizard_data as WizardData;
-            if (wizardData?.generated_ads) {
-              console.log('Loading anonymous user ads:', wizardData.generated_ads);
-              setGeneratedAds(wizardData.generated_ads);
+            if (anonymousData?.wizard_data) {
+              const wizardData = anonymousData.wizard_data as WizardData;
+              if (wizardData.generated_ads && Array.isArray(wizardData.generated_ads)) {
+                console.log('Loading anonymous user ads:', wizardData.generated_ads);
+                setGeneratedAds(wizardData.generated_ads);
+              }
             }
           }
           
@@ -194,7 +195,6 @@ const AdWizard = () => {
           if (upsertError) throw upsertError;
         }
       } else if (sessionId) {
-        // For anonymous users, update the anonymous_usage table
         const { error: anonymousError } = await supabase
           .from('anonymous_usage')
           .upsert({
