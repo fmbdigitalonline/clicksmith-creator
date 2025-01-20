@@ -18,120 +18,17 @@ export const useAdGeneration = (
   const { toast } = useToast();
   const navigate = useNavigate();
   const { projectId } = useParams();
-
-  const generateVideoAd = async (
-    platform: string,
-    hook: AdHook,
-    format: { width: number; height: number; label: string }
-  ) => {
-    try {
-      const { data, error } = await supabase.functions.invoke('generate-video-ad', {
-        body: {
-          businessIdea,
-          targetAudience,
-          hook,
-          format: {
-            description: format.label,
-            dimensions: {
-              width: format.width,
-              height: format.height
-            },
-            maxLength: 30 // Default to 30 seconds
-          }
-        }
-      });
-
-      if (error) {
-        throw error;
-      }
-
-      if (!data.videoUrl) {
-        throw new Error('No video URL returned from generation');
-      }
-
-      const newVariant: VideoAdVariant = {
-        id: crypto.randomUUID(),
-        platform,
-        videoUrl: data.videoUrl,
-        prompt: data.prompt,
-        headline: hook.text,
-        description: businessIdea.description,
-        status: 'completed'
-      };
-
-      setVideoVariants(prev => [...prev, newVariant]);
-
-      // Save to project if we have a project ID
-      if (projectId && projectId !== 'new') {
-        const { error: updateError } = await supabase
-          .from('projects')
-          .update({
-            generated_ads: [...adVariants, newVariant]
-          })
-          .eq('id', projectId);
-
-        if (updateError) {
-          console.error('Error updating project:', updateError);
-        }
-      }
-
-      return newVariant;
-    } catch (error) {
-      console.error('Error generating video:', error);
-      const failedVariant: VideoAdVariant = {
-        id: crypto.randomUUID(),
-        platform,
-        headline: hook.text,
-        description: businessIdea.description,
-        status: 'failed',
-        error: error instanceof Error ? error.message : 'Failed to generate video'
-      };
-      setVideoVariants(prev => [...prev, failedVariant]);
-      throw error;
-    }
-  };
+  const queryClient = useQueryClient();
 
   const generateAds = async (selectedPlatform: string) => {
     setIsGenerating(true);
-    setGenerationStatus("Checking credits availability...");
+    setGenerationStatus("Initializing generation...");
     
     try {
-      const hasCredits = await checkCredits();
-      if (!hasCredits) return;
-
-      setGenerationStatus("Initializing ad generation...");
+      const { data: { user } } = await supabase.auth.getUser();
       
-      // Generate video ads if enabled
-      if (projectId && projectId !== 'new') {
-        const { data: project } = await supabase
-          .from('projects')
-          .select('video_ads_enabled, video_ad_preferences')
-          .eq('id', projectId)
-          .single();
-
-        if (project?.video_ads_enabled) {
-          setGenerationStatus("Generating video ads...");
-          for (const hook of adHooks) {
-            try {
-              await generateVideoAd(selectedPlatform, hook, {
-                width: 1920,
-                height: 1080,
-                label: "Landscape Video"
-              });
-            } catch (error) {
-              console.error('Error generating video for hook:', hook, error);
-              toast({
-                title: "Video Generation Error",
-                description: error instanceof Error ? error.message : "Failed to generate video",
-                variant: "destructive",
-              });
-            }
-          }
-        }
-      }
-
-      // Generate image ads
-      setGenerationStatus("Generating image ads...");
+      setGenerationStatus("Generating ads...");
+      
       const { data, error } = await supabase.functions.invoke('generate-ad-content', {
         body: {
           type: 'complete_ads',
@@ -139,71 +36,73 @@ export const useAdGeneration = (
           businessIdea,
           targetAudience,
           adHooks,
+          userId: user?.id || null,
+          numVariants: 10
         },
       });
 
-      if (error) throw error;
+      if (error) {
+        if (error.message.includes('No credits available')) {
+          toast({
+            title: "No credits available",
+            description: "Please upgrade your plan to continue generating ads.",
+            variant: "destructive",
+          });
+          navigate('/pricing');
+          return;
+        }
+        throw error;
+      }
 
-      // Process image variants
-      const variants = validateResponse(data);
-      setAdVariants(prev => [...prev, ...variants]);
+      console.log('Generated variants:', data.variants);
+
+      // Ensure we have exactly 10 variants
+      const variants = Array.from({ length: 10 }, (_, index) => ({
+        ...data.variants[index % data.variants.length],
+        id: crypto.randomUUID(),
+        platform: selectedPlatform,
+      }));
+
+      setAdVariants(variants);
+
+      // Only refresh credits for logged-in users
+      if (user) {
+        queryClient.invalidateQueries({ queryKey: ['subscription'] });
+        queryClient.invalidateQueries({ queryKey: ['free_tier_usage'] });
+      }
+
+      // Mark anonymous session as used
+      if (!user) {
+        const sessionId = localStorage.getItem('anonymous_session_id');
+        if (sessionId) {
+          await supabase
+            .from('anonymous_usage')
+            .update({ used: true })
+            .eq('session_id', sessionId);
+        }
+      }
 
       toast({
         title: "Ads generated successfully",
-        description: "Your new ad variants are ready!",
+        description: `Your new ${selectedPlatform} ad variants are ready!`,
       });
     } catch (error: any) {
       console.error('Ad generation error:', error);
+      
+      // More specific error message for anonymous users
+      const errorMessage = !user 
+        ? "Failed to generate ads. Please try again or register for more features."
+        : error.message || "Failed to generate ads. Please try again.";
+      
       toast({
         title: "Error generating ads",
-        description: error.message || "Failed to generate ads. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
       setIsGenerating(false);
       setGenerationStatus("");
     }
-  };
-
-  const checkCredits = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('User not authenticated');
-
-    const { data: creditCheck, error: creditsError } = await supabase.rpc(
-      'check_user_credits',
-      { p_user_id: user.id, required_credits: 1 }
-    );
-
-    if (creditsError) {
-      throw creditsError;
-    }
-
-    const result = creditCheck[0];
-    
-    if (!result.has_credits) {
-      toast({
-        title: "No credits available",
-        description: result.error_message,
-        variant: "destructive",
-      });
-      navigate('/pricing');
-      return false;
-    }
-
-    return true;
-  };
-
-  const validateResponse = (data: any) => {
-    if (!data) {
-      throw new Error("No data received from generation");
-    }
-
-    const variants = data.variants;
-    if (!Array.isArray(variants) || variants.length === 0) {
-      throw new Error("Invalid or empty variants received");
-    }
-
-    return variants;
   };
 
   return {
