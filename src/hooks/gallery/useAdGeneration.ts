@@ -26,6 +26,7 @@ export const useAdGeneration = (
     
     try {
       const { data: { user } } = await supabase.auth.getUser();
+      const sessionId = localStorage.getItem('anonymous_session_id');
       
       setGenerationStatus("Generating ads...");
       
@@ -37,6 +38,7 @@ export const useAdGeneration = (
           targetAudience,
           adHooks,
           userId: user?.id || null,
+          sessionId: !user ? sessionId : null,
           numVariants: 10
         },
       });
@@ -65,7 +67,6 @@ export const useAdGeneration = (
 
       setAdVariants(variants);
 
-      // Only refresh credits for logged-in users
       if (user) {
         queryClient.invalidateQueries({ queryKey: ['subscription'] });
         queryClient.invalidateQueries({ queryKey: ['free_tier_usage'] });
@@ -89,27 +90,23 @@ export const useAdGeneration = (
           }
         } catch (saveError) {
           console.error('Error saving progress:', saveError);
-          // Don't show error toast for save failures
         }
-      } else {
-        // For anonymous users, store in local storage
-        const sessionId = localStorage.getItem('anonymous_session_id');
-        if (sessionId) {
-          try {
-            await supabase
-              .from('anonymous_usage')
-              .update({ 
-                used: true,
-                wizard_data: {
-                  ...businessIdea,
-                  ...targetAudience,
-                  generated_ads: variants
-                }
-              })
-              .eq('session_id', sessionId);
-          } catch (anonymousError) {
-            console.error('Error updating anonymous usage:', anonymousError);
-          }
+      } else if (sessionId) {
+        // For anonymous users, update anonymous_usage
+        try {
+          await supabase
+            .from('anonymous_usage')
+            .update({ 
+              used: true,
+              wizard_data: {
+                business_idea: businessIdea,
+                target_audience: targetAudience,
+                generated_ads: variants
+              }
+            })
+            .eq('session_id', sessionId);
+        } catch (anonymousError) {
+          console.error('Error updating anonymous usage:', anonymousError);
         }
       }
 
@@ -124,9 +121,8 @@ export const useAdGeneration = (
       
       const isAnonymous = !await supabase.auth.getUser().then(({ data }) => data.user);
       
-      // More specific error message for anonymous users
       const errorMessage = isAnonymous
-        ? "You can try one more time as a guest, or register for unlimited generations."
+        ? "You can try generating ads as a guest. Register for unlimited generations."
         : error.message || "Failed to generate ads. Please try again.";
       
       toast({
