@@ -28,12 +28,12 @@ export const SavedAdsGallery = () => {
 
       console.log("Authenticated user found:", user.id);
 
-      // Only get saved ad feedback
       const { data: feedbackData, error: feedbackError } = await supabase
         .from('ad_feedback')
         .select('*')
         .eq('user_id', user.id)
-        .not('saved_images', 'is', null);
+        .not('saved_images', 'is', null)
+        .order('created_at', { ascending: false });
 
       if (feedbackError) {
         console.error('Error fetching feedback data:', feedbackError);
@@ -42,31 +42,35 @@ export const SavedAdsGallery = () => {
 
       console.log("Raw feedback data:", feedbackData);
 
-      // Convert feedback data
-      const feedbackAds: SavedAd[] = (feedbackData || []).filter((ad: AdFeedbackRow) => {
-        const hasImages = ad.saved_images !== null && 
-          (Array.isArray(ad.saved_images) ? ad.saved_images.length > 0 : typeof ad.saved_images === 'string');
-        return hasImages;
-      }).map((ad: AdFeedbackRow) => {
-        let images: string[] = [];
-        if (Array.isArray(ad.saved_images)) {
-          images = ad.saved_images.filter((img): img is string => 
-            typeof img === 'string' && img.length > 0
-          );
-        } else if (typeof ad.saved_images === 'string' && ad.saved_images.length > 0) {
-          images = [ad.saved_images];
-        }
-        
-        return {
-          id: ad.id,
-          saved_images: images,
-          headline: ad.headline || '',
-          primary_text: ad.primary_text || '',
-          rating: ad.rating || 0,
-          feedback: ad.feedback || '',
-          created_at: ad.created_at
-        };
-      });
+      // Improved data processing
+      const feedbackAds: SavedAd[] = (feedbackData || [])
+        .filter((ad: AdFeedbackRow) => {
+          // Ensure we have valid saved_images data
+          return ad.saved_images !== null && 
+            (Array.isArray(ad.saved_images) ? ad.saved_images.length > 0 : 
+             typeof ad.saved_images === 'string' && ad.saved_images.length > 0);
+        })
+        .map((ad: AdFeedbackRow) => {
+          // Process saved_images more carefully
+          let images: string[] = [];
+          if (Array.isArray(ad.saved_images)) {
+            images = ad.saved_images.filter((img): img is string => 
+              typeof img === 'string' && img.length > 0
+            );
+          } else if (typeof ad.saved_images === 'string' && ad.saved_images.length > 0) {
+            images = [ad.saved_images];
+          }
+          
+          return {
+            id: ad.id,
+            saved_images: images,
+            headline: ad.headline || '',
+            primary_text: ad.primary_text || '',
+            rating: ad.rating || 0,
+            feedback: ad.feedback || '',
+            created_at: ad.created_at
+          };
+        });
 
       console.log("Processed feedback ads:", feedbackAds);
       setSavedAds(feedbackAds);
