@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 export const useAdGeneration = (
   businessIdea: BusinessIdea,
@@ -19,6 +19,14 @@ export const useAdGeneration = (
   const navigate = useNavigate();
   const { projectId } = useParams();
   const queryClient = useQueryClient();
+  const [sessionId] = useState(() => localStorage.getItem('anonymous_session_id') || crypto.randomUUID());
+
+  // Ensure session ID is saved
+  useEffect(() => {
+    if (!localStorage.getItem('anonymous_session_id')) {
+      localStorage.setItem('anonymous_session_id', sessionId);
+    }
+  }, [sessionId]);
 
   const generateAds = async (selectedPlatform: string) => {
     setIsGenerating(true);
@@ -26,7 +34,6 @@ export const useAdGeneration = (
     
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      const sessionId = localStorage.getItem('anonymous_session_id');
       
       setGenerationStatus("Generating ads...");
       
@@ -91,20 +98,22 @@ export const useAdGeneration = (
         } catch (saveError) {
           console.error('Error saving progress:', saveError);
         }
-      } else if (sessionId) {
+      } else {
         // For anonymous users, update anonymous_usage
         try {
           await supabase
             .from('anonymous_usage')
-            .update({ 
+            .upsert({ 
+              session_id: sessionId,
               used: true,
               wizard_data: {
                 business_idea: businessIdea,
                 target_audience: targetAudience,
                 generated_ads: variants
               }
-            })
-            .eq('session_id', sessionId);
+            }, {
+              onConflict: 'session_id'
+            });
         } catch (anonymousError) {
           console.error('Error updating anonymous usage:', anonymousError);
         }
