@@ -21,7 +21,7 @@ export const useAdGeneration = (
   const [sessionId] = useState(() => localStorage.getItem('anonymous_session_id'));
 
   useEffect(() => {
-    console.log('Current session state:', {
+    console.log('[useAdGeneration] Current session state:', {
       sessionId,
       isGenerating,
       hasVariants: adVariants.length > 0
@@ -36,7 +36,7 @@ export const useAdGeneration = (
       const { data: { user } } = await supabase.auth.getUser();
       const currentSessionId = localStorage.getItem('anonymous_session_id');
       
-      console.log('Generation attempt:', {
+      console.log('[useAdGeneration] Generation attempt:', {
         hasUser: !!user,
         sessionId: currentSessionId,
         platform: selectedPlatform
@@ -49,7 +49,7 @@ export const useAdGeneration = (
 
       setGenerationStatus("Generating ads...");
       
-      const { data, error } = await supabase.functions.invoke('generate-ad-content', {
+      const requestConfig: any = {
         body: {
           type: 'complete_ads',
           platform: selectedPlatform,
@@ -59,14 +59,22 @@ export const useAdGeneration = (
           userId: user?.id || currentSessionId,
           isAnonymous: !user,
           numVariants: 10
-        },
-        headers: !user && currentSessionId ? {
+        }
+      };
+
+      // Add session ID to headers for anonymous users
+      if (!user && currentSessionId) {
+        requestConfig.headers = {
           'x-session-id': currentSessionId
-        } : undefined
-      });
+        };
+      }
+
+      console.log('[useAdGeneration] Sending request with config:', requestConfig);
+
+      const { data, error } = await supabase.functions.invoke('generate-ad-content', requestConfig);
 
       if (error) {
-        console.error('Generation error:', error);
+        console.error('[useAdGeneration] Generation error:', error);
         if (error.message.includes('No credits available')) {
           toast({
             title: "No credits available",
@@ -79,7 +87,7 @@ export const useAdGeneration = (
         throw error;
       }
 
-      console.log('Generated variants:', data.variants);
+      console.log('[useAdGeneration] Generated variants:', data.variants);
 
       // Ensure we have exactly 10 variants
       const variants = Array.from({ length: 10 }, (_, index) => ({
@@ -112,11 +120,11 @@ export const useAdGeneration = (
               });
           }
         } catch (saveError) {
-          console.error('Error saving progress:', saveError);
+          console.error('[useAdGeneration] Error saving progress:', saveError);
         }
       } else if (currentSessionId) {
         // For anonymous users, update anonymous_usage
-        console.log('Updating anonymous usage with generated ads');
+        console.log('[useAdGeneration] Updating anonymous usage with generated ads');
         try {
           const { error: anonymousError } = await supabase
             .from('anonymous_usage')
@@ -132,13 +140,13 @@ export const useAdGeneration = (
             .eq('session_id', currentSessionId);
 
           if (anonymousError) {
-            console.error('Error updating anonymous usage:', anonymousError);
+            console.error('[useAdGeneration] Error updating anonymous usage:', anonymousError);
             throw anonymousError;
           }
           
-          console.log('Anonymous usage updated successfully');
+          console.log('[useAdGeneration] Anonymous usage updated successfully');
         } catch (anonymousError) {
-          console.error('Error updating anonymous usage:', anonymousError);
+          console.error('[useAdGeneration] Error updating anonymous usage:', anonymousError);
         }
       }
 
@@ -149,7 +157,7 @@ export const useAdGeneration = (
           : `Your ${selectedPlatform} ad variants are ready! Register to save them.`,
       });
     } catch (error: any) {
-      console.error('Ad generation error:', error);
+      console.error('[useAdGeneration] Ad generation error:', error);
       
       const isAnonymous = !await supabase.auth.getUser().then(({ data }) => data.user);
       

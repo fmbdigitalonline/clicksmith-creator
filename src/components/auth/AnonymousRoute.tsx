@@ -12,12 +12,12 @@ export const AnonymousRoute = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     const checkAnonymousAccess = async () => {
       try {
-        console.log('Checking anonymous access...');
+        console.log('[AnonymousRoute] Starting anonymous access check...');
         
         // Check if user is already authenticated
         const { data: { session } } = await supabase.auth.getSession();
         if (session) {
-          console.log('User is authenticated, allowing access');
+          console.log('[AnonymousRoute] User is authenticated, allowing access');
           setCanAccess(true);
           setIsLoading(false);
           return;
@@ -28,9 +28,9 @@ export const AnonymousRoute = ({ children }: { children: React.ReactNode }) => {
         if (!sessionId) {
           sessionId = uuidv4();
           localStorage.setItem('anonymous_session_id', sessionId);
-          console.log('Created new anonymous session:', sessionId);
+          console.log('[AnonymousRoute] Created new anonymous session:', sessionId);
         } else {
-          console.log('Found existing anonymous session:', sessionId);
+          console.log('[AnonymousRoute] Found existing anonymous session:', sessionId);
         }
 
         // Check if this session has already been used
@@ -40,17 +40,20 @@ export const AnonymousRoute = ({ children }: { children: React.ReactNode }) => {
           .eq('session_id', sessionId)
           .single();
 
-        if (error && error.code !== 'PGRST116') {
-          console.error('Error checking anonymous usage:', error);
-          setCanAccess(false);
-          return;
+        if (error) {
+          console.log('[AnonymousRoute] Error checking usage:', error);
+          if (error.code !== 'PGRST116') { // Not found error
+            console.error('[AnonymousRoute] Unexpected error:', error);
+            setCanAccess(false);
+            return;
+          }
         }
 
-        console.log('Anonymous usage data:', usage);
+        console.log('[AnonymousRoute] Anonymous usage data:', usage);
 
         if (!usage) {
           // First time user - create usage record
-          console.log('Creating new anonymous usage record');
+          console.log('[AnonymousRoute] Creating new anonymous usage record');
           const { error: insertError } = await supabase
             .from('anonymous_usage')
             .insert([{ 
@@ -61,19 +64,19 @@ export const AnonymousRoute = ({ children }: { children: React.ReactNode }) => {
             }]);
 
           if (insertError) {
-            console.error('Error creating anonymous usage:', insertError);
+            console.error('[AnonymousRoute] Error creating anonymous usage:', insertError);
             setCanAccess(false);
             return;
           }
-          console.log('Anonymous usage record created successfully');
+          console.log('[AnonymousRoute] Anonymous usage record created successfully');
           setCanAccess(true);
         } else if (!usage.used) {
           // Session exists but hasn't been used yet
-          console.log('Session exists but has not been used');
+          console.log('[AnonymousRoute] Session exists but has not been used');
           setCanAccess(true);
         } else {
           // Session has been used
-          console.log('Session has been used, redirecting to login');
+          console.log('[AnonymousRoute] Session has been used, redirecting to login');
           toast({
             title: "Trial Expired",
             description: "Please sign up to continue using the app.",
@@ -82,7 +85,7 @@ export const AnonymousRoute = ({ children }: { children: React.ReactNode }) => {
           setCanAccess(false);
         }
       } catch (error) {
-        console.error('Error in anonymous access check:', error);
+        console.error('[AnonymousRoute] Error in anonymous access check:', error);
         setCanAccess(false);
       } finally {
         setIsLoading(false);
