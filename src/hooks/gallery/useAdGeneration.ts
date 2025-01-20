@@ -33,7 +33,13 @@ export const useAdGeneration = (
     
     try {
       const { data: { user } } = await supabase.auth.getUser();
+      const sessionId = localStorage.getItem('anonymous_session_id');
       
+      // Check for either authenticated user or valid anonymous session
+      if (!user && !sessionId) {
+        throw new Error('No valid user session found');
+      }
+
       setGenerationStatus("Generating ads...");
       
       const { data, error } = await supabase.functions.invoke('generate-ad-content', {
@@ -43,8 +49,8 @@ export const useAdGeneration = (
           businessIdea,
           targetAudience,
           adHooks,
-          userId: user?.id || null,
-          sessionId: !user ? sessionId : null,
+          userId: user?.id || sessionId, // Use sessionId for anonymous users
+          isAnonymous: !user,  // Add flag to indicate anonymous status
           numVariants: 10
         },
         headers: !user ? {
