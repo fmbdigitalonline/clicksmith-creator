@@ -45,7 +45,17 @@ const AdWizard = () => {
     const loadProgress = async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
+        
+        // Show auto-save message for anonymous users
+        if (!user) {
+          toast({
+            title: "Auto-save disabled",
+            description: "Register or log in to automatically save your progress and generated ads.",
+            duration: 6000,
+          });
+          setHasLoadedInitialAds(true);
+          return;
+        }
 
         if (projectId && projectId !== 'new') {
           const { data: project, error: projectError } = await supabase
