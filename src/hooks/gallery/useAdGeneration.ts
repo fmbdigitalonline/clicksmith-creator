@@ -1,5 +1,4 @@
 import { BusinessIdea, TargetAudience, AdHook } from "@/types/adWizard";
-import { VideoAdVariant } from "@/types/videoAdTypes";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
@@ -13,7 +12,7 @@ export const useAdGeneration = (
 ) => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [adVariants, setAdVariants] = useState<any[]>([]);
-  const [videoVariants, setVideoVariants] = useState<VideoAdVariant[]>([]);
+  const [videoVariants, setVideoVariants] = useState<any[]>([]);
   const [generationStatus, setGenerationStatus] = useState<string>("");
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -48,6 +47,9 @@ export const useAdGeneration = (
           sessionId: !user ? sessionId : null,
           numVariants: 10
         },
+        headers: !user ? {
+          'x-session-id': sessionId
+        } : undefined
       });
 
       if (error) {
@@ -77,46 +79,6 @@ export const useAdGeneration = (
       if (user) {
         queryClient.invalidateQueries({ queryKey: ['subscription'] });
         queryClient.invalidateQueries({ queryKey: ['free_tier_usage'] });
-
-        // Save progress for authenticated users
-        try {
-          if (projectId && projectId !== 'new') {
-            await supabase
-              .from('projects')
-              .update({ generated_ads: variants })
-              .eq('id', projectId);
-          } else {
-            await supabase
-              .from('wizard_progress')
-              .upsert({
-                user_id: user.id,
-                generated_ads: variants
-              }, {
-                onConflict: 'user_id'
-              });
-          }
-        } catch (saveError) {
-          console.error('Error saving progress:', saveError);
-        }
-      } else {
-        // For anonymous users, update anonymous_usage
-        try {
-          await supabase
-            .from('anonymous_usage')
-            .upsert({ 
-              session_id: sessionId,
-              used: true,
-              wizard_data: {
-                business_idea: businessIdea,
-                target_audience: targetAudience,
-                generated_ads: variants
-              }
-            }, {
-              onConflict: 'session_id'
-            });
-        } catch (anonymousError) {
-          console.error('Error updating anonymous usage:', anonymousError);
-        }
       }
 
       toast({
