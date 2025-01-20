@@ -43,6 +43,7 @@ const AdGalleryStep = ({
   const [selectedFormat, setSelectedFormat] = useState(AD_FORMATS[0]);
   const [hasGeneratedInitialAds, setHasGeneratedInitialAds] = useState(false);
   const { projectId } = useParams();
+
   const {
     platform,
     showPlatformChangeDialog,
@@ -78,21 +79,30 @@ const AdGalleryStep = ({
 
   // Effect for initial ad generation
   useEffect(() => {
-    if (!hasLoadedInitialAds || hasGeneratedInitialAds) return;
+    const generateInitialAds = async () => {
+      if (!hasLoadedInitialAds || hasGeneratedInitialAds) return;
 
-    const isNewProject = projectId === 'new';
-    const existingPlatformAds = generatedAds.filter(ad => ad.platform === platform);
-    const shouldGenerateAds = isNewProject || existingPlatformAds.length === 0;
+      const isNewProject = !projectId || projectId === 'new';
+      const existingPlatformAds = generatedAds.filter(ad => ad.platform === platform);
+      const shouldGenerateAds = isNewProject || existingPlatformAds.length === 0;
 
-    if (shouldGenerateAds) {
-      console.log('Generating initial ads:', { isNewProject, platform, existingAdsCount: existingPlatformAds.length });
-      handleGenerateAds(platform);
-    }
+      if (shouldGenerateAds) {
+        console.log('Generating initial ads:', { 
+          isNewProject, 
+          platform, 
+          existingAdsCount: existingPlatformAds.length,
+          hasLoadedInitialAds,
+          hasGeneratedInitialAds 
+        });
+        await handleGenerateAds(platform);
+      }
 
-    setHasGeneratedInitialAds(true);
+      setHasGeneratedInitialAds(true);
+    };
+
+    generateInitialAds();
   }, [hasLoadedInitialAds, hasGeneratedInitialAds, platform, projectId, generatedAds, handleGenerateAds]);
 
-  // Effect for managing generated ads state
   useEffect(() => {
     if (!onAdsGenerated || adVariants.length === 0) return;
 
