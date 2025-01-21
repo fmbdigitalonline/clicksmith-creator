@@ -45,7 +45,7 @@ serve(async (req) => {
       throw new Error('Missing required environment variables for Supabase client');
     }
 
-    // Create a Supabase client with the service role key and explicitly disable auth features
+    // Create a Supabase admin client with service role key
     const supabaseAdmin = createClient(
       supabaseUrl,
       supabaseServiceRoleKey,
@@ -90,11 +90,10 @@ serve(async (req) => {
       hasTargetAudience: !!targetAudience
     });
 
-    // Handle anonymous users
+    // Handle anonymous users with session tracking
     if (isAnonymous && sessionId) {
       console.log('[generate-ad-content] Processing anonymous request:', { sessionId });
       
-      // Use the admin client to check anonymous usage
       const { data: anonymousUsage, error: usageError } = await supabaseAdmin
         .from('anonymous_usage')
         .select('used, completed')
@@ -114,9 +113,10 @@ serve(async (req) => {
       }
     }
 
-    // Skip credit check for anonymous users
+    // For authenticated users, verify credits using service role
     if (userId && !isAnonymous && type !== 'audience_analysis') {
       console.log('[generate-ad-content] Checking credits for user:', userId);
+      
       const { data: creditCheck, error: creditError } = await supabaseAdmin.rpc(
         'check_user_credits',
         { p_user_id: userId, required_credits: 1 }
@@ -148,6 +148,7 @@ serve(async (req) => {
       }
     }
 
+    // Process the request based on type
     let responseData;
     console.log('[generate-ad-content] Processing request type:', type);
     
@@ -158,7 +159,6 @@ serve(async (req) => {
         const campaignData = await generateCampaign(businessIdea, targetAudience);
         const imageData = await generateImagePrompts(businessIdea, targetAudience, campaignData.campaign);
         
-        // Generate 10 unique variants
         const variants = Array.from({ length: 10 }, (_, index) => {
           const format = PLATFORM_FORMATS[platform as keyof typeof PLATFORM_FORMATS];
           return {
@@ -171,7 +171,7 @@ serve(async (req) => {
           };
         });
 
-        // If this is an anonymous user, update their usage status
+        // Update anonymous usage if applicable
         if (isAnonymous && sessionId) {
           const { error: updateError } = await supabaseAdmin
             .from('anonymous_usage')
@@ -188,7 +188,6 @@ serve(async (req) => {
 
           if (updateError) {
             console.error('[generate-ad-content] Error updating anonymous usage:', updateError);
-            // Don't throw here, still return the variants
           }
         }
 
