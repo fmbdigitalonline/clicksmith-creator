@@ -109,21 +109,30 @@ export const useAdGeneration = (
 
         if (isAnonymousMode) {
           console.log('[useAdGeneration] Updating anonymous usage with generated ads');
-          const { error: anonymousError } = await supabase
-            .from('anonymous_usage')
-            .update({ 
-              used: true,
-              wizard_data: {
-                business_idea: businessIdea,
-                target_audience: targetAudience,
-                generated_ads: variants
-              }
-            })
-            .eq('session_id', sessionId);
+          const response = await fetch(
+            `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/anonymous_usage`,
+            {
+              method: 'PATCH',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+                'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+                'Prefer': 'return=minimal'
+              },
+              body: JSON.stringify({ 
+                used: true,
+                wizard_data: {
+                  business_idea: businessIdea,
+                  target_audience: targetAudience,
+                  generated_ads: variants
+                }
+              })
+            }
+          );
 
-          if (anonymousError) {
-            console.error('[useAdGeneration] Error updating anonymous usage:', anonymousError);
-            throw anonymousError;
+          if (!response.ok) {
+            console.error('[useAdGeneration] Error updating anonymous usage:', response.statusText);
+            throw new Error('Failed to update anonymous usage');
           }
           
           console.log('[useAdGeneration] Anonymous usage updated successfully');
