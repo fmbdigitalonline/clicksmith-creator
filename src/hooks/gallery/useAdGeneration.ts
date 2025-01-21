@@ -54,7 +54,8 @@ export const useAdGeneration = (
 
         console.log('[useAdGeneration] Anonymous session data:', anonymousData);
 
-        if (anonymousData?.used) {
+        // Only check if used is true, don't update it yet
+        if (anonymousData?.used === true) {
           toast({
             title: "Trial Complete",
             description: "Please sign up to continue using the app.",
