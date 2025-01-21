@@ -17,7 +17,8 @@ type WizardData = {
   generated_ads?: any[];
 };
 
-const AdWizard = () => {
+const WizardContainer = () => {
+  const { currentStep, canNavigateToStep, handleStepClick } = useWizardState();
   const [showCreateProject, setShowCreateProject] = useState(false);
   const [videoAdsEnabled, setVideoAdsEnabled] = useState(false);
   const [generatedAds, setGeneratedAds] = useState<any[]>([]);
@@ -27,7 +28,6 @@ const AdWizard = () => {
   const navigate = useNavigate();
   const { projectId } = useParams();
   const { toast } = useToast();
-  const { currentStep, canNavigateToStep, handleStepClick } = useWizardState();
 
   useEffect(() => {
     const checkUser = async () => {
@@ -299,42 +299,48 @@ const AdWizard = () => {
   };
 
   return (
-    <WizardStateProvider>
-      <div className="container max-w-6xl mx-auto px-4 py-8">
-        <WizardHeader
-          title="Idea Pilot"
-          description="Quickly go from idea to ready-to-run ads by testing different audience segments with AI-powered social media ad campaigns."
-        />
+    <div className="container max-w-6xl mx-auto px-4 py-8">
+      <WizardHeader
+        title="Idea Pilot"
+        description="Quickly go from idea to ready-to-run ads by testing different audience segments with AI-powered social media ad campaigns."
+      />
 
-        <div className="mb-8">
-          <WizardProgress 
-            currentStep={currentStep}
-            onStepClick={handleStepClick}
-            canNavigateToStep={canNavigateToStep}
-          />
-        </div>
-
-        <WizardControls
-          videoAdsEnabled={videoAdsEnabled}
-          onVideoAdsToggle={handleVideoAdsToggle}
-        />
-
-        <WizardContent
-          currentUser={currentUser}
-          videoAdsEnabled={videoAdsEnabled}
-          generatedAds={generatedAds}
-          onAdsGenerated={handleAdsGenerated}
-          hasLoadedInitialAds={hasLoadedInitialAds}
-          onCreateProject={handleCreateProject}
-        />
-
-        <CreateProjectDialog
-          open={showCreateProject}
-          onOpenChange={setShowCreateProject}
-          onSuccess={handleProjectCreated}
-          initialBusinessIdea={null}
+      <div className="mb-8">
+        <WizardProgress 
+          currentStep={currentStep}
+          onStepClick={handleStepClick}
+          canNavigateToStep={canNavigateToStep}
         />
       </div>
+
+      <WizardControls
+        videoAdsEnabled={videoAdsEnabled}
+        onVideoAdsToggle={handleVideoAdsToggle}
+      />
+
+      <WizardContent
+        currentUser={currentUser}
+        videoAdsEnabled={videoAdsEnabled}
+        generatedAds={generatedAds}
+        onAdsGenerated={handleAdsGenerated}
+        hasLoadedInitialAds={hasLoadedInitialAds}
+        onCreateProject={handleCreateProject}
+      />
+
+      <CreateProjectDialog
+        open={showCreateProject}
+        onOpenChange={setShowCreateProject}
+        onSuccess={handleProjectCreated}
+        initialBusinessIdea={null}
+      />
+    </div>
+  );
+};
+
+const AdWizard = () => {
+  return (
+    <WizardStateProvider>
+      <WizardContainer />
     </WizardStateProvider>
   );
 };
