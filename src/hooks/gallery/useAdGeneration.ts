@@ -25,25 +25,12 @@ export const useAdGeneration = (
     setGenerationStatus("Initializing generation...");
     
     try {
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError) throw userError;
-      
-      if (!user) {
-        throw new Error('User must be logged in to generate ads');
-      }
+      const { data: { user } } = await supabase.auth.getUser();
+      const sessionId = localStorage.getItem('anonymous_session_id');
+      const isAnonymous = !user && sessionId;
 
       setGenerationStatus("Generating ads...");
       
-      console.log('[useAdGeneration] Preparing to invoke generate-ad-content with params:', {
-        type: 'complete_ads',
-        platform: selectedPlatform,
-        businessIdea,
-        targetAudience,
-        adHooksCount: adHooks?.length,
-        userId: user?.id,
-        timestamp: new Date().toISOString()
-      });
-
       const { data, error } = await supabase.functions.invoke('generate-ad-content', {
         body: {
           type: 'complete_ads',
@@ -51,17 +38,10 @@ export const useAdGeneration = (
           businessIdea,
           targetAudience,
           adHooks,
-          userId: user.id,
-          numVariants: 10
+          userId: user?.id,
+          isAnonymous,
+          sessionId
         },
-      });
-
-      console.log('[useAdGeneration] Response from generate-ad-content:', {
-        success: !error,
-        hasData: !!data,
-        error: error?.message,
-        variantsCount: data?.variants?.length,
-        timestamp: new Date().toISOString()
       });
 
       if (error) {
@@ -77,11 +57,7 @@ export const useAdGeneration = (
         throw error;
       }
 
-      console.log('[useAdGeneration] Processing variants:', {
-        receivedCount: data.variants.length,
-        firstVariant: data.variants[0]?.id,
-        platform: selectedPlatform
-      });
+      console.log('Generated variants:', data.variants);
 
       // Ensure we have exactly 10 variants
       const variants = Array.from({ length: 10 }, (_, index) => ({
@@ -92,20 +68,18 @@ export const useAdGeneration = (
 
       setAdVariants(variants);
 
-      // Refresh credits display
-      queryClient.invalidateQueries({ queryKey: ['subscription'] });
-      queryClient.invalidateQueries({ queryKey: ['free_tier_usage'] });
+      // Refresh credits display only for authenticated users
+      if (user) {
+        queryClient.invalidateQueries({ queryKey: ['subscription'] });
+        queryClient.invalidateQueries({ queryKey: ['free_tier_usage'] });
+      }
 
       toast({
         title: "Ads generated successfully",
         description: `Your new ${selectedPlatform} ad variants are ready!`,
       });
     } catch (error: any) {
-      console.error('[useAdGeneration] Error during ad generation:', {
-        error: error.message,
-        stack: error.stack,
-        timestamp: new Date().toISOString()
-      });
+      console.error('Ad generation error:', error);
       toast({
         title: "Error generating ads",
         description: error.message || "Failed to generate ads. Please try again.",
