@@ -54,8 +54,15 @@ const AdWizard = () => {
   useEffect(() => {
     const loadProgress = async () => {
       try {
+        console.log('[AdWizard] Starting loadProgress...');
         const { data: { user } } = await supabase.auth.getUser();
         let sessionId = localStorage.getItem('anonymous_session_id');
+        
+        console.log('[AdWizard] Initial check:', { 
+          hasUser: !!user, 
+          sessionId,
+          hasLoadedInitialAds
+        });
         
         // Step 1: Handle anonymous session initialization
         if (!user) {
@@ -78,6 +85,11 @@ const AdWizard = () => {
             console.error('[AdWizard] Error checking session:', checkError);
             throw checkError;
           }
+
+          console.log('[AdWizard] Existing session check:', { 
+            hasExistingSession: !!existingSession,
+            sessionData: existingSession 
+          });
 
           if (!existingSession) {
             console.log('[AdWizard] Creating new anonymous session');
@@ -117,13 +129,19 @@ const AdWizard = () => {
             
             if (sessionData.wizard_data && typeof sessionData.wizard_data === 'object') {
               const wizardData = sessionData.wizard_data as WizardData;
-              if (wizardData.generated_ads) {
+              console.log('[AdWizard] Parsed wizard data:', wizardData);
+              
+              if (Array.isArray(wizardData.generated_ads)) {
                 console.log('[AdWizard] Loading anonymous ads:', wizardData.generated_ads);
                 setGeneratedAds(wizardData.generated_ads);
-              } else if (wizardData.wizard_data?.generated_ads) {
+              } else if (wizardData.wizard_data?.generated_ads && Array.isArray(wizardData.wizard_data.generated_ads)) {
                 console.log('[AdWizard] Loading nested anonymous ads:', wizardData.wizard_data.generated_ads);
                 setGeneratedAds(wizardData.wizard_data.generated_ads);
+              } else {
+                console.log('[AdWizard] No valid generated ads found in wizard data');
               }
+            } else {
+              console.log('[AdWizard] Invalid or missing wizard data structure');
             }
 
             // Only show the toast if the session exists and hasn't been used
