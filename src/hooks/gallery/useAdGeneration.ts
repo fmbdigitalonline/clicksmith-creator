@@ -34,6 +34,22 @@ export const useAdGeneration = (
       }
 
       setGenerationStatus("Generating ads...");
+
+      console.log('About to call generate-ad-content with:', {
+        selectedPlatform,
+        user: user?.id,
+        sessionId,
+        isAnonymous,
+        businessIdea: {
+          ...businessIdea,
+          description: businessIdea.description?.substring(0, 50) + '...'
+        },
+        targetAudience: {
+          ...targetAudience,
+          description: targetAudience.description?.substring(0, 50) + '...'
+        },
+        adHooksCount: adHooks?.length
+      });
       
       const { data, error } = await supabase.functions.invoke('generate-ad-content', {
         body: {
