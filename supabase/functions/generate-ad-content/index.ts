@@ -52,24 +52,27 @@ serve(async (req) => {
     }
 
     const { type, businessIdea, targetAudience, platform = 'facebook', userId, sessionId, isAnonymous } = body;
+    const headers = req.headers;
+    const anonymousSessionId = headers.get('x-session-id');
 
     console.log('[generate-ad-content] Request details:', {
       type,
       platform,
       userId,
       sessionId,
+      anonymousSessionId,
       isAnonymous,
       hasBusinessIdea: !!businessIdea,
       hasTargetAudience: !!targetAudience
     });
 
     // Handle anonymous users
-    if (isAnonymous && sessionId) {
-      console.log('[generate-ad-content] Processing anonymous request:', { sessionId });
+    if (isAnonymous && anonymousSessionId) {
+      console.log('[generate-ad-content] Processing anonymous request:', { anonymousSessionId });
       const { data: anonymousUsage, error: usageError } = await supabase
         .from('anonymous_usage')
         .select('used, completed')
-        .eq('session_id', sessionId)
+        .eq('session_id', anonymousSessionId)
         .single();
 
       if (usageError) {
