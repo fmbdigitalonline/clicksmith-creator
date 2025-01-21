@@ -19,6 +19,21 @@ export const useAdWizardState = () => {
   const { toast } = useToast();
   const { projectId } = useParams();
 
+  const canNavigateToStep = useCallback((step: number): boolean => {
+    switch (step) {
+      case 1:
+        return true;
+      case 2:
+        return !!businessIdea;
+      case 3:
+        return !!businessIdea && !!targetAudience;
+      case 4:
+        return !!businessIdea && !!targetAudience && !!audienceAnalysis;
+      default:
+        return false;
+    }
+  }, [businessIdea, targetAudience, audienceAnalysis]);
+
   const handleStepClick = useCallback((step: number) => {
     if (canNavigateToStep(step)) {
       setCurrentStep(step);
@@ -250,21 +265,6 @@ export const useAdWizardState = () => {
       });
     }
   }, [projectId, toast]);
-
-  const canNavigateToStep = useCallback((step: number): boolean => {
-    switch (step) {
-      case 1:
-        return true;
-      case 2:
-        return !!businessIdea;
-      case 3:
-        return !!businessIdea && !!targetAudience;
-      case 4:
-        return !!businessIdea && !!targetAudience && !!audienceAnalysis;
-      default:
-        return false;
-    }
-  }, [businessIdea, targetAudience, audienceAnalysis]);
 
   return {
     currentStep,
