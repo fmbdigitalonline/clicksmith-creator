@@ -1,10 +1,24 @@
 import { BusinessIdea, TargetAudience, AdHook } from "@/types/adWizard";
 import { VideoAdVariant } from "@/types/videoAdTypes";
 import { supabase } from "@/integrations/supabase/client";
+import { createClient } from '@supabase/supabase-js';
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
 import { useState } from "react";
+
+// Create anonymous-only client
+const anonSupabase = createClient(
+  "https://xorlfvflpihtafugltni.supabase.co",
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhvcmxmdmZscGlodGFmdWdsdG5pIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzMyMzA3NDksImV4cCI6MjA0ODgwNjc0OX0.tuvMctblG6Oo6u9C41sBTaqCTbuKAdGLC4C5ZsLCc60",
+  {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+    }
+  }
+);
 
 export const useAdGeneration = (
   businessIdea: BusinessIdea,
@@ -36,8 +50,8 @@ export const useAdGeneration = (
 
       setGenerationStatus("Generating ads...");
       
-      // Create an anonymous-only client for function invocation
-      const anonClient = supabase.functions;
+      // Use different client based on mode
+      const client = isAnonymousMode ? anonSupabase : supabase;
       
       const requestConfig = {
         body: {
@@ -46,21 +60,16 @@ export const useAdGeneration = (
           businessIdea,
           targetAudience,
           adHooks,
-          isAnonymous: true,
+          isAnonymous: isAnonymousMode,
           sessionId,
           userId: null,
           numVariants: 10
-        },
-        // Add headers to bypass auth check
-        headers: {
-          'Authorization': 'Anonymous',
-          'X-Client-Info': 'anonymous-user'
         }
       };
 
       console.log('[useAdGeneration] Sending request with config:', requestConfig);
 
-      const { data, error } = await anonClient.invoke('generate-ad-content', requestConfig);
+      const { data, error } = await client.functions.invoke('generate-ad-content', requestConfig);
 
       if (error) {
         console.error('[useAdGeneration] Generation error:', error);
