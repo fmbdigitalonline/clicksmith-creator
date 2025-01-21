@@ -88,7 +88,7 @@ serve(async (req) => {
       }
     }
 
-    // Check and deduct credits for authenticated users only
+    // Skip credit check for anonymous users
     if (userId && !isAnonymous && type !== 'audience_analysis') {
       console.log('[generate-ad-content] Checking credits for user:', userId);
       const { data: creditCheck, error: creditError } = await supabaseAdmin.rpc(
