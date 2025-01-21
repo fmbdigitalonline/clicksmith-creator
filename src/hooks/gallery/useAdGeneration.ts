@@ -115,8 +115,9 @@ export const useAdGeneration = (
           });
         }
 
-        queryClient.invalidateQueries({ queryKey: ['subscription'] });
-        queryClient.invalidateQueries({ queryKey: ['free_tier_usage'] });
+        // Invalidate queries after successful generation
+        await queryClient.invalidateQueries({ queryKey: ['subscription'] });
+        await queryClient.invalidateQueries({ queryKey: ['free_tier_usage'] });
 
         toast({
           title: "Ads Generated Successfully",
