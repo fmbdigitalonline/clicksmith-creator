@@ -55,26 +55,28 @@ const AdWizard = () => {
     const loadProgress = async () => {
       try {
         console.log('[AdWizard] Starting loadProgress...');
-        const { data: { user } } = await supabase.auth.getUser();
         let sessionId = localStorage.getItem('anonymous_session_id');
+        
+        // Initialize anonymous session if needed
+        if (!sessionId) {
+          sessionId = crypto.randomUUID();
+          localStorage.setItem('anonymous_session_id', sessionId);
+          console.log('[AdWizard] Created new anonymous session:', sessionId);
+        }
+
+        // Check authentication status
+        const { data: { user } } = await supabase.auth.getUser();
         
         console.log('[AdWizard] Initial check:', { 
           hasUser: !!user, 
           sessionId,
           hasLoadedInitialAds
         });
-        
-        // Step 1: Handle anonymous session initialization
-        if (!user) {
-          if (!sessionId) {
-            sessionId = crypto.randomUUID();
-            localStorage.setItem('anonymous_session_id', sessionId);
-            console.log('[AdWizard] Created new anonymous session:', sessionId);
-          }
 
+        if (!user) {
           console.log('[AdWizard] Anonymous user detected, initializing session:', sessionId);
           
-          // Step 2: Initialize or get anonymous session with proper locking
+          // Initialize or get anonymous session
           const { data: existingSession, error: checkError } = await supabase
             .from('anonymous_usage')
             .select('*')
@@ -85,11 +87,6 @@ const AdWizard = () => {
             console.error('[AdWizard] Error checking session:', checkError);
             throw checkError;
           }
-
-          console.log('[AdWizard] Existing session check:', { 
-            hasExistingSession: !!existingSession,
-            sessionData: existingSession 
-          });
 
           if (!existingSession) {
             console.log('[AdWizard] Creating new anonymous session');
@@ -112,53 +109,30 @@ const AdWizard = () => {
             }
           }
 
-          // Step 3: Get the latest session data
-          const { data: sessionData, error: sessionError } = await supabase
+          // Get the latest session data
+          const { data: sessionData } = await supabase
             .from('anonymous_usage')
             .select('*')
             .eq('session_id', sessionId)
             .maybeSingle();
 
-          if (sessionError) {
-            console.error('[AdWizard] Error fetching session:', sessionError);
-            throw sessionError;
-          }
-
-          if (sessionData) {
-            console.log('[AdWizard] Session data loaded:', sessionData);
-            
-            if (sessionData.wizard_data && typeof sessionData.wizard_data === 'object') {
-              const wizardData = sessionData.wizard_data as WizardData;
-              console.log('[AdWizard] Parsed wizard data:', wizardData);
-              
-              if (Array.isArray(wizardData.generated_ads)) {
-                console.log('[AdWizard] Loading anonymous ads:', wizardData.generated_ads);
-                setGeneratedAds(wizardData.generated_ads);
-              } else if (wizardData.wizard_data?.generated_ads && Array.isArray(wizardData.wizard_data.generated_ads)) {
-                console.log('[AdWizard] Loading nested anonymous ads:', wizardData.wizard_data.generated_ads);
-                setGeneratedAds(wizardData.wizard_data.generated_ads);
-              } else {
-                console.log('[AdWizard] No valid generated ads found in wizard data');
-              }
-            } else {
-              console.log('[AdWizard] Invalid or missing wizard data structure');
-            }
-
-            // Only show the toast if the session exists and hasn't been used
-            if (!sessionData.used) {
-              toast({
-                title: "Auto-save disabled",
-                description: "Register or log in to automatically save your progress and generated ads.",
-                duration: 6000,
-              });
+          if (sessionData?.wizard_data) {
+            const wizardData = sessionData.wizard_data as WizardData;
+            if (Array.isArray(wizardData.generated_ads)) {
+              setGeneratedAds(wizardData.generated_ads);
+            } else if (wizardData.wizard_data?.generated_ads) {
+              setGeneratedAds(wizardData.wizard_data.generated_ads);
             }
           }
-          
-          setHasLoadedInitialAds(true);
-          return;
-        }
 
-        if (projectId && projectId !== 'new') {
+          if (sessionData && !sessionData.used) {
+            toast({
+              title: "Auto-save disabled",
+              description: "Register or log in to automatically save your progress and generated ads.",
+              duration: 6000,
+            });
+          }
+        } else if (projectId && projectId !== 'new') {
           const { data: project, error: projectError } = await supabase
             .from('projects')
             .select('generated_ads, video_ads_enabled')
@@ -172,42 +146,27 @@ const AdWizard = () => {
               description: "We had trouble loading your project data. Please try again.",
               variant: "destructive",
             });
-            setHasLoadedInitialAds(true);
-            return;
-          }
-
-          if (!project) {
-            navigate('/ad-wizard/new');
-          } else {
+          } else if (project) {
             setVideoAdsEnabled(project.video_ads_enabled || false);
             if (project.generated_ads && Array.isArray(project.generated_ads)) {
-              console.log('Loading saved ads from project:', project.generated_ads);
               setGeneratedAds(project.generated_ads);
             }
+          } else {
+            navigate('/ad-wizard/new');
           }
         } else {
-          const { data: wizardData, error: wizardError } = await supabase
+          const { data: wizardData } = await supabase
             .from('wizard_progress')
             .select('*')
             .eq('user_id', user.id)
             .maybeSingle();
 
-          if (wizardError && wizardError.code !== 'PGRST116') {
-            console.error('Error loading wizard progress:', wizardError);
-            toast({
-              title: "Couldn't load your progress",
-              description: "We had trouble loading your previous work. Starting fresh.",
-              variant: "destructive",
-            });
-          }
-
           if (wizardData?.generated_ads && Array.isArray(wizardData.generated_ads)) {
-            console.log('Loading saved ads from wizard progress:', wizardData.generated_ads);
             setGeneratedAds(wizardData.generated_ads);
           }
         }
-        setHasLoadedInitialAds(true);
 
+        setHasLoadedInitialAds(true);
       } catch (error) {
         console.error('[AdWizard] Error in loadProgress:', error);
         toast({
