@@ -1,22 +1,16 @@
-import { useAdWizardState } from "@/hooks/useAdWizardState";
-import IdeaStep from "./steps/BusinessIdeaStep";
-import AudienceStep from "./steps/AudienceStep";
-import AudienceAnalysisStep from "./steps/AudienceAnalysisStep";
-import AdGalleryStep from "./steps/AdGalleryStep";
-import RegistrationWall from "./steps/auth/RegistrationWall";
-import WizardHeader from "./wizard/WizardHeader";
-import WizardProgress from "./WizardProgress";
-import { useState, useMemo, useEffect } from "react";
-import CreateProjectDialog from "./projects/CreateProjectDialog";
+import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Toggle } from "./ui/toggle";
-import { Video, Image } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { Database } from "@/integrations/supabase/types";
 import { useToast } from "@/hooks/use-toast";
 import { v4 as uuidv4 } from 'uuid';
+import WizardHeader from "./wizard/WizardHeader";
+import WizardProgress from "./WizardProgress";
+import CreateProjectDialog from "./projects/CreateProjectDialog";
+import { WizardStateProvider } from "./wizard/WizardStateProvider";
+import { WizardControls } from "./wizard/WizardControls";
+import { WizardContent } from "./wizard/WizardContent";
+import type { Database } from "@/integrations/supabase/types";
 
-type WizardProgress = Database['public']['Tables']['wizard_progress']['Row'];
 type WizardData = {
   business_idea?: any;
   target_audience?: any;
@@ -39,7 +33,6 @@ const AdWizard = () => {
       const { data: { user } } = await supabase.auth.getUser();
       setCurrentUser(user);
 
-      // If user just registered, try to migrate anonymous data
       if (user) {
         const sessionId = localStorage.getItem('anonymous_session_id');
         if (sessionId) {
@@ -51,7 +44,6 @@ const AdWizard = () => {
 
           if (anonData?.wizard_data) {
             setAnonymousData(anonData.wizard_data);
-            // Clear the anonymous session ID after migration
             localStorage.removeItem('anonymous_session_id');
           }
         }
@@ -59,21 +51,6 @@ const AdWizard = () => {
     };
     checkUser();
   }, []);
-
-  const {
-    currentStep,
-    businessIdea,
-    targetAudience,
-    audienceAnalysis,
-    selectedHooks,
-    handleIdeaSubmit,
-    handleAudienceSelect,
-    handleAnalysisComplete,
-    handleBack,
-    handleStartOver,
-    canNavigateToStep,
-    setCurrentStep,
-  } = useAdWizardState();
 
   useEffect(() => {
     const loadProgress = async () => {
@@ -141,7 +118,6 @@ const AdWizard = () => {
           return;
         }
 
-        // If we have anonymous data to migrate
         if (anonymousData) {
           console.log('[AdWizard] Migrating anonymous data to user account');
           const { error: wizardError } = await supabase
@@ -321,91 +297,40 @@ const AdWizard = () => {
     }
   };
 
-  const currentStepComponent = useMemo(() => {
-    switch (currentStep) {
-      case 1:
-        return <IdeaStep onNext={handleIdeaSubmit} />;
-      case 2:
-        return businessIdea ? (
-          <AudienceStep
-            businessIdea={businessIdea}
-            onNext={handleAudienceSelect}
-            onBack={handleBack}
-          />
-        ) : null;
-      case 3:
-        return businessIdea && targetAudience ? (
-          <AudienceAnalysisStep
-            businessIdea={businessIdea}
-            targetAudience={targetAudience}
-            onNext={handleAnalysisComplete}
-            onBack={handleBack}
-          />
-        ) : null;
-      case 4:
-        if (!currentUser) {
-          return <RegistrationWall onBack={handleBack} />;
-        }
-        return businessIdea && targetAudience && audienceAnalysis ? (
-          <AdGalleryStep
-            businessIdea={businessIdea}
-            targetAudience={targetAudience}
-            adHooks={selectedHooks}
-            onStartOver={handleStartOver}
-            onBack={handleBack}
-            onCreateProject={handleCreateProject}
-            videoAdsEnabled={videoAdsEnabled}
-            generatedAds={generatedAds}
-            onAdsGenerated={handleAdsGenerated}
-            hasLoadedInitialAds={hasLoadedInitialAds}
-          />
-        ) : null;
-      default:
-        return null;
-    }
-  }, [currentStep, businessIdea, targetAudience, audienceAnalysis, selectedHooks, videoAdsEnabled, generatedAds, hasLoadedInitialAds, currentUser]);
-
   return (
-    <div className="container max-w-6xl mx-auto px-4 py-8">
-      <WizardHeader
-        title="Idea Pilot"
-        description="Quickly go from idea to ready-to-run ads by testing different audience segments with AI-powered social media ad campaigns."
-      />
+    <WizardStateProvider>
+      <div className="container max-w-6xl mx-auto px-4 py-8">
+        <WizardHeader
+          title="Idea Pilot"
+          description="Quickly go from idea to ready-to-run ads by testing different audience segments with AI-powered social media ad campaigns."
+        />
 
-      <div className="mb-8">
-        <WizardProgress
-          currentStep={currentStep}
-          onStepClick={setCurrentStep}
-          canNavigateToStep={canNavigateToStep}
+        <div className="mb-8">
+          <WizardProgress />
+        </div>
+
+        <WizardControls
+          videoAdsEnabled={videoAdsEnabled}
+          onVideoAdsToggle={handleVideoAdsToggle}
+        />
+
+        <WizardContent
+          currentUser={currentUser}
+          videoAdsEnabled={videoAdsEnabled}
+          generatedAds={generatedAds}
+          onAdsGenerated={handleAdsGenerated}
+          hasLoadedInitialAds={hasLoadedInitialAds}
+          onCreateProject={handleCreateProject}
+        />
+
+        <CreateProjectDialog
+          open={showCreateProject}
+          onOpenChange={setShowCreateProject}
+          onSuccess={handleProjectCreated}
+          initialBusinessIdea={null}
         />
       </div>
-
-      <div className="flex items-center justify-end mb-6 space-x-2">
-        <span className="text-sm text-gray-600">Image Ads</span>
-        <Toggle
-          pressed={videoAdsEnabled}
-          onPressedChange={handleVideoAdsToggle}
-          aria-label="Toggle video ads"
-          className="data-[state=on]:bg-facebook"
-        >
-          {videoAdsEnabled ? (
-            <Video className="h-4 w-4" />
-          ) : (
-            <Image className="h-4 w-4" />
-          )}
-        </Toggle>
-        <span className="text-sm text-gray-600">Video Ads</span>
-      </div>
-
-      {currentStepComponent}
-
-      <CreateProjectDialog
-        open={showCreateProject}
-        onOpenChange={setShowCreateProject}
-        onSuccess={handleProjectCreated}
-        initialBusinessIdea={businessIdea?.description}
-      />
-    </div>
+    </WizardStateProvider>
   );
 };
 
