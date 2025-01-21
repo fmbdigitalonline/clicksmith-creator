@@ -272,7 +272,7 @@ const AdWizard = () => {
     }
   };
 
-  const currentStepComponent = useMemo(async () => {
+  const currentStepComponent = useMemo(() => {
     switch (currentStep) {
       case 1:
         return <IdeaStep onNext={handleIdeaSubmit} />;
@@ -294,7 +294,7 @@ const AdWizard = () => {
           />
         ) : null;
       case 4:
-        const { data: { user } } = await supabase.auth.getUser();
+        const { data: { user } } = supabase.auth.getUser();
         if (!user) {
           return <RegistrationWall onBack={handleBack} />;
         }
