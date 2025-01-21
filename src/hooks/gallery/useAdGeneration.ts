@@ -43,7 +43,7 @@ export const useAdGeneration = (
         console.log('[useAdGeneration] Anonymous user detected, checking session:', sessionId);
         const { data: anonymousData, error: anonymousError } = await supabase
           .from('anonymous_usage')
-          .select('used, completed')
+          .select('used')
           .eq('session_id', sessionId)
           .maybeSingle();
 
@@ -54,7 +54,7 @@ export const useAdGeneration = (
 
         console.log('[useAdGeneration] Anonymous session data:', anonymousData);
 
-        if (anonymousData?.completed) {
+        if (anonymousData?.used) {
           toast({
             title: "Trial Complete",
             description: "Please sign up to continue using the app.",
@@ -121,8 +121,7 @@ export const useAdGeneration = (
               business_idea: businessIdea,
               target_audience: targetAudience,
               generated_ads: variants
-            },
-            completed: true
+            }
           })
           .eq('session_id', sessionId);
 
@@ -133,9 +132,8 @@ export const useAdGeneration = (
         
         console.log('[useAdGeneration] Anonymous usage updated successfully');
         
-        // Show completion message for anonymous users
         toast({
-          title: "Trial Complete",
+          title: "Ads Generated Successfully",
           description: "Sign up now to save your progress and continue using the app!",
           variant: "default",
         });
