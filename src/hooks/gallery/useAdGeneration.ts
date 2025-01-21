@@ -96,7 +96,7 @@ export const useAdGeneration = (
         throw error;
       }
 
-      console.log('[useAdGeneration] Generated variants:', data.variants);
+      console.log('[useAdGeneration] Generated variants:', data?.variants);
 
       if (data?.variants) {
         const variants = Array.from({ length: 10 }, (_, index) => ({
@@ -133,16 +133,16 @@ export const useAdGeneration = (
             description: "Sign up now to save your progress and continue using the app!",
             variant: "default",
           });
+        } else {
+          // Only invalidate queries for authenticated users
+          await queryClient.invalidateQueries({ queryKey: ['subscription'] });
+          await queryClient.invalidateQueries({ queryKey: ['free_tier_usage'] });
+
+          toast({
+            title: "Ads Generated Successfully",
+            description: `Your new ${selectedPlatform} ad variants are ready!`,
+          });
         }
-
-        // Invalidate queries after successful generation
-        await queryClient.invalidateQueries({ queryKey: ['subscription'] });
-        await queryClient.invalidateQueries({ queryKey: ['free_tier_usage'] });
-
-        toast({
-          title: "Ads Generated Successfully",
-          description: `Your new ${selectedPlatform} ad variants are ready!`,
-        });
 
         return variants;
       }
