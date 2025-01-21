@@ -19,6 +19,11 @@ type WizardData = {
   business_idea?: any;
   target_audience?: any;
   generated_ads?: any[];
+  wizard_data?: {
+    business_idea?: any;
+    target_audience?: any;
+    generated_ads?: any[];
+  };
 };
 
 const AdWizard = () => {
@@ -110,9 +115,15 @@ const AdWizard = () => {
           if (sessionData) {
             console.log('[AdWizard] Session data loaded:', sessionData);
             
-            if (sessionData.wizard_data?.generated_ads) {
-              console.log('[AdWizard] Loading anonymous ads:', sessionData.wizard_data.generated_ads);
-              setGeneratedAds(sessionData.wizard_data.generated_ads);
+            if (sessionData.wizard_data && typeof sessionData.wizard_data === 'object') {
+              const wizardData = sessionData.wizard_data as WizardData;
+              if (wizardData.generated_ads) {
+                console.log('[AdWizard] Loading anonymous ads:', wizardData.generated_ads);
+                setGeneratedAds(wizardData.generated_ads);
+              } else if (wizardData.wizard_data?.generated_ads) {
+                console.log('[AdWizard] Loading nested anonymous ads:', wizardData.wizard_data.generated_ads);
+                setGeneratedAds(wizardData.wizard_data.generated_ads);
+              }
             }
 
             // Only show the toast if the session exists and hasn't been used
