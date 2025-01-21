@@ -50,7 +50,14 @@ const AdWizard = () => {
     const loadProgress = async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
-        const sessionId = localStorage.getItem('anonymous_session_id');
+        let sessionId = localStorage.getItem('anonymous_session_id');
+        
+        // Ensure anonymous session ID is set
+        if (!user && !sessionId) {
+          sessionId = crypto.randomUUID();
+          localStorage.setItem('anonymous_session_id', sessionId);
+          console.log('[AdWizard] Created new anonymous session:', sessionId);
+        }
         
         console.log('[AdWizard] Starting loadProgress:', { hasUser: !!user, sessionId });
         
@@ -65,6 +72,7 @@ const AdWizard = () => {
               .upsert({
                 session_id: sessionId,
                 used: false,
+                completed: false,
                 wizard_data: {
                   business_idea: null,
                   target_audience: null,
@@ -84,7 +92,7 @@ const AdWizard = () => {
             // Now fetch the data
             const { data: anonymousData, error: anonymousError } = await supabase
               .from('anonymous_usage')
-              .select('wizard_data, used')
+              .select('wizard_data, used, completed')
               .eq('session_id', sessionId)
               .maybeSingle();
 
