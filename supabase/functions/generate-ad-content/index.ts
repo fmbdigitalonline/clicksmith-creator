@@ -54,6 +54,10 @@ serve(async (req) => {
           autoRefreshToken: false,
           persistSession: false,
           detectSessionInUrl: false
+        },
+        global: {
+          headers: { 'x-my-custom-header': 'my-app-name' },
+          fetch: fetch
         }
       }
     );
