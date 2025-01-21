@@ -43,7 +43,7 @@ export const useAdWizardState = () => {
             .from('projects')
             .select('*')
             .eq('id', projectId)
-            .single();
+            .maybeSingle();
 
           if (project) {
             // Set project data
@@ -72,7 +72,7 @@ export const useAdWizardState = () => {
           .from('wizard_progress')
           .select('*')
           .eq('user_id', user.id)
-          .single();
+          .maybeSingle();
 
         if (wizardData) {
           setBusinessIdea(wizardData.business_idea as BusinessIdea);
