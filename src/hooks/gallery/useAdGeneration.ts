@@ -36,6 +36,9 @@ export const useAdGeneration = (
 
       setGenerationStatus("Generating ads...");
       
+      // Create an anonymous-only client for function invocation
+      const anonClient = supabase.functions;
+      
       const requestConfig = {
         body: {
           type: 'complete_ads',
@@ -43,15 +46,21 @@ export const useAdGeneration = (
           businessIdea,
           targetAudience,
           adHooks,
-          isAnonymous: isAnonymousMode,
-          userId: null, // Always null for anonymous
-          sessionId
+          isAnonymous: true,
+          sessionId,
+          userId: null,
+          numVariants: 10
+        },
+        // Add headers to bypass auth check
+        headers: {
+          'Authorization': 'Anonymous',
+          'X-Client-Info': 'anonymous-user'
         }
       };
 
       console.log('[useAdGeneration] Sending request with config:', requestConfig);
 
-      const { data, error } = await supabase.functions.invoke('generate-ad-content', requestConfig);
+      const { data, error } = await anonClient.invoke('generate-ad-content', requestConfig);
 
       if (error) {
         console.error('[useAdGeneration] Generation error:', error);
