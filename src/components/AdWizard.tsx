@@ -6,7 +6,7 @@ import { v4 as uuidv4 } from 'uuid';
 import WizardHeader from "./wizard/WizardHeader";
 import WizardProgress from "./WizardProgress";
 import CreateProjectDialog from "./projects/CreateProjectDialog";
-import { WizardStateProvider } from "./wizard/WizardStateProvider";
+import { WizardStateProvider, useWizardState } from "./wizard/WizardStateProvider";
 import { WizardControls } from "./wizard/WizardControls";
 import { WizardContent } from "./wizard/WizardContent";
 import type { Database } from "@/integrations/supabase/types";
@@ -27,6 +27,7 @@ const AdWizard = () => {
   const navigate = useNavigate();
   const { projectId } = useParams();
   const { toast } = useToast();
+  const { currentStep, canNavigateToStep, handleStepClick } = useWizardState();
 
   useEffect(() => {
     const checkUser = async () => {
@@ -273,8 +274,8 @@ const AdWizard = () => {
             session_id: sessionId,
             used: true,
             wizard_data: {
-              business_idea: businessIdea,
-              target_audience: targetAudience,
+              business_idea: anonymousData?.business_idea,
+              target_audience: anonymousData?.target_audience,
               generated_ads: newAds
             } as WizardData,
             completed: true
@@ -306,7 +307,11 @@ const AdWizard = () => {
         />
 
         <div className="mb-8">
-          <WizardProgress />
+          <WizardProgress 
+            currentStep={currentStep}
+            onStepClick={handleStepClick}
+            canNavigateToStep={canNavigateToStep}
+          />
         </div>
 
         <WizardControls
