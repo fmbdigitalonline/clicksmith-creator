@@ -125,7 +125,7 @@ export const useAdWizardState = () => {
       if (user) {
         await saveWizardProgress({ audience_analysis: analysis }, projectId);
       } else if (sessionId) {
-        // For anonymous users, update the wizard_data in anonymous_usage
+        // For anonymous users, update the wizard_data and last_completed_step
         const { error: anonymousError } = await supabase
           .from('anonymous_usage')
           .update({
@@ -133,7 +133,8 @@ export const useAdWizardState = () => {
               business_idea: businessIdea,
               target_audience: targetAudience,
               audience_analysis: analysis
-            }
+            },
+            last_completed_step: 3
           })
           .eq('session_id', sessionId);
 

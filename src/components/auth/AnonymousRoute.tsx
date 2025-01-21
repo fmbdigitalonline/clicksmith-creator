@@ -41,62 +41,28 @@ export const AnonymousRoute = ({ children }: { children: React.ReactNode }) => {
           .eq('session_id', sessionId)
           .single();
 
-        if (error && error.code !== 'PGRST116') { // Not found error
+        if (error && error.code !== 'PGRST116') {
           console.error('[AnonymousRoute] Unexpected error:', error);
           setCanAccess(false);
           setIsLoading(false);
           return;
         }
 
-        console.log('[AnonymousRoute] Anonymous usage data:', usage);
-
-        // Check if the wizard is completed
-        if (usage?.completed) {
-          console.log('[AnonymousRoute] Wizard completed, redirecting to login');
-          toast({
-            title: "Trial Complete",
-            description: "Please sign up to save your progress and continue using the app.",
-            variant: "destructive",
-          });
-          setCanAccess(false);
+        // Allow access if the user hasn't completed step 3 yet
+        if (!usage || usage.last_completed_step <= 3) {
+          setCanAccess(true);
           setIsLoading(false);
           return;
         }
 
-        if (!usage) {
-          // First time user - create usage record
-          console.log('[AnonymousRoute] Creating new anonymous usage record');
-          const { error: insertError } = await supabase
-            .from('anonymous_usage')
-            .insert([{ 
-              session_id: sessionId, 
-              used: false,
-              wizard_data: null,
-              completed: false
-            }]);
-
-          if (insertError) {
-            console.error('[AnonymousRoute] Error creating anonymous usage:', insertError);
-            setCanAccess(false);
-            setIsLoading(false);
-            return;
-          }
-          console.log('[AnonymousRoute] Anonymous usage record created successfully');
-          setCanAccess(true);
-        } else if (!usage.used) {
-          // Session exists but hasn't been used yet
-          console.log('[AnonymousRoute] Session exists but has not been used');
-          setCanAccess(true);
-        } else {
-          // Session has been used
-          console.log('[AnonymousRoute] Session has been used, redirecting to login');
-          toast({
-            title: "Trial Expired",
-            description: "Please sign up to continue using the app.",
-            variant: "destructive",
-          });
-          setCanAccess(false);
-        }
+        // If they've completed step 3, redirect to login
+        console.log('[AnonymousRoute] User has completed step 3, redirecting to login');
+        toast({
+          title: "Registration Required",
+          description: "Please sign up to continue and see your generated ads.",
+          variant: "default",
+        });
+        setCanAccess(false);
       } catch (error) {
         console.error('[AnonymousRoute] Error in anonymous access check:', error);
         setCanAccess(false);

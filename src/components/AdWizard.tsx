@@ -3,6 +3,7 @@ import IdeaStep from "./steps/BusinessIdeaStep";
 import AudienceStep from "./steps/AudienceStep";
 import AudienceAnalysisStep from "./steps/AudienceAnalysisStep";
 import AdGalleryStep from "./steps/AdGalleryStep";
+import RegistrationWall from "./steps/auth/RegistrationWall";
 import WizardHeader from "./wizard/WizardHeader";
 import WizardProgress from "./WizardProgress";
 import { useState, useMemo, useEffect } from "react";
@@ -46,7 +47,6 @@ const AdWizard = () => {
     setCurrentStep,
   } = useAdWizardState();
 
-  // Load saved progress including generated ads
   useEffect(() => {
     const loadProgress = async () => {
       try {
@@ -272,7 +272,7 @@ const AdWizard = () => {
     }
   };
 
-  const currentStepComponent = useMemo(() => {
+  const currentStepComponent = useMemo(async () => {
     switch (currentStep) {
       case 1:
         return <IdeaStep onNext={handleIdeaSubmit} />;
@@ -294,6 +294,10 @@ const AdWizard = () => {
           />
         ) : null;
       case 4:
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          return <RegistrationWall onBack={handleBack} />;
+        }
         return businessIdea && targetAudience && audienceAnalysis ? (
           <AdGalleryStep
             businessIdea={businessIdea}

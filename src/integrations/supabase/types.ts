@@ -102,6 +102,7 @@ export type Database = {
           completed: boolean | null
           created_at: string
           id: string
+          last_completed_step: number | null
           session_id: string
           used: boolean | null
           wizard_data: Json | null
@@ -110,6 +111,7 @@ export type Database = {
           completed?: boolean | null
           created_at?: string
           id?: string
+          last_completed_step?: number | null
           session_id: string
           used?: boolean | null
           wizard_data?: Json | null
@@ -118,6 +120,7 @@ export type Database = {
           completed?: boolean | null
           created_at?: string
           id?: string
+          last_completed_step?: number | null
           session_id?: string
           used?: boolean | null
           wizard_data?: Json | null
