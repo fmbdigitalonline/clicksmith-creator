@@ -53,7 +53,7 @@ const AdWizard = () => {
         const sessionId = localStorage.getItem('anonymous_session_id');
         
         if (!user) {
-          console.log('Anonymous user detected, checking session:', sessionId);
+          console.log('[AdWizard] Anonymous user detected, checking session:', sessionId);
           if (sessionId) {
             const { data: anonymousData } = await supabase
               .from('anonymous_usage')
@@ -61,10 +61,14 @@ const AdWizard = () => {
               .eq('session_id', sessionId)
               .maybeSingle();
 
+            console.log('[AdWizard] Anonymous data loaded:', anonymousData);
+
             if (anonymousData?.wizard_data) {
               const wizardData = anonymousData.wizard_data as WizardData;
+              console.log('[AdWizard] Wizard data found:', wizardData);
+              
               if (wizardData.generated_ads && Array.isArray(wizardData.generated_ads)) {
-                console.log('Loading anonymous user ads:', wizardData.generated_ads);
+                console.log('[AdWizard] Loading anonymous user ads:', wizardData.generated_ads);
                 setGeneratedAds(wizardData.generated_ads);
               }
             }
@@ -128,7 +132,7 @@ const AdWizard = () => {
         }
         setHasLoadedInitialAds(true);
       } catch (error) {
-        console.error('Error loading progress:', error);
+        console.error('[AdWizard] Error loading progress:', error);
         toast({
           title: "Something went wrong",
           description: "We couldn't load your previous work. Please try refreshing the page.",
