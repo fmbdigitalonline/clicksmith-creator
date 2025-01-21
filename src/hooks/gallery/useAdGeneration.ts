@@ -24,26 +24,11 @@ export const useAdGeneration = (
     setGenerationStatus("Initializing generation...");
     
     try {
-      const { data: { user } } = await supabase.auth.getUser();
       const sessionId = localStorage.getItem('anonymous_session_id');
-      
-      console.log('[useAdGeneration] Generation attempt:', {
-        hasUser: !!user,
+      console.log('[useAdGeneration] Starting ad generation:', { 
         sessionId,
-        platform: selectedPlatform
+        platform: selectedPlatform 
       });
-
-      // For anonymous users, check session
-      if (!user && !sessionId) {
-        console.error('[useAdGeneration] No valid session found for anonymous user');
-        throw new Error('No valid session found');
-      }
-
-      // Set headers for anonymous session
-      const headers: Record<string, string> = {};
-      if (!user && sessionId) {
-        headers['x-session-id'] = sessionId;
-      }
 
       setGenerationStatus("Generating ads...");
       
@@ -53,13 +38,11 @@ export const useAdGeneration = (
           platform: selectedPlatform,
           businessIdea,
           targetAudience,
-          adHooks,
-          userId: user?.id,
-          isAnonymous: !user,
-          sessionId: !user ? sessionId : undefined,
-          numVariants: 10
+          adHooks
         },
-        headers
+        headers: sessionId ? {
+          'x-session-id': sessionId
+        } : undefined
       };
 
       console.log('[useAdGeneration] Sending request with config:', requestConfig);
@@ -92,7 +75,7 @@ export const useAdGeneration = (
       setAdVariants(variants);
 
       // Update anonymous usage if this is an anonymous session
-      if (!user && sessionId) {
+      if (sessionId) {
         console.log('[useAdGeneration] Updating anonymous usage with generated ads');
         const { error: anonymousError } = await supabase
           .from('anonymous_usage')
@@ -118,31 +101,35 @@ export const useAdGeneration = (
           description: "Sign up now to save your progress and continue using the app!",
           variant: "default",
         });
-      } else if (user) {
+      } else {
         // Handle authenticated user updates
-        if (projectId && projectId !== 'new') {
-          await supabase
-            .from('projects')
-            .update({ generated_ads: variants })
-            .eq('id', projectId);
-        } else {
-          await supabase
-            .from('wizard_progress')
-            .upsert({
-              user_id: user.id,
-              generated_ads: variants
-            }, {
-              onConflict: 'user_id'
-            });
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        if (user) {
+          if (projectId && projectId !== 'new') {
+            await supabase
+              .from('projects')
+              .update({ generated_ads: variants })
+              .eq('id', projectId);
+          } else {
+            await supabase
+              .from('wizard_progress')
+              .upsert({
+                user_id: user.id,
+                generated_ads: variants
+              }, {
+                onConflict: 'user_id'
+              });
+          }
+          
+          queryClient.invalidateQueries({ queryKey: ['subscription'] });
+          queryClient.invalidateQueries({ queryKey: ['free_tier_usage'] });
+          
+          toast({
+            title: "Ads Generated Successfully",
+            description: `Your new ${selectedPlatform} ad variants are ready!`,
+          });
         }
-        
-        queryClient.invalidateQueries({ queryKey: ['subscription'] });
-        queryClient.invalidateQueries({ queryKey: ['free_tier_usage'] });
-        
-        toast({
-          title: "Ads Generated Successfully",
-          description: `Your new ${selectedPlatform} ad variants are ready!`,
-        });
       }
 
     } catch (error: any) {
