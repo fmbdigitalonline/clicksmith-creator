@@ -34,36 +34,15 @@ export const useAdGeneration = (
       });
 
       // For anonymous users, check session
-      if (!user) {
-        if (!sessionId) {
-          console.error('[useAdGeneration] No valid session found for anonymous user');
-          throw new Error('No valid session found');
-        }
+      if (!user && !sessionId) {
+        console.error('[useAdGeneration] No valid session found for anonymous user');
+        throw new Error('No valid session found');
+      }
 
-        console.log('[useAdGeneration] Anonymous user detected, checking session:', sessionId);
-        const { data: anonymousData, error: anonymousError } = await supabase
-          .from('anonymous_usage')
-          .select('used')
-          .eq('session_id', sessionId)
-          .maybeSingle();
-
-        if (anonymousError) {
-          console.error('[useAdGeneration] Error checking anonymous session:', anonymousError);
-          throw anonymousError;
-        }
-
-        console.log('[useAdGeneration] Anonymous session data:', anonymousData);
-
-        // Only check if used is true, don't update it yet
-        if (anonymousData?.used === true) {
-          toast({
-            title: "Trial Complete",
-            description: "Please sign up to continue using the app.",
-            variant: "destructive",
-          });
-          navigate('/login');
-          return;
-        }
+      // Set headers for anonymous session
+      const headers: Record<string, string> = {};
+      if (!user && sessionId) {
+        headers['x-session-id'] = sessionId;
       }
 
       setGenerationStatus("Generating ads...");
@@ -77,9 +56,10 @@ export const useAdGeneration = (
           adHooks,
           userId: user?.id,
           isAnonymous: !user,
-          sessionId,
+          sessionId: !user ? sessionId : undefined,
           numVariants: 10
-        }
+        },
+        headers
       };
 
       console.log('[useAdGeneration] Sending request with config:', requestConfig);
