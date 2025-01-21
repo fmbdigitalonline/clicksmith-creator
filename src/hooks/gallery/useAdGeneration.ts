@@ -1,24 +1,10 @@
 import { BusinessIdea, TargetAudience, AdHook } from "@/types/adWizard";
 import { VideoAdVariant } from "@/types/videoAdTypes";
 import { supabase } from "@/integrations/supabase/client";
-import { createClient } from '@supabase/supabase-js';
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
 import { useState } from "react";
-
-// Create anonymous-only client
-const anonSupabase = createClient(
-  "https://xorlfvflpihtafugltni.supabase.co",
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhvcmxmdmZscGlodGFmdWdsdG5pIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzMyMzA3NDksImV4cCI6MjA0ODgwNjc0OX0.tuvMctblG6Oo6u9C41sBTaqCTbuKAdGLC4C5ZsLCc60",
-  {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-      detectSessionInUrl: false,
-    }
-  }
-);
 
 export const useAdGeneration = (
   businessIdea: BusinessIdea,
@@ -50,26 +36,51 @@ export const useAdGeneration = (
 
       setGenerationStatus("Generating ads...");
       
-      // Use different client based on mode
-      const client = isAnonymousMode ? anonSupabase : supabase;
-      
-      const requestConfig = {
-        body: {
-          type: 'complete_ads',
-          platform: selectedPlatform,
-          businessIdea,
-          targetAudience,
-          adHooks,
-          isAnonymous: isAnonymousMode,
-          sessionId,
-          userId: null,
-          numVariants: 10
-        }
+      const requestBody = {
+        type: 'complete_ads',
+        platform: selectedPlatform,
+        businessIdea,
+        targetAudience,
+        adHooks,
+        isAnonymous: isAnonymousMode,
+        sessionId,
+        userId: null,
+        numVariants: 10
       };
 
-      console.log('[useAdGeneration] Sending request with config:', requestConfig);
+      let data, error;
 
-      const { data, error } = await client.functions.invoke('generate-ad-content', requestConfig);
+      if (isAnonymousMode) {
+        try {
+          console.log('[useAdGeneration] Using direct fetch for anonymous user');
+          const response = await fetch(
+            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-ad-content`,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+              },
+              body: JSON.stringify(requestBody)
+            }
+          );
+
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+
+          data = await response.json();
+        } catch (fetchError) {
+          error = fetchError;
+        }
+      } else {
+        console.log('[useAdGeneration] Using Supabase client for authenticated user');
+        const result = await supabase.functions.invoke('generate-ad-content', {
+          body: requestBody
+        });
+        data = result.data;
+        error = result.error;
+      }
 
       if (error) {
         console.error('[useAdGeneration] Generation error:', error);
@@ -133,7 +144,7 @@ export const useAdGeneration = (
           description: `Your new ${selectedPlatform} ad variants are ready!`,
         });
 
-        return variants; // Return variants for the callback
+        return variants;
       }
 
     } catch (error: any) {
