@@ -137,6 +137,7 @@ const AdWizard = () => {
               description: "We had trouble loading your project data. Please try again.",
               variant: "destructive",
             });
+            setHasLoadedInitialAds(true);
             return;
           }
 
@@ -170,7 +171,7 @@ const AdWizard = () => {
             setGeneratedAds(wizardData.generated_ads);
           }
         }
-
+        setHasLoadedInitialAds(true);
       } catch (error) {
         console.error('[AdWizard] Error loading progress:', error);
         toast({
