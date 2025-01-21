@@ -30,10 +30,25 @@ serve(async (req) => {
   }
 
   try {
+    // Validate environment variables
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+
+    console.log('[generate-ad-content] Environment check:', {
+      hasUrl: !!supabaseUrl,
+      hasServiceKey: !!supabaseServiceRoleKey,
+      urlLength: supabaseUrl?.length,
+      keyLength: supabaseServiceRoleKey?.length
+    });
+
+    if (!supabaseUrl || !supabaseServiceRoleKey) {
+      throw new Error('Missing required environment variables for Supabase client');
+    }
+
     // Create a Supabase client with the service role key and explicitly disable auth features
     const supabaseAdmin = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+      supabaseUrl,
+      supabaseServiceRoleKey,
       {
         auth: {
           autoRefreshToken: false,
