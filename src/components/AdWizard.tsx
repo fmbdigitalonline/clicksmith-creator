@@ -52,7 +52,7 @@ const AdWizard = () => {
         const { data: { user } } = await supabase.auth.getUser();
         let sessionId = localStorage.getItem('anonymous_session_id');
         
-        // Ensure anonymous session ID is set
+        // Step 1: Ensure anonymous session ID is set
         if (!user && !sessionId) {
           sessionId = crypto.randomUUID();
           localStorage.setItem('anonymous_session_id', sessionId);
@@ -66,7 +66,7 @@ const AdWizard = () => {
           if (sessionId) {
             console.log('[AdWizard] Fetching anonymous usage data for session:', sessionId);
             
-            // First, ensure the anonymous session record exists
+            // Step 2: Initialize anonymous session record if it doesn't exist
             const { error: createError } = await supabase
               .from('anonymous_usage')
               .upsert({
@@ -89,7 +89,7 @@ const AdWizard = () => {
 
             console.log('[AdWizard] Anonymous session ensured');
 
-            // Now fetch the data
+            // Step 3: Fetch the latest data after initialization
             const { data: anonymousData, error: anonymousError } = await supabase
               .from('anonymous_usage')
               .select('wizard_data, used, completed')
@@ -103,6 +103,7 @@ const AdWizard = () => {
 
             console.log('[AdWizard] Anonymous data loaded:', anonymousData);
 
+            // Step 4: Handle the wizard data
             if (anonymousData?.wizard_data) {
               const wizardData = anonymousData.wizard_data as WizardData;
               console.log('[AdWizard] Wizard data found:', wizardData);
