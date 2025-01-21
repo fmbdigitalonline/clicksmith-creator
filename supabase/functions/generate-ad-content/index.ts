@@ -30,7 +30,6 @@ serve(async (req) => {
   }
 
   try {
-    // Validate environment variables
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
@@ -45,7 +44,7 @@ serve(async (req) => {
       throw new Error('Missing required environment variables for Supabase client');
     }
 
-    // Create a Supabase admin client with service role key
+    // Updated Supabase admin client configuration
     const supabaseAdmin = createClient(
       supabaseUrl,
       supabaseServiceRoleKey,
@@ -56,7 +55,9 @@ serve(async (req) => {
           detectSessionInUrl: false
         },
         global: {
-          headers: { 'x-my-custom-header': 'my-app-name' },
+          headers: { 
+            'X-Client-Info': 'generate-ad-content-edge-function',
+          },
           fetch: fetch
         }
       }
@@ -90,7 +91,6 @@ serve(async (req) => {
       hasTargetAudience: !!targetAudience
     });
 
-    // Handle anonymous users with session tracking
     if (isAnonymous && sessionId) {
       console.log('[generate-ad-content] Processing anonymous request:', { sessionId });
       
