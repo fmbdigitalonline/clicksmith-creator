@@ -19,7 +19,12 @@ export const useAdWizardState = () => {
   const { toast } = useToast();
   const { projectId } = useParams();
 
-  // Load saved progress when component mounts
+  const handleStepClick = useCallback((step: number) => {
+    if (canNavigateToStep(step)) {
+      setCurrentStep(step);
+    }
+  }, [canNavigateToStep]);
+
   useEffect(() => {
     const loadSavedProgress = async () => {
       try {
@@ -273,6 +278,7 @@ export const useAdWizardState = () => {
     handleBack,
     handleStartOver,
     canNavigateToStep,
+    handleStepClick,
     setCurrentStep,
   };
 };
