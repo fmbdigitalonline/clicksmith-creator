@@ -37,8 +37,8 @@ export const useAdGeneration = (
       console.log('[useAdGeneration] Preparing to invoke generate-ad-content with params:', {
         type: 'complete_ads',
         platform: selectedPlatform,
-        businessIdeaId: businessIdea?.id,
-        targetAudienceId: targetAudience?.id,
+        businessIdea,
+        targetAudience,
         adHooksCount: adHooks?.length,
         userId: user?.id,
         timestamp: new Date().toISOString()
