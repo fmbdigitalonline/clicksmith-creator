@@ -30,7 +30,7 @@ serve(async (req) => {
   }
 
   try {
-    // Create a Supabase client with the service role key and auth disabled
+    // Create a Supabase client with the service role key and explicitly disable auth features
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
