@@ -52,14 +52,22 @@ const AdWizard = () => {
         const { data: { user } } = await supabase.auth.getUser();
         const sessionId = localStorage.getItem('anonymous_session_id');
         
+        console.log('[AdWizard] Starting loadProgress:', { hasUser: !!user, sessionId });
+        
         if (!user) {
           console.log('[AdWizard] Anonymous user detected, checking session:', sessionId);
           if (sessionId) {
-            const { data: anonymousData } = await supabase
+            console.log('[AdWizard] Fetching anonymous usage data for session:', sessionId);
+            const { data: anonymousData, error: anonymousError } = await supabase
               .from('anonymous_usage')
-              .select('wizard_data')
+              .select('wizard_data, used')
               .eq('session_id', sessionId)
               .maybeSingle();
+
+            if (anonymousError) {
+              console.error('[AdWizard] Error fetching anonymous data:', anonymousError);
+              throw anonymousError;
+            }
 
             console.log('[AdWizard] Anonymous data loaded:', anonymousData);
 
@@ -70,8 +78,14 @@ const AdWizard = () => {
               if (wizardData.generated_ads && Array.isArray(wizardData.generated_ads)) {
                 console.log('[AdWizard] Loading anonymous user ads:', wizardData.generated_ads);
                 setGeneratedAds(wizardData.generated_ads);
+              } else {
+                console.log('[AdWizard] No generated ads found in wizard data');
               }
+            } else {
+              console.log('[AdWizard] No wizard data found for anonymous session');
             }
+          } else {
+            console.log('[AdWizard] No anonymous session ID found');
           }
           
           toast({
@@ -171,11 +185,13 @@ const AdWizard = () => {
   };
 
   const handleAdsGenerated = async (newAds: any[]) => {
-    console.log('Handling newly generated ads:', newAds);
+    console.log('[AdWizard] Handling newly generated ads:', newAds);
     setGeneratedAds(newAds);
     
     const { data: { user } } = await supabase.auth.getUser();
     const sessionId = localStorage.getItem('anonymous_session_id');
+
+    console.log('[AdWizard] Saving ads:', { hasUser: !!user, sessionId, adsCount: newAds.length });
 
     try {
       if (user) {
@@ -199,6 +215,7 @@ const AdWizard = () => {
           if (upsertError) throw upsertError;
         }
       } else if (sessionId) {
+        console.log('[AdWizard] Updating anonymous usage with new ads');
         const { error: anonymousError } = await supabase
           .from('anonymous_usage')
           .upsert({
@@ -213,10 +230,15 @@ const AdWizard = () => {
             onConflict: 'session_id'
           });
 
-        if (anonymousError) throw anonymousError;
+        if (anonymousError) {
+          console.error('[AdWizard] Error updating anonymous usage:', anonymousError);
+          throw anonymousError;
+        }
+        
+        console.log('[AdWizard] Anonymous usage updated successfully');
       }
     } catch (error) {
-      console.error('Error saving generated ads:', error);
+      console.error('[AdWizard] Error saving generated ads:', error);
       toast({
         title: "Couldn't save your ads",
         description: "Your ads were generated but we couldn't save them. Please try again.",
