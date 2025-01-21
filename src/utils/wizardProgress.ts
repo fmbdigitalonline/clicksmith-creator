@@ -4,40 +4,63 @@ import { toast } from "@/hooks/use-toast";
 export const saveWizardProgress = async (data: any, projectId: string | undefined) => {
   try {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      throw new Error('User not authenticated');
-    }
+    const sessionId = localStorage.getItem('anonymous_session_id');
 
-    if (projectId && projectId !== 'new') {
-      const { error } = await supabase
-        .from('projects')
-        .update({
-          ...data,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', projectId);
-
-      if (error) throw error;
-    } else {
-      // Use upsert with on_conflict parameter
-      const { error } = await supabase
-        .from('wizard_progress')
-        .upsert(
-          {
-            user_id: user.id,
+    // Handle anonymous users
+    if (!user && sessionId) {
+      console.log('Saving progress for anonymous user:', { sessionId, data });
+      const { error: anonymousError } = await supabase
+        .from('anonymous_usage')
+        .upsert({
+          session_id: sessionId,
+          wizard_data: {
             ...data,
             updated_at: new Date().toISOString()
-          },
-          {
-            onConflict: 'user_id',
-            ignoreDuplicates: false
           }
-        );
+        }, {
+          onConflict: 'session_id'
+        });
 
-      if (error) throw error;
+      if (anonymousError) {
+        console.error('Error saving anonymous progress:', anonymousError);
+        throw anonymousError;
+      }
+      return;
     }
 
-    console.log('Progress saved successfully:', data);
+    // Handle authenticated users
+    if (user) {
+      if (projectId && projectId !== 'new') {
+        const { error } = await supabase
+          .from('projects')
+          .update({
+            ...data,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', projectId);
+
+        if (error) throw error;
+      } else {
+        // Use upsert with on_conflict parameter
+        const { error } = await supabase
+          .from('wizard_progress')
+          .upsert(
+            {
+              user_id: user.id,
+              ...data,
+              updated_at: new Date().toISOString()
+            },
+            {
+              onConflict: 'user_id',
+              ignoreDuplicates: false
+            }
+          );
+
+        if (error) throw error;
+      }
+
+      console.log('Progress saved successfully:', data);
+    }
   } catch (error) {
     console.error('Error saving progress:', error);
     toast({
