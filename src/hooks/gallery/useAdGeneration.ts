@@ -18,7 +18,6 @@ export const useAdGeneration = (
   const navigate = useNavigate();
   const { projectId } = useParams();
   const queryClient = useQueryClient();
-  const [sessionId] = useState(() => localStorage.getItem('anonymous_session_id'));
 
   const generateAds = async (selectedPlatform: string) => {
     setIsGenerating(true);
@@ -26,21 +25,26 @@ export const useAdGeneration = (
     
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      const currentSessionId = localStorage.getItem('anonymous_session_id');
+      const sessionId = localStorage.getItem('anonymous_session_id');
       
       console.log('[useAdGeneration] Generation attempt:', {
         hasUser: !!user,
-        sessionId: currentSessionId,
+        sessionId,
         platform: selectedPlatform
       });
 
       // For anonymous users, check session
-      if (!user && currentSessionId) {
-        console.log('[useAdGeneration] Anonymous user detected, checking session:', currentSessionId);
+      if (!user) {
+        if (!sessionId) {
+          console.error('[useAdGeneration] No valid session found for anonymous user');
+          throw new Error('No valid session found');
+        }
+
+        console.log('[useAdGeneration] Anonymous user detected, checking session:', sessionId);
         const { data: anonymousData, error: anonymousError } = await supabase
           .from('anonymous_usage')
           .select('used, completed')
-          .eq('session_id', currentSessionId)
+          .eq('session_id', sessionId)
           .maybeSingle();
 
         if (anonymousError) {
@@ -63,7 +67,7 @@ export const useAdGeneration = (
 
       setGenerationStatus("Generating ads...");
       
-      const requestConfig: any = {
+      const requestConfig = {
         body: {
           type: 'complete_ads',
           platform: selectedPlatform,
@@ -72,7 +76,7 @@ export const useAdGeneration = (
           adHooks,
           userId: user?.id,
           isAnonymous: !user,
-          sessionId: currentSessionId,
+          sessionId,
           numVariants: 10
         }
       };
@@ -107,7 +111,7 @@ export const useAdGeneration = (
       setAdVariants(variants);
 
       // Update anonymous usage if this is an anonymous session
-      if (!user && currentSessionId) {
+      if (!user && sessionId) {
         console.log('[useAdGeneration] Updating anonymous usage with generated ads');
         const { error: anonymousError } = await supabase
           .from('anonymous_usage')
@@ -120,7 +124,7 @@ export const useAdGeneration = (
             },
             completed: true
           })
-          .eq('session_id', currentSessionId);
+          .eq('session_id', sessionId);
 
         if (anonymousError) {
           console.error('[useAdGeneration] Error updating anonymous usage:', anonymousError);
@@ -135,20 +139,6 @@ export const useAdGeneration = (
           description: "Sign up now to save your progress and continue using the app!",
           variant: "default",
         });
-        
-        // Short delay before redirecting to allow toast to be seen
-        setTimeout(() => {
-          navigate('/login', { 
-            state: { 
-              from: location.pathname,
-              anonymousData: {
-                businessIdea,
-                targetAudience,
-                generatedAds: variants
-              }
-            }
-          });
-        }, 2000);
       } else if (user) {
         // Handle authenticated user updates
         if (projectId && projectId !== 'new') {
@@ -178,16 +168,9 @@ export const useAdGeneration = (
 
     } catch (error: any) {
       console.error('[useAdGeneration] Ad generation error:', error);
-      
-      const isAnonymous = !await supabase.auth.getUser().then(({ data }) => data.user);
-      
-      const errorMessage = isAnonymous
-        ? "You can try generating ads as a guest. Register for unlimited generations."
-        : error.message || "Failed to generate ads. Please try again.";
-      
       toast({
         title: "Error generating ads",
-        description: errorMessage,
+        description: error.message || "Failed to generate ads. Please try again.",
         variant: "destructive",
       });
     } finally {
