@@ -58,6 +58,26 @@ const AdWizard = () => {
           console.log('[AdWizard] Anonymous user detected, checking session:', sessionId);
           if (sessionId) {
             console.log('[AdWizard] Fetching anonymous usage data for session:', sessionId);
+            
+            // First, ensure the anonymous session record exists
+            const { error: createError } = await supabase
+              .from('anonymous_usage')
+              .upsert({
+                session_id: sessionId,
+                used: false,
+                wizard_data: null
+              }, {
+                onConflict: 'session_id'
+              });
+
+            if (createError) {
+              console.error('[AdWizard] Error creating anonymous session:', createError);
+              throw createError;
+            }
+
+            console.log('[AdWizard] Anonymous session ensured');
+
+            // Now fetch the data
             const { data: anonymousData, error: anonymousError } = await supabase
               .from('anonymous_usage')
               .select('wizard_data, used')
