@@ -30,7 +30,8 @@ serve(async (req) => {
   }
 
   try {
-    const supabase = createClient(
+    // Create a Supabase client with the service role key for elevated privileges
+    const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
@@ -66,7 +67,9 @@ serve(async (req) => {
     // Handle anonymous users
     if (isAnonymous && sessionId) {
       console.log('[generate-ad-content] Processing anonymous request:', { sessionId });
-      const { data: anonymousUsage, error: usageError } = await supabase
+      
+      // Use the admin client to check anonymous usage
+      const { data: anonymousUsage, error: usageError } = await supabaseAdmin
         .from('anonymous_usage')
         .select('used, completed')
         .eq('session_id', sessionId)
@@ -85,10 +88,10 @@ serve(async (req) => {
       }
     }
 
-    // Check and deduct credits for authenticated users
-    if (userId && type !== 'audience_analysis') {
+    // Check and deduct credits for authenticated users only
+    if (userId && !isAnonymous && type !== 'audience_analysis') {
       console.log('[generate-ad-content] Checking credits for user:', userId);
-      const { data: creditCheck, error: creditError } = await supabase.rpc(
+      const { data: creditCheck, error: creditError } = await supabaseAdmin.rpc(
         'check_user_credits',
         { p_user_id: userId, required_credits: 1 }
       );
@@ -108,7 +111,7 @@ serve(async (req) => {
         );
       }
 
-      const { error: deductError } = await supabase.rpc(
+      const { error: deductError } = await supabaseAdmin.rpc(
         'deduct_user_credits',
         { input_user_id: userId, credits_to_deduct: 1 }
       );
@@ -141,6 +144,27 @@ serve(async (req) => {
             size: format
           };
         });
+
+        // If this is an anonymous user, update their usage status
+        if (isAnonymous && sessionId) {
+          const { error: updateError } = await supabaseAdmin
+            .from('anonymous_usage')
+            .update({
+              used: true,
+              wizard_data: {
+                business_idea: businessIdea,
+                target_audience: targetAudience,
+                generated_ads: variants
+              },
+              completed: true
+            })
+            .eq('session_id', sessionId);
+
+          if (updateError) {
+            console.error('[generate-ad-content] Error updating anonymous usage:', updateError);
+            // Don't throw here, still return the variants
+          }
+        }
 
         console.log('[generate-ad-content] Generated variants count:', variants.length);
         responseData = { variants };
