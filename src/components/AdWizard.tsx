@@ -28,9 +28,18 @@ const AdWizard = () => {
   const [videoAdsEnabled, setVideoAdsEnabled] = useState(false);
   const [generatedAds, setGeneratedAds] = useState<any[]>([]);
   const [hasLoadedInitialAds, setHasLoadedInitialAds] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(null);
   const navigate = useNavigate();
   const { projectId } = useParams();
   const { toast } = useToast();
+
+  useEffect(() => {
+    const checkUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setCurrentUser(user);
+    };
+    checkUser();
+  }, []);
   
   const {
     currentStep,
@@ -294,8 +303,7 @@ const AdWizard = () => {
           />
         ) : null;
       case 4:
-        const { data: { user } } = supabase.auth.getUser();
-        if (!user) {
+        if (!currentUser) {
           return <RegistrationWall onBack={handleBack} />;
         }
         return businessIdea && targetAudience && audienceAnalysis ? (
@@ -315,7 +323,7 @@ const AdWizard = () => {
       default:
         return null;
     }
-  }, [currentStep, businessIdea, targetAudience, audienceAnalysis, selectedHooks, videoAdsEnabled, generatedAds, hasLoadedInitialAds]);
+  }, [currentStep, businessIdea, targetAudience, audienceAnalysis, selectedHooks, videoAdsEnabled, generatedAds, hasLoadedInitialAds, currentUser]);
 
   return (
     <div className="container max-w-6xl mx-auto px-4 py-8">
