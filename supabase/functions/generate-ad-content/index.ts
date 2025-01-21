@@ -20,6 +20,7 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') {
     console.log('[generate-ad-content] Handling OPTIONS request');
     return new Response(null, { 
+      status: 204,
       headers: {
         ...corsHeaders,
         'Access-Control-Max-Age': '86400',
@@ -29,16 +30,9 @@ serve(async (req) => {
   }
 
   try {
-    // Initialize Supabase client with service role key for full access
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
-      {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false
-        }
-      }
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
     let body;
@@ -69,48 +63,24 @@ serve(async (req) => {
       hasTargetAudience: !!targetAudience
     });
 
-    // Handle authenticated users
+    // Only try to get user if not anonymous
     if (!isAnonymous) {
-      const authHeader = req.headers.get('Authorization');
-      if (!authHeader) {
-        throw new Error('Missing Authorization header for authenticated request');
-      }
-
-      const { data: { user }, error: userError } = await supabase.auth.getUser(
-        authHeader.replace('Bearer ', '')
-      );
-
-      if (userError) {
-        console.error('[generate-ad-content] Auth error:', userError);
-        throw userError;
-      }
-
-      if (!user) {
-        throw new Error('User not found');
-      }
-
-      userId = user.id;
-
-      // Check credits for authenticated users
-      if (type !== 'audience_analysis') {
-        const { data: creditCheck, error: creditError } = await supabase.rpc(
-          'check_user_credits',
-          { p_user_id: userId, required_credits: 1 }
-        );
-
-        if (creditError) throw creditError;
-
-        const result = creditCheck[0];
-        if (!result.has_credits) {
-          return new Response(
-            JSON.stringify({ error: 'No credits available', message: result.error_message }),
-            { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 402 }
+      try {
+        const authHeader = req.headers.get('Authorization');
+        if (authHeader) {
+          const { data: { user }, error: userError } = await supabase.auth.getUser(
+            authHeader.replace('Bearer ', '')
           );
+          if (userError) throw userError;
+          userId = user?.id;
         }
+      } catch (error) {
+        console.error('[generate-ad-content] Error getting user:', error);
       }
     }
+
     // Handle anonymous users
-    else if (sessionId) {
+    if (isAnonymous && sessionId) {
       console.log('[generate-ad-content] Processing anonymous request:', { sessionId });
       const { data: anonymousUsage, error: usageError } = await supabase
         .from('anonymous_usage')
@@ -123,9 +93,45 @@ serve(async (req) => {
         throw new Error(`Error checking anonymous usage: ${usageError.message}`);
       }
 
+      console.log('[generate-ad-content] Anonymous usage status:', anonymousUsage);
+
       if (anonymousUsage?.completed) {
         console.log('[generate-ad-content] Anonymous session already completed');
         throw new Error('Anonymous trial has been completed. Please sign up to continue.');
+      }
+    }
+
+    // Check and deduct credits for authenticated users
+    if (userId && type !== 'audience_analysis') {
+      console.log('[generate-ad-content] Checking credits for user:', userId);
+      const { data: creditCheck, error: creditError } = await supabase.rpc(
+        'check_user_credits',
+        { p_user_id: userId, required_credits: 1 }
+      );
+
+      if (creditError) {
+        console.error('[generate-ad-content] Credit check error:', creditError);
+        throw creditError;
+      }
+
+      const result = creditCheck[0];
+      console.log('[generate-ad-content] Credit check result:', result);
+      
+      if (!result.has_credits) {
+        return new Response(
+          JSON.stringify({ error: 'No credits available', message: result.error_message }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 402 }
+        );
+      }
+
+      const { error: deductError } = await supabase.rpc(
+        'deduct_user_credits',
+        { input_user_id: userId, credits_to_deduct: 1 }
+      );
+
+      if (deductError) {
+        console.error('[generate-ad-content] Credit deduction error:', deductError);
+        throw deductError;
       }
     }
 
