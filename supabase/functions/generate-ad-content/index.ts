@@ -17,6 +17,7 @@ const PLATFORM_FORMATS = {
 serve(async (req) => {
   console.log('[generate-ad-content] Function started');
   
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     console.log('[generate-ad-content] Handling OPTIONS request');
     return new Response(null, { 
@@ -51,23 +52,20 @@ serve(async (req) => {
       throw new Error('Empty request body');
     }
 
-    const { type, businessIdea, targetAudience, platform = 'facebook', userId, sessionId, isAnonymous } = body;
-    const headers = req.headers;
-    const anonymousSessionId = headers.get('x-session-id');
+    const { type, businessIdea, targetAudience, platform = 'facebook', userId } = body;
+    const anonymousSessionId = req.headers.get('x-session-id');
 
     console.log('[generate-ad-content] Request details:', {
       type,
       platform,
       userId,
-      sessionId,
       anonymousSessionId,
-      isAnonymous,
       hasBusinessIdea: !!businessIdea,
       hasTargetAudience: !!targetAudience
     });
 
     // Handle anonymous users
-    if (isAnonymous && anonymousSessionId) {
+    if (!userId && anonymousSessionId) {
       console.log('[generate-ad-content] Processing anonymous request:', { anonymousSessionId });
       const { data: anonymousUsage, error: usageError } = await supabase
         .from('anonymous_usage')
