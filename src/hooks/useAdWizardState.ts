@@ -117,8 +117,32 @@ export const useAdWizardState = () => {
   const handleAnalysisComplete = useCallback(async (analysis: AudienceAnalysis) => {
     try {
       setAudienceAnalysis(analysis);
-      await saveWizardProgress({ audience_analysis: analysis }, projectId);
+      
+      const { data: { user } } = await supabase.auth.getUser();
+      const sessionId = localStorage.getItem('anonymous_session_id');
+      
+      // Save progress based on authentication status
+      if (user) {
+        await saveWizardProgress({ audience_analysis: analysis }, projectId);
+      } else if (sessionId) {
+        // For anonymous users, update the wizard_data in anonymous_usage
+        const { error: anonymousError } = await supabase
+          .from('anonymous_usage')
+          .update({
+            wizard_data: {
+              business_idea: businessIdea,
+              target_audience: targetAudience,
+              audience_analysis: analysis
+            }
+          })
+          .eq('session_id', sessionId);
 
+        if (anonymousError) {
+          console.error('Error saving anonymous progress:', anonymousError);
+        }
+      }
+
+      // Generate hooks for both authenticated and anonymous users
       const { data, error } = await supabase.functions.invoke('generate-ad-content', {
         body: { 
           type: 'hooks',
@@ -126,7 +150,9 @@ export const useAdWizardState = () => {
           targetAudience: {
             ...targetAudience,
             audienceAnalysis: analysis
-          }
+          },
+          isAnonymous: !user,
+          sessionId
         }
       });
 
@@ -141,7 +167,28 @@ export const useAdWizardState = () => {
 
       if (data?.hooks && Array.isArray(data.hooks)) {
         setSelectedHooks(data.hooks);
-        await saveWizardProgress({ selected_hooks: data.hooks }, projectId);
+        
+        // Save hooks based on authentication status
+        if (user) {
+          await saveWizardProgress({ selected_hooks: data.hooks }, projectId);
+        } else if (sessionId) {
+          const { error: updateError } = await supabase
+            .from('anonymous_usage')
+            .update({
+              wizard_data: {
+                business_idea: businessIdea,
+                target_audience: targetAudience,
+                audience_analysis: analysis,
+                selected_hooks: data.hooks
+              }
+            })
+            .eq('session_id', sessionId);
+
+          if (updateError) {
+            console.error('Error saving anonymous hooks:', updateError);
+          }
+        }
+        
         setCurrentStep(4);
       } else {
         throw new Error('Invalid hooks data received');
