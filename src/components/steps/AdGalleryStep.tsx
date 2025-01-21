@@ -68,11 +68,13 @@ const AdGalleryStep = ({
   // Effect for initial ad generation
   useEffect(() => {
     const checkAndGenerateAds = async () => {
-      if (!hasLoadedInitialAds || hasGeneratedInitialAds) {
-        console.log('[AdGalleryStep] Skipping initial generation:', { 
-          hasLoadedInitialAds, 
-          hasGeneratedInitialAds 
-        });
+      if (!hasLoadedInitialAds) {
+        console.log('[AdGalleryStep] Waiting for initial load');
+        return;
+      }
+
+      if (hasGeneratedInitialAds) {
+        console.log('[AdGalleryStep] Already generated initial ads');
         return;
       }
 
@@ -96,9 +98,11 @@ const AdGalleryStep = ({
       if (shouldGenerateAds) {
         console.log('[AdGalleryStep] Triggering initial ad generation');
         handleGenerateAds(platform);
+        setHasGeneratedInitialAds(true);
+      } else {
+        console.log('[AdGalleryStep] Skipping ad generation - ads already exist');
+        setHasGeneratedInitialAds(true);
       }
-
-      setHasGeneratedInitialAds(true);
     };
 
     checkAndGenerateAds();
