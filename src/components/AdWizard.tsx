@@ -65,7 +65,11 @@ const AdWizard = () => {
               .upsert({
                 session_id: sessionId,
                 used: false,
-                wizard_data: null
+                wizard_data: {
+                  business_idea: null,
+                  target_audience: null,
+                  generated_ads: []
+                } as WizardData
               }, {
                 onConflict: 'session_id'
               });
@@ -100,9 +104,11 @@ const AdWizard = () => {
                 setGeneratedAds(wizardData.generated_ads);
               } else {
                 console.log('[AdWizard] No generated ads found in wizard data');
+                setGeneratedAds([]);
               }
             } else {
               console.log('[AdWizard] No wizard data found for anonymous session');
+              setGeneratedAds([]);
             }
           } else {
             console.log('[AdWizard] No anonymous session ID found');
@@ -164,7 +170,7 @@ const AdWizard = () => {
             setGeneratedAds(wizardData.generated_ads);
           }
         }
-        setHasLoadedInitialAds(true);
+
       } catch (error) {
         console.error('[AdWizard] Error loading progress:', error);
         toast({
