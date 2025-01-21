@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 
 export const useAdGeneration = (
   businessIdea: BusinessIdea,
@@ -19,14 +19,6 @@ export const useAdGeneration = (
   const { projectId } = useParams();
   const queryClient = useQueryClient();
   const [sessionId] = useState(() => localStorage.getItem('anonymous_session_id'));
-
-  useEffect(() => {
-    console.log('[useAdGeneration] Current session state:', {
-      sessionId,
-      isGenerating,
-      hasVariants: adVariants.length > 0
-    });
-  }, [sessionId, isGenerating, adVariants]);
 
   const generateAds = async (selectedPlatform: string) => {
     setIsGenerating(true);
@@ -56,18 +48,12 @@ export const useAdGeneration = (
           businessIdea,
           targetAudience,
           adHooks,
-          userId: user?.id || currentSessionId,
+          userId: user?.id,
           isAnonymous: !user,
+          sessionId: currentSessionId,
           numVariants: 10
         }
       };
-
-      // Add session ID to headers for anonymous users
-      if (!user && currentSessionId) {
-        requestConfig.headers = {
-          'x-session-id': currentSessionId
-        };
-      }
 
       console.log('[useAdGeneration] Sending request with config:', requestConfig);
 
@@ -98,64 +84,76 @@ export const useAdGeneration = (
 
       setAdVariants(variants);
 
-      if (user) {
+      // Update anonymous usage if this is an anonymous session
+      if (!user && currentSessionId) {
+        console.log('[useAdGeneration] Updating anonymous usage with generated ads');
+        const { error: anonymousError } = await supabase
+          .from('anonymous_usage')
+          .update({ 
+            used: true,
+            wizard_data: {
+              business_idea: businessIdea,
+              target_audience: targetAudience,
+              generated_ads: variants
+            },
+            completed: true
+          })
+          .eq('session_id', currentSessionId);
+
+        if (anonymousError) {
+          console.error('[useAdGeneration] Error updating anonymous usage:', anonymousError);
+          throw anonymousError;
+        }
+        
+        console.log('[useAdGeneration] Anonymous usage updated successfully');
+        
+        // Show completion message for anonymous users
+        toast({
+          title: "Trial Complete",
+          description: "Sign up now to save your progress and continue using the app!",
+          variant: "default",
+        });
+        
+        // Short delay before redirecting to allow toast to be seen
+        setTimeout(() => {
+          navigate('/login', { 
+            state: { 
+              from: location.pathname,
+              anonymousData: {
+                businessIdea,
+                targetAudience,
+                generatedAds: variants
+              }
+            }
+          });
+        }, 2000);
+      } else if (user) {
+        // Handle authenticated user updates
+        if (projectId && projectId !== 'new') {
+          await supabase
+            .from('projects')
+            .update({ generated_ads: variants })
+            .eq('id', projectId);
+        } else {
+          await supabase
+            .from('wizard_progress')
+            .upsert({
+              user_id: user.id,
+              generated_ads: variants
+            }, {
+              onConflict: 'user_id'
+            });
+        }
+        
         queryClient.invalidateQueries({ queryKey: ['subscription'] });
         queryClient.invalidateQueries({ queryKey: ['free_tier_usage'] });
-
-        // Save progress for authenticated users
-        try {
-          if (projectId && projectId !== 'new') {
-            await supabase
-              .from('projects')
-              .update({ generated_ads: variants })
-              .eq('id', projectId);
-          } else {
-            await supabase
-              .from('wizard_progress')
-              .upsert({
-                user_id: user.id,
-                generated_ads: variants
-              }, {
-                onConflict: 'user_id'
-              });
-          }
-        } catch (saveError) {
-          console.error('[useAdGeneration] Error saving progress:', saveError);
-        }
-      } else if (currentSessionId) {
-        // For anonymous users, update anonymous_usage
-        console.log('[useAdGeneration] Updating anonymous usage with generated ads');
-        try {
-          const { error: anonymousError } = await supabase
-            .from('anonymous_usage')
-            .update({ 
-              used: true,
-              wizard_data: {
-                business_idea: businessIdea,
-                target_audience: targetAudience,
-                generated_ads: variants
-              },
-              completed: true
-            })
-            .eq('session_id', currentSessionId);
-
-          if (anonymousError) {
-            console.error('[useAdGeneration] Error updating anonymous usage:', anonymousError);
-            throw anonymousError;
-          }
-          
-          console.log('[useAdGeneration] Anonymous usage updated successfully');
-        } catch (anonymousError) {
-          console.error('[useAdGeneration] Error updating anonymous usage:', anonymousError);
-        }
+        
+        toast({
+          title: "Ads Generated Successfully",
+          description: `Your new ${selectedPlatform} ad variants are ready!`,
+        });
       }
 
-      toast({
-        title: "Ads generated successfully",
-        description: user 
-          ? `Your new ${selectedPlatform} ad variants are ready!`
-          : `Your ${selectedPlatform} ad variants are ready! Register to save them.`,
-      });
     } catch (error: any) {
       console.error('[useAdGeneration] Ad generation error:', error);
       

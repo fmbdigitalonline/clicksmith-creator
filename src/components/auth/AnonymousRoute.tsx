@@ -41,13 +41,11 @@ export const AnonymousRoute = ({ children }: { children: React.ReactNode }) => {
           .eq('session_id', sessionId)
           .single();
 
-        if (error) {
-          console.log('[AnonymousRoute] Error checking usage:', error);
-          if (error.code !== 'PGRST116') { // Not found error
-            console.error('[AnonymousRoute] Unexpected error:', error);
-            setCanAccess(false);
-            return;
-          }
+        if (error && error.code !== 'PGRST116') { // Not found error
+          console.error('[AnonymousRoute] Unexpected error:', error);
+          setCanAccess(false);
+          setIsLoading(false);
+          return;
         }
 
         console.log('[AnonymousRoute] Anonymous usage data:', usage);
@@ -80,6 +78,7 @@ export const AnonymousRoute = ({ children }: { children: React.ReactNode }) => {
           if (insertError) {
             console.error('[AnonymousRoute] Error creating anonymous usage:', insertError);
             setCanAccess(false);
+            setIsLoading(false);
             return;
           }
           console.log('[AnonymousRoute] Anonymous usage record created successfully');
