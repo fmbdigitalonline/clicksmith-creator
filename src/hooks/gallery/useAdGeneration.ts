@@ -44,7 +44,6 @@ export const useAdGeneration = (
         adHooks,
         isAnonymous: isAnonymousMode,
         sessionId,
-        userId: null,
         numVariants: 10
       };
 
@@ -59,7 +58,9 @@ export const useAdGeneration = (
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+                'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+                'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+                'x-client-info': 'supabase-js-web/2.48.0'
               },
               body: JSON.stringify(requestBody)
             }
@@ -115,8 +116,9 @@ export const useAdGeneration = (
               method: 'PATCH',
               headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
                 'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+                'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+                'x-client-info': 'supabase-js-web/2.48.0',
                 'Prefer': 'return=minimal'
               },
               body: JSON.stringify({ 
@@ -143,7 +145,6 @@ export const useAdGeneration = (
             variant: "default",
           });
         } else {
-          // Only invalidate queries for authenticated users
           await queryClient.invalidateQueries({ queryKey: ['subscription'] });
           await queryClient.invalidateQueries({ queryKey: ['free_tier_usage'] });
 
