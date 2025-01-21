@@ -44,7 +44,7 @@ serve(async (req) => {
       throw new Error('Missing required environment variables for Supabase client');
     }
 
-    // Updated Supabase admin client configuration
+    // Enhanced Supabase admin client configuration with explicit auth settings
     const supabaseAdmin = createClient(
       supabaseUrl,
       supabaseServiceRoleKey,
@@ -52,11 +52,13 @@ serve(async (req) => {
         auth: {
           autoRefreshToken: false,
           persistSession: false,
-          detectSessionInUrl: false
+          detectSessionInUrl: false,
+          flowType: 'pkce'
         },
         global: {
           headers: { 
             'X-Client-Info': 'generate-ad-content-edge-function',
+            'X-Initial-Auth': 'service_role'
           },
           fetch: fetch
         }
