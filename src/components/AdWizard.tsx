@@ -52,24 +52,33 @@ const AdWizard = () => {
         const { data: { user } } = await supabase.auth.getUser();
         let sessionId = localStorage.getItem('anonymous_session_id');
         
-        // Step 1: Ensure anonymous session ID is set
-        if (!user && !sessionId) {
-          sessionId = crypto.randomUUID();
-          localStorage.setItem('anonymous_session_id', sessionId);
-          console.log('[AdWizard] Created new anonymous session:', sessionId);
-        }
-        
-        console.log('[AdWizard] Starting loadProgress:', { hasUser: !!user, sessionId });
-        
+        // Step 1: Handle anonymous session initialization
         if (!user) {
-          console.log('[AdWizard] Anonymous user detected, checking session:', sessionId);
-          if (sessionId) {
-            console.log('[AdWizard] Fetching anonymous usage data for session:', sessionId);
-            
-            // Step 2: Initialize anonymous session record if it doesn't exist
+          if (!sessionId) {
+            sessionId = crypto.randomUUID();
+            localStorage.setItem('anonymous_session_id', sessionId);
+            console.log('[AdWizard] Created new anonymous session:', sessionId);
+          }
+
+          console.log('[AdWizard] Anonymous user detected, initializing session:', sessionId);
+          
+          // Step 2: Initialize or get anonymous session with proper locking
+          const { data: existingSession, error: checkError } = await supabase
+            .from('anonymous_usage')
+            .select('*')
+            .eq('session_id', sessionId)
+            .maybeSingle();
+
+          if (checkError) {
+            console.error('[AdWizard] Error checking session:', checkError);
+            throw checkError;
+          }
+
+          if (!existingSession) {
+            console.log('[AdWizard] Creating new anonymous session');
             const { error: createError } = await supabase
               .from('anonymous_usage')
-              .upsert({
+              .insert({
                 session_id: sessionId,
                 used: false,
                 completed: false,
@@ -78,56 +87,44 @@ const AdWizard = () => {
                   target_audience: null,
                   generated_ads: []
                 } as WizardData
-              }, {
-                onConflict: 'session_id'
               });
 
             if (createError) {
-              console.error('[AdWizard] Error creating anonymous session:', createError);
+              console.error('[AdWizard] Error creating session:', createError);
               throw createError;
             }
+          }
 
-            console.log('[AdWizard] Anonymous session ensured');
+          // Step 3: Get the latest session data
+          const { data: sessionData, error: sessionError } = await supabase
+            .from('anonymous_usage')
+            .select('*')
+            .eq('session_id', sessionId)
+            .maybeSingle();
 
-            // Step 3: Fetch the latest data after initialization
-            const { data: anonymousData, error: anonymousError } = await supabase
-              .from('anonymous_usage')
-              .select('wizard_data, used, completed')
-              .eq('session_id', sessionId)
-              .maybeSingle();
+          if (sessionError) {
+            console.error('[AdWizard] Error fetching session:', sessionError);
+            throw sessionError;
+          }
 
-            if (anonymousError) {
-              console.error('[AdWizard] Error fetching anonymous data:', anonymousError);
-              throw anonymousError;
+          if (sessionData) {
+            console.log('[AdWizard] Session data loaded:', sessionData);
+            
+            if (sessionData.wizard_data?.generated_ads) {
+              console.log('[AdWizard] Loading anonymous ads:', sessionData.wizard_data.generated_ads);
+              setGeneratedAds(sessionData.wizard_data.generated_ads);
             }
 
-            console.log('[AdWizard] Anonymous data loaded:', anonymousData);
-
-            // Step 4: Handle the wizard data
-            if (anonymousData?.wizard_data) {
-              const wizardData = anonymousData.wizard_data as WizardData;
-              console.log('[AdWizard] Wizard data found:', wizardData);
-              
-              if (wizardData.generated_ads && Array.isArray(wizardData.generated_ads)) {
-                console.log('[AdWizard] Loading anonymous user ads:', wizardData.generated_ads);
-                setGeneratedAds(wizardData.generated_ads);
-              } else {
-                console.log('[AdWizard] No generated ads found in wizard data');
-                setGeneratedAds([]);
-              }
-            } else {
-              console.log('[AdWizard] No wizard data found for anonymous session');
-              setGeneratedAds([]);
+            // Only show the toast if the session exists and hasn't been used
+            if (!sessionData.used) {
+              toast({
+                title: "Auto-save disabled",
+                description: "Register or log in to automatically save your progress and generated ads.",
+                duration: 6000,
+              });
             }
-          } else {
-            console.log('[AdWizard] No anonymous session ID found');
           }
           
-          toast({
-            title: "Auto-save disabled",
-            description: "Register or log in to automatically save your progress and generated ads.",
-            duration: 6000,
-          });
           setHasLoadedInitialAds(true);
           return;
         }
@@ -181,8 +178,9 @@ const AdWizard = () => {
           }
         }
         setHasLoadedInitialAds(true);
+
       } catch (error) {
-        console.error('[AdWizard] Error loading progress:', error);
+        console.error('[AdWizard] Error in loadProgress:', error);
         toast({
           title: "Something went wrong",
           description: "We couldn't load your previous work. Please try refreshing the page.",
@@ -222,7 +220,6 @@ const AdWizard = () => {
 
   const handleAdsGenerated = async (newAds: any[]) => {
     console.log('[AdWizard] Handling newly generated ads:', newAds);
-    setGeneratedAds(newAds);
     
     const { data: { user } } = await supabase.auth.getUser();
     const sessionId = localStorage.getItem('anonymous_session_id');
@@ -252,25 +249,48 @@ const AdWizard = () => {
         }
       } else if (sessionId) {
         console.log('[AdWizard] Updating anonymous usage with new ads');
-        const { error: anonymousError } = await supabase
+        
+        // First, verify the session hasn't been marked as used
+        const { data: sessionCheck, error: checkError } = await supabase
           .from('anonymous_usage')
-          .upsert({
-            session_id: sessionId,
+          .select('used')
+          .eq('session_id', sessionId)
+          .maybeSingle();
+
+        if (checkError) {
+          console.error('[AdWizard] Error checking session status:', checkError);
+          throw checkError;
+        }
+
+        if (sessionCheck?.used) {
+          console.log('[AdWizard] Session already used');
+          toast({
+            title: "Trial completed",
+            description: "Please sign up to continue generating ads.",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        // Update the session with new ads and mark as used
+        const { error: updateError } = await supabase
+          .from('anonymous_usage')
+          .update({
             used: true,
             wizard_data: {
               business_idea: businessIdea,
               target_audience: targetAudience,
               generated_ads: newAds
             } as WizardData
-          }, {
-            onConflict: 'session_id'
-          });
+          })
+          .eq('session_id', sessionId);
 
-        if (anonymousError) {
-          console.error('[AdWizard] Error updating anonymous usage:', anonymousError);
-          throw anonymousError;
+        if (updateError) {
+          console.error('[AdWizard] Error updating anonymous usage:', updateError);
+          throw updateError;
         }
         
+        setGeneratedAds(newAds);
         console.log('[AdWizard] Anonymous usage updated successfully');
       }
     } catch (error) {
