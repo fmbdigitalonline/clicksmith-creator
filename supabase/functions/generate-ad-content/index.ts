@@ -93,8 +93,13 @@ serve(async (req) => {
       hasTargetAudience: !!targetAudience
     });
 
+    // Log anonymous session details
     if (isAnonymous && sessionId) {
-      console.log('[generate-ad-content] Processing anonymous request:', { sessionId });
+      console.log('[generate-ad-content] Processing anonymous request:', { 
+        sessionId,
+        headers: req.headers,
+        requestPath: new URL(req.url).pathname
+      });
       
       const { data: anonymousUsage, error: usageError } = await supabaseAdmin
         .from('anonymous_usage')
