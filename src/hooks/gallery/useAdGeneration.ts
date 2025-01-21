@@ -30,6 +30,16 @@ export const useAdGeneration = (
         platform: selectedPlatform 
       });
 
+      let user = null;
+      if (!sessionId) {
+        try {
+          const { data: userData } = await supabase.auth.getUser();
+          user = userData.user;
+        } catch (e) {
+          console.log('[useAdGeneration] No auth session, treating as anonymous');
+        }
+      }
+
       setGenerationStatus("Generating ads...");
       
       const requestConfig = {
@@ -101,35 +111,31 @@ export const useAdGeneration = (
           description: "Sign up now to save your progress and continue using the app!",
           variant: "default",
         });
-      } else {
+      } else if (user) {
         // Handle authenticated user updates
-        const { data: { user } } = await supabase.auth.getUser();
-        
-        if (user) {
-          if (projectId && projectId !== 'new') {
-            await supabase
-              .from('projects')
-              .update({ generated_ads: variants })
-              .eq('id', projectId);
-          } else {
-            await supabase
-              .from('wizard_progress')
-              .upsert({
-                user_id: user.id,
-                generated_ads: variants
-              }, {
-                onConflict: 'user_id'
-              });
-          }
-          
-          queryClient.invalidateQueries({ queryKey: ['subscription'] });
-          queryClient.invalidateQueries({ queryKey: ['free_tier_usage'] });
-          
-          toast({
-            title: "Ads Generated Successfully",
-            description: `Your new ${selectedPlatform} ad variants are ready!`,
-          });
+        if (projectId && projectId !== 'new') {
+          await supabase
+            .from('projects')
+            .update({ generated_ads: variants })
+            .eq('id', projectId);
+        } else {
+          await supabase
+            .from('wizard_progress')
+            .upsert({
+              user_id: user.id,
+              generated_ads: variants
+            }, {
+              onConflict: 'user_id'
+            });
         }
+        
+        queryClient.invalidateQueries({ queryKey: ['subscription'] });
+        queryClient.invalidateQueries({ queryKey: ['free_tier_usage'] });
+        
+        toast({
+          title: "Ads Generated Successfully",
+          description: `Your new ${selectedPlatform} ad variants are ready!`,
+        });
       }
 
     } catch (error: any) {
