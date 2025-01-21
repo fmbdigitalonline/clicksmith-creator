@@ -29,6 +29,7 @@ const AdWizard = () => {
   const [generatedAds, setGeneratedAds] = useState<any[]>([]);
   const [hasLoadedInitialAds, setHasLoadedInitialAds] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [anonymousData, setAnonymousData] = useState<any>(null);
   const navigate = useNavigate();
   const { projectId } = useParams();
   const { toast } = useToast();
@@ -37,10 +38,28 @@ const AdWizard = () => {
     const checkUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       setCurrentUser(user);
+
+      // If user just registered, try to migrate anonymous data
+      if (user) {
+        const sessionId = localStorage.getItem('anonymous_session_id');
+        if (sessionId) {
+          const { data: anonData } = await supabase
+            .from('anonymous_usage')
+            .select('wizard_data')
+            .eq('session_id', sessionId)
+            .maybeSingle();
+
+          if (anonData?.wizard_data) {
+            setAnonymousData(anonData.wizard_data);
+            // Clear the anonymous session ID after migration
+            localStorage.removeItem('anonymous_session_id');
+          }
+        }
+      }
     };
     checkUser();
   }, []);
-  
+
   const {
     currentStep,
     businessIdea,
@@ -122,6 +141,27 @@ const AdWizard = () => {
           return;
         }
 
+        // If we have anonymous data to migrate
+        if (anonymousData) {
+          console.log('[AdWizard] Migrating anonymous data to user account');
+          const { error: wizardError } = await supabase
+            .from('wizard_progress')
+            .upsert({
+              user_id: user.id,
+              business_idea: anonymousData.business_idea,
+              target_audience: anonymousData.target_audience,
+              generated_ads: anonymousData.generated_ads,
+              current_step: 4
+            });
+
+          if (wizardError) {
+            console.error('[AdWizard] Error migrating anonymous data:', wizardError);
+          } else {
+            setGeneratedAds(anonymousData.generated_ads || []);
+            setAnonymousData(null);
+          }
+        }
+
         console.log('[AdWizard] Authenticated user, loading project data');
 
         if (projectId && projectId !== 'new') {
@@ -187,7 +227,7 @@ const AdWizard = () => {
     };
 
     loadProgress();
-  }, [projectId, navigate, toast]);
+  }, [projectId, navigate, toast, anonymousData]);
 
   const handleCreateProject = () => {
     setShowCreateProject(true);
