@@ -17,7 +17,6 @@ const PLATFORM_FORMATS = {
 serve(async (req) => {
   console.log('[generate-ad-content] Function started');
   
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     console.log('[generate-ad-content] Handling OPTIONS request');
     return new Response(null, { 
@@ -52,25 +51,41 @@ serve(async (req) => {
       throw new Error('Empty request body');
     }
 
-    const { type, businessIdea, targetAudience, platform = 'facebook', userId } = body;
-    const anonymousSessionId = req.headers.get('x-session-id');
+    const { type, businessIdea, targetAudience, platform = 'facebook', isAnonymous, sessionId } = body;
+    let userId = null;
 
     console.log('[generate-ad-content] Request details:', {
       type,
       platform,
-      userId,
-      anonymousSessionId,
+      isAnonymous,
+      sessionId,
       hasBusinessIdea: !!businessIdea,
       hasTargetAudience: !!targetAudience
     });
 
+    // Only try to get user if not anonymous
+    if (!isAnonymous) {
+      try {
+        const authHeader = req.headers.get('Authorization');
+        if (authHeader) {
+          const { data: { user }, error: userError } = await supabase.auth.getUser(
+            authHeader.replace('Bearer ', '')
+          );
+          if (userError) throw userError;
+          userId = user?.id;
+        }
+      } catch (error) {
+        console.error('[generate-ad-content] Error getting user:', error);
+      }
+    }
+
     // Handle anonymous users
-    if (!userId && anonymousSessionId) {
-      console.log('[generate-ad-content] Processing anonymous request:', { anonymousSessionId });
+    if (isAnonymous && sessionId) {
+      console.log('[generate-ad-content] Processing anonymous request:', { sessionId });
       const { data: anonymousUsage, error: usageError } = await supabase
         .from('anonymous_usage')
         .select('used, completed')
-        .eq('session_id', anonymousSessionId)
+        .eq('session_id', sessionId)
         .single();
 
       if (usageError) {
@@ -130,7 +145,6 @@ serve(async (req) => {
         const campaignData = await generateCampaign(businessIdea, targetAudience);
         const imageData = await generateImagePrompts(businessIdea, targetAudience, campaignData.campaign);
         
-        // Generate 10 unique variants
         const variants = Array.from({ length: 10 }, (_, index) => {
           const format = PLATFORM_FORMATS[platform as keyof typeof PLATFORM_FORMATS];
           return {
