@@ -71,8 +71,17 @@ const AdGalleryStep = ({
     const existingPlatformAds = generatedAds.filter(ad => ad.platform === platform);
     const shouldGenerateAds = isNewProject || existingPlatformAds.length === 0;
 
+    console.log('[AdGalleryStep] Initial ad generation check:', {
+      hasLoadedInitialAds,
+      hasGeneratedInitialAds,
+      isNewProject,
+      platform,
+      existingAdsCount: existingPlatformAds.length,
+      shouldGenerateAds
+    });
+
     if (shouldGenerateAds) {
-      console.log('Generating initial ads:', { isNewProject, platform, existingAdsCount: existingPlatformAds.length });
+      console.log('[AdGalleryStep] Triggering initial ad generation');
       handleGenerateAds(platform);
     }
 
@@ -81,20 +90,30 @@ const AdGalleryStep = ({
 
   // Effect for managing generated ads state
   useEffect(() => {
-    if (!onAdsGenerated || adVariants.length === 0) return;
+    if (!onAdsGenerated || adVariants.length === 0) {
+      console.log('[AdGalleryStep] Skipping ad state update:', {
+        hasCallback: !!onAdsGenerated,
+        variantsCount: adVariants.length
+      });
+      return;
+    }
 
     const isNewProject = projectId === 'new';
-    const updatedAds = isNewProject 
-      ? adVariants // For new projects, use only new variants
+    console.log('[AdGalleryStep] Updating ads state:', {
+      isNewProject,
+      adVariantsCount: adVariants.length,
+      currentAdsCount: generatedAds.length
+    });
+
+    const updatedAds = isNewProject
+      ? adVariants
       : generatedAds.map(existingAd => {
-          // Find if there's a new variant for this ad
           const newVariant = adVariants.find(
             variant => variant.platform === existingAd.platform && variant.id === existingAd.id
           );
           return newVariant || existingAd;
         });
 
-    // Add any new variants that don't exist in the current ads
     if (!isNewProject) {
       adVariants.forEach(newVariant => {
         const exists = updatedAds.some(
@@ -106,12 +125,10 @@ const AdGalleryStep = ({
       });
     }
 
-    console.log('Updating ads state:', { 
-      isNewProject, 
-      adVariantsCount: adVariants.length,
-      updatedAdsCount: updatedAds.length 
+    console.log('[AdGalleryStep] Final ads update:', {
+      updatedAdsCount: updatedAds.length
     });
-    
+
     onAdsGenerated(updatedAds);
   }, [adVariants, onAdsGenerated, projectId, generatedAds]);
 
