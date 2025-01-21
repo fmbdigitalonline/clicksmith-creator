@@ -17,20 +17,18 @@ const PLATFORM_FORMATS = {
 serve(async (req) => {
   console.log('[generate-ad-content] Function started');
   
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     console.log('[generate-ad-content] Handling OPTIONS request');
     return new Response(null, { 
       status: 204,
-      headers: {
-        ...corsHeaders,
-        'Access-Control-Max-Age': '86400',
-        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      }
+      headers: corsHeaders
     });
   }
 
   try {
-    const supabase = createClient(
+    // Create a Supabase client with the service role key
+    const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
@@ -63,26 +61,12 @@ serve(async (req) => {
       hasTargetAudience: !!targetAudience
     });
 
-    // Only try to get user if not anonymous
-    if (!isAnonymous) {
-      try {
-        const authHeader = req.headers.get('Authorization');
-        if (authHeader) {
-          const { data: { user }, error: userError } = await supabase.auth.getUser(
-            authHeader.replace('Bearer ', '')
-          );
-          if (userError) throw userError;
-          userId = user?.id;
-        }
-      } catch (error) {
-        console.error('[generate-ad-content] Error getting user:', error);
-      }
-    }
-
-    // Handle anonymous users
+    // Handle anonymous users with service role privileges
     if (isAnonymous && sessionId) {
       console.log('[generate-ad-content] Processing anonymous request:', { sessionId });
-      const { data: anonymousUsage, error: usageError } = await supabase
+      
+      // Use service role client to check anonymous usage
+      const { data: anonymousUsage, error: usageError } = await supabaseAdmin
         .from('anonymous_usage')
         .select('used, completed')
         .eq('session_id', sessionId)
@@ -99,42 +83,37 @@ serve(async (req) => {
         console.log('[generate-ad-content] Anonymous session already completed');
         throw new Error('Anonymous trial has been completed. Please sign up to continue.');
       }
-    }
 
-    // Check and deduct credits for authenticated users
-    if (userId && type !== 'audience_analysis') {
-      console.log('[generate-ad-content] Checking credits for user:', userId);
-      const { data: creditCheck, error: creditError } = await supabase.rpc(
-        'check_user_credits',
-        { p_user_id: userId, required_credits: 1 }
-      );
+      // Update anonymous usage with service role
+      if (!anonymousUsage?.used) {
+        const { error: updateError } = await supabaseAdmin
+          .from('anonymous_usage')
+          .update({ used: true })
+          .eq('session_id', sessionId);
 
-      if (creditError) {
-        console.error('[generate-ad-content] Credit check error:', creditError);
-        throw creditError;
+        if (updateError) {
+          console.error('[generate-ad-content] Error updating anonymous usage:', updateError);
+          throw new Error(`Error updating anonymous usage: ${updateError.message}`);
+        }
       }
-
-      const result = creditCheck[0];
-      console.log('[generate-ad-content] Credit check result:', result);
-      
-      if (!result.has_credits) {
-        return new Response(
-          JSON.stringify({ error: 'No credits available', message: result.error_message }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 402 }
-        );
-      }
-
-      const { error: deductError } = await supabase.rpc(
-        'deduct_user_credits',
-        { input_user_id: userId, credits_to_deduct: 1 }
-      );
-
-      if (deductError) {
-        console.error('[generate-ad-content] Credit deduction error:', deductError);
-        throw deductError;
+    } else if (!isAnonymous) {
+      // Handle authenticated users
+      try {
+        const authHeader = req.headers.get('Authorization');
+        if (authHeader) {
+          const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(
+            authHeader.replace('Bearer ', '')
+          );
+          if (userError) throw userError;
+          userId = user?.id;
+        }
+      } catch (error) {
+        console.error('[generate-ad-content] Error getting user:', error);
+        throw error;
       }
     }
 
+    // Process the request based on type
     let responseData;
     console.log('[generate-ad-content] Processing request type:', type);
     
