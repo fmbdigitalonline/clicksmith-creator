@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { v4 as uuidv4 } from "uuid";
 import { useToast } from "@/hooks/use-toast";
 
 export const AnonymousRoute = ({ children }: { children: React.ReactNode }) => {
@@ -23,87 +24,81 @@ export const AnonymousRoute = ({ children }: { children: React.ReactNode }) => {
           return;
         }
 
-        // Try to get existing anonymous session from localStorage
-        const storedSession = localStorage.getItem('anonymous_session');
-        if (storedSession) {
-          const parsedSession = JSON.parse(storedSession);
-          const { access_token, refresh_token } = parsedSession;
+        // Get or create session ID from localStorage
+        let sessionId = localStorage.getItem('anonymous_session_id');
+        if (!sessionId) {
+          sessionId = uuidv4();
+          localStorage.setItem('anonymous_session_id', sessionId);
+          console.log('[AnonymousRoute] Created new anonymous session:', sessionId);
+        } else {
+          console.log('[AnonymousRoute] Found existing anonymous session:', sessionId);
+        }
 
-          console.log('[AnonymousRoute] Found stored anonymous session, attempting to restore');
+        // Check if this session has already been used
+        const { data: usage, error } = await supabase
+          .from('anonymous_usage')
+          .select('*')
+          .eq('session_id', sessionId)
+          .single();
 
-          // Try to restore the session
-          const { data: { session: restoredSession }, error: sessionError } = 
-            await supabase.auth.setSession({
-              access_token,
-              refresh_token
-            });
+        if (error && error.code !== 'PGRST116') { // Not found error
+          console.error('[AnonymousRoute] Unexpected error:', error);
+          setCanAccess(false);
+          setIsLoading(false);
+          return;
+        }
 
-          if (sessionError || !restoredSession) {
-            console.log('[AnonymousRoute] Stored session invalid, creating new one');
-            localStorage.removeItem('anonymous_session');
-          } else {
-            console.log('[AnonymousRoute] Successfully restored anonymous session');
-            setCanAccess(true);
+        console.log('[AnonymousRoute] Anonymous usage data:', usage);
+
+        // Check if the wizard is completed
+        if (usage?.completed) {
+          console.log('[AnonymousRoute] Wizard completed, redirecting to login');
+          toast({
+            title: "Trial Complete",
+            description: "Please sign up to save your progress and continue using the app.",
+            variant: "destructive",
+          });
+          setCanAccess(false);
+          setIsLoading(false);
+          return;
+        }
+
+        if (!usage) {
+          // First time user - create usage record
+          console.log('[AnonymousRoute] Creating new anonymous usage record');
+          const { error: insertError } = await supabase
+            .from('anonymous_usage')
+            .insert([{ 
+              session_id: sessionId, 
+              used: false,
+              wizard_data: null,
+              completed: false
+            }]);
+
+          if (insertError) {
+            console.error('[AnonymousRoute] Error creating anonymous usage:', insertError);
+            setCanAccess(false);
             setIsLoading(false);
             return;
           }
+          console.log('[AnonymousRoute] Anonymous usage record created successfully');
+          setCanAccess(true);
+        } else if (!usage.used) {
+          // Session exists but hasn't been used yet
+          console.log('[AnonymousRoute] Session exists but has not been used');
+          setCanAccess(true);
+        } else {
+          // Session has been used
+          console.log('[AnonymousRoute] Session has been used, redirecting to login');
+          toast({
+            title: "Trial Expired",
+            description: "Please sign up to continue using the app.",
+            variant: "destructive",
+          });
+          setCanAccess(false);
         }
-
-        console.log('[AnonymousRoute] Creating new anonymous session');
-
-        // Create new anonymous session
-        const response = await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-anonymous-session`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-              'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-            },
-          }
-        );
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error('[AnonymousRoute] Error response:', errorText);
-          throw new Error(`Failed to create anonymous session: ${response.status} ${response.statusText}`);
-        }
-
-        const responseText = await response.text();
-        let data;
-        try {
-          data = JSON.parse(responseText);
-        } catch (e) {
-          console.error('[AnonymousRoute] Failed to parse response:', responseText);
-          throw new Error('Invalid response from server');
-        }
-
-        if (!data.session) {
-          throw new Error('No session in response');
-        }
-
-        // Store the session
-        localStorage.setItem('anonymous_session', JSON.stringify({
-          access_token: data.session.access_token,
-          refresh_token: data.session.refresh_token,
-        }));
-
-        // Set the session in Supabase
-        await supabase.auth.setSession({
-          access_token: data.session.access_token,
-          refresh_token: data.session.refresh_token,
-        });
-
-        console.log('[AnonymousRoute] New anonymous session created and stored');
-        setCanAccess(true);
       } catch (error) {
         console.error('[AnonymousRoute] Error in anonymous access check:', error);
-        toast({
-          title: "Error",
-          description: "Could not create anonymous session. Please try again.",
-          variant: "destructive",
-        });
         setCanAccess(false);
       } finally {
         setIsLoading(false);
