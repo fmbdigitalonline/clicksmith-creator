@@ -15,7 +15,10 @@ const PLATFORM_FORMATS = {
 };
 
 serve(async (req) => {
+  console.log('[generate-ad-content] Function started');
+  
   if (req.method === 'OPTIONS') {
+    console.log('[generate-ad-content] Handling OPTIONS request');
     return new Response(null, { 
       status: 204,
       headers: {
@@ -35,50 +38,69 @@ serve(async (req) => {
     let body;
     try {
       const text = await req.text();
-      console.log('Raw request body:', text);
+      console.log('[generate-ad-content] Raw request body:', text);
       body = JSON.parse(text);
-      console.log('Parsed request body:', body);
+      console.log('[generate-ad-content] Parsed request body:', body);
     } catch (e) {
-      console.error('Error parsing request body:', e);
+      console.error('[generate-ad-content] Error parsing request body:', e);
       throw new Error(`Invalid JSON in request body: ${e.message}`);
     }
 
     if (!body) {
+      console.error('[generate-ad-content] Empty request body');
       throw new Error('Empty request body');
     }
 
-    const { type, businessIdea, targetAudience, platform = 'facebook', userId, sessionId } = body;
+    const { type, businessIdea, targetAudience, platform = 'facebook', userId, sessionId, isAnonymous } = body;
+
+    console.log('[generate-ad-content] Request details:', {
+      type,
+      platform,
+      userId,
+      sessionId,
+      isAnonymous,
+      hasBusinessIdea: !!businessIdea,
+      hasTargetAudience: !!targetAudience
+    });
 
     // Handle anonymous users
-    if (!userId && sessionId) {
-      console.log('Processing anonymous user request with session:', sessionId);
-      const { data: anonymousUsage } = await supabase
+    if (isAnonymous && sessionId) {
+      console.log('[generate-ad-content] Processing anonymous request:', { sessionId });
+      const { data: anonymousUsage, error: usageError } = await supabase
         .from('anonymous_usage')
-        .select('used')
+        .select('used, completed')
         .eq('session_id', sessionId)
         .single();
 
-      if (!anonymousUsage) {
-        // Create new anonymous usage record
-        await supabase
-          .from('anonymous_usage')
-          .insert({
-            session_id: sessionId,
-            used: false
-          });
+      if (usageError) {
+        console.error('[generate-ad-content] Error checking anonymous usage:', usageError);
+        throw new Error(`Error checking anonymous usage: ${usageError.message}`);
+      }
+
+      console.log('[generate-ad-content] Anonymous usage status:', anonymousUsage);
+
+      if (anonymousUsage?.completed) {
+        console.log('[generate-ad-content] Anonymous session already completed');
+        throw new Error('Anonymous trial has been completed. Please sign up to continue.');
       }
     }
 
     // Check and deduct credits for authenticated users
     if (userId && type !== 'audience_analysis') {
+      console.log('[generate-ad-content] Checking credits for user:', userId);
       const { data: creditCheck, error: creditError } = await supabase.rpc(
         'check_user_credits',
         { p_user_id: userId, required_credits: 1 }
       );
 
-      if (creditError) throw creditError;
+      if (creditError) {
+        console.error('[generate-ad-content] Credit check error:', creditError);
+        throw creditError;
+      }
 
       const result = creditCheck[0];
+      console.log('[generate-ad-content] Credit check result:', result);
+      
       if (!result.has_credits) {
         return new Response(
           JSON.stringify({ error: 'No credits available', message: result.error_message }),
@@ -91,14 +113,19 @@ serve(async (req) => {
         { input_user_id: userId, credits_to_deduct: 1 }
       );
 
-      if (deductError) throw deductError;
+      if (deductError) {
+        console.error('[generate-ad-content] Credit deduction error:', deductError);
+        throw deductError;
+      }
     }
 
     let responseData;
+    console.log('[generate-ad-content] Processing request type:', type);
+    
     switch (type) {
       case 'complete_ads':
       case 'video_ads': {
-        console.log('Generating campaign for platform:', platform);
+        console.log('[generate-ad-content] Generating campaign for platform:', platform);
         const campaignData = await generateCampaign(businessIdea, targetAudience);
         const imageData = await generateImagePrompts(businessIdea, targetAudience, campaignData.campaign);
         
@@ -115,6 +142,7 @@ serve(async (req) => {
           };
         });
 
+        console.log('[generate-ad-content] Generated variants count:', variants.length);
         responseData = { variants };
         break;
       }
@@ -128,9 +156,11 @@ serve(async (req) => {
         responseData = await analyzeAudience(businessIdea, targetAudience);
         break;
       default:
+        console.error('[generate-ad-content] Unsupported generation type:', type);
         throw new Error(`Unsupported generation type: ${type}`);
     }
 
+    console.log('[generate-ad-content] Successfully generated response');
     return new Response(JSON.stringify(responseData), {
       status: 200,
       headers: { 
@@ -139,7 +169,7 @@ serve(async (req) => {
       },
     });
   } catch (error) {
-    console.error('Error in generate-ad-content function:', error);
+    console.error('[generate-ad-content] Error in function:', error);
     return new Response(
       JSON.stringify({
         error: error.message,
