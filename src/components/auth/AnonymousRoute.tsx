@@ -65,25 +65,34 @@ export const AnonymousRoute = ({ children }: { children: React.ReactNode }) => {
         );
 
         if (!response.ok) {
-          throw new Error('Failed to create anonymous session');
+          const errorText = await response.text();
+          console.error('[AnonymousRoute] Error response:', errorText);
+          throw new Error(`Failed to create anonymous session: ${response.status} ${response.statusText}`);
         }
 
-        const { session: newSession, error } = await response.json();
+        const responseText = await response.text();
+        let data;
+        try {
+          data = JSON.parse(responseText);
+        } catch (e) {
+          console.error('[AnonymousRoute] Failed to parse response:', responseText);
+          throw new Error('Invalid response from server');
+        }
 
-        if (error) {
-          throw new Error(error);
+        if (!data.session) {
+          throw new Error('No session in response');
         }
 
         // Store the session
         localStorage.setItem('anonymous_session', JSON.stringify({
-          access_token: newSession.access_token,
-          refresh_token: newSession.refresh_token,
+          access_token: data.session.access_token,
+          refresh_token: data.session.refresh_token,
         }));
 
         // Set the session in Supabase
         await supabase.auth.setSession({
-          access_token: newSession.access_token,
-          refresh_token: newSession.refresh_token,
+          access_token: data.session.access_token,
+          refresh_token: data.session.refresh_token,
         });
 
         console.log('[AnonymousRoute] New anonymous session created and stored');
