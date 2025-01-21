@@ -10,6 +10,7 @@ import AdGenerationControls from "./gallery/AdGenerationControls";
 import { useEffect, useState, useCallback } from "react";
 import { AdSizeSelector, AD_FORMATS } from "./gallery/components/AdSizeSelector";
 import { useParams } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
 
 interface AdGalleryStepProps {
   businessIdea: BusinessIdea;
@@ -59,33 +60,48 @@ const AdGalleryStep = ({
 
   const handleGenerateAds = useCallback((selectedPlatform: string) => {
     if (!isGenerating) {
+      console.log('[AdGalleryStep] Triggering ad generation for platform:', selectedPlatform);
       generateAds(selectedPlatform);
     }
   }, [generateAds, isGenerating]);
 
   // Effect for initial ad generation
   useEffect(() => {
-    if (!hasLoadedInitialAds || hasGeneratedInitialAds) return;
+    const checkAndGenerateAds = async () => {
+      if (!hasLoadedInitialAds || hasGeneratedInitialAds) {
+        console.log('[AdGalleryStep] Skipping initial generation:', { 
+          hasLoadedInitialAds, 
+          hasGeneratedInitialAds 
+        });
+        return;
+      }
 
-    const isNewProject = projectId === 'new';
-    const existingPlatformAds = generatedAds.filter(ad => ad.platform === platform);
-    const shouldGenerateAds = isNewProject || existingPlatformAds.length === 0;
+      const { data: { user } } = await supabase.auth.getUser();
+      const sessionId = localStorage.getItem('anonymous_session_id');
+      const isNewProject = projectId === 'new';
+      const existingPlatformAds = generatedAds.filter(ad => ad.platform === platform);
+      const shouldGenerateAds = isNewProject || existingPlatformAds.length === 0;
 
-    console.log('[AdGalleryStep] Initial ad generation check:', {
-      hasLoadedInitialAds,
-      hasGeneratedInitialAds,
-      isNewProject,
-      platform,
-      existingAdsCount: existingPlatformAds.length,
-      shouldGenerateAds
-    });
+      console.log('[AdGalleryStep] Initial ad generation check:', {
+        hasUser: !!user,
+        sessionId,
+        hasLoadedInitialAds,
+        hasGeneratedInitialAds,
+        isNewProject,
+        platform,
+        existingAdsCount: existingPlatformAds.length,
+        shouldGenerateAds
+      });
 
-    if (shouldGenerateAds) {
-      console.log('[AdGalleryStep] Triggering initial ad generation');
-      handleGenerateAds(platform);
-    }
+      if (shouldGenerateAds) {
+        console.log('[AdGalleryStep] Triggering initial ad generation');
+        handleGenerateAds(platform);
+      }
 
-    setHasGeneratedInitialAds(true);
+      setHasGeneratedInitialAds(true);
+    };
+
+    checkAndGenerateAds();
   }, [hasLoadedInitialAds, hasGeneratedInitialAds, platform, projectId, generatedAds, handleGenerateAds]);
 
   // Effect for managing generated ads state
