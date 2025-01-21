@@ -58,10 +58,27 @@ const AdGalleryStep = ({
     generateAds,
   } = useAdGeneration(businessIdea, targetAudience, adHooks);
 
-  const handleGenerateAds = useCallback((selectedPlatform: string) => {
+  const handleGenerateAds = useCallback(async (selectedPlatform: string) => {
     if (!isGenerating) {
       console.log('[AdGalleryStep] Triggering ad generation for platform:', selectedPlatform);
-      generateAds(selectedPlatform);
+      const sessionId = localStorage.getItem('anonymous_session_id');
+      
+      try {
+        await generateAds(selectedPlatform);
+      } catch (error) {
+        console.error('[AdGalleryStep] Error generating ads:', error);
+        if (sessionId) {
+          // If we have a session ID but generation failed, try to mark it as used
+          const { error: updateError } = await supabase
+            .from('anonymous_usage')
+            .update({ used: true })
+            .eq('session_id', sessionId);
+            
+          if (updateError) {
+            console.error('[AdGalleryStep] Error updating anonymous usage:', updateError);
+          }
+        }
+      }
     }
   }, [generateAds, isGenerating]);
 
@@ -78,14 +95,12 @@ const AdGalleryStep = ({
         return;
       }
 
-      const { data: { user } } = await supabase.auth.getUser();
       const sessionId = localStorage.getItem('anonymous_session_id');
       const isNewProject = projectId === 'new';
       const existingPlatformAds = generatedAds.filter(ad => ad.platform === platform);
       const shouldGenerateAds = isNewProject || existingPlatformAds.length === 0;
 
       console.log('[AdGalleryStep] Initial ad generation check:', {
-        hasUser: !!user,
         sessionId,
         hasLoadedInitialAds,
         hasGeneratedInitialAds,
@@ -97,7 +112,7 @@ const AdGalleryStep = ({
 
       if (shouldGenerateAds) {
         console.log('[AdGalleryStep] Triggering initial ad generation');
-        handleGenerateAds(platform);
+        await handleGenerateAds(platform);
         setHasGeneratedInitialAds(true);
       } else {
         console.log('[AdGalleryStep] Skipping ad generation - ads already exist');
@@ -206,7 +221,7 @@ const AdGalleryStep = ({
       ) : (
         <PlatformTabs 
           platform={platform} 
-          onPlatformChange={onPlatformChange}
+          onPlatformChange={handlePlatformChange}
         >
           {renderPlatformContent('facebook')}
           {renderPlatformContent('google')}
