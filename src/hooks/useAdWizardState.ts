@@ -82,7 +82,7 @@ export const useAdWizardState = () => {
           setSelectedHooks(hooks as AdHook[]);
           
           // Set appropriate step based on wizard progress
-          if (hooks.length > 0) {
+          if (hooks.length > 0 || wizardData.current_step === 4) {
             setCurrentStep(4);
           } else if (wizardData.audience_analysis) {
             setCurrentStep(3);
@@ -123,7 +123,10 @@ export const useAdWizardState = () => {
       
       // Save progress based on authentication status
       if (user) {
-        await saveWizardProgress({ audience_analysis: analysis }, projectId);
+        await saveWizardProgress({ 
+          audience_analysis: analysis,
+          current_step: 4 // Explicitly set the current step
+        }, projectId);
       } else if (sessionId) {
         // For anonymous users, update the wizard_data and last_completed_step
         const { error: anonymousError } = await supabase
@@ -132,9 +135,10 @@ export const useAdWizardState = () => {
             wizard_data: {
               business_idea: businessIdea,
               target_audience: targetAudience,
-              audience_analysis: analysis
+              audience_analysis: analysis,
+              current_step: 4 // Include current step in wizard data
             },
-            last_completed_step: 3
+            last_completed_step: 4 // Update last completed step
           })
           .eq('session_id', sessionId);
 
@@ -171,7 +175,10 @@ export const useAdWizardState = () => {
         
         // Save hooks based on authentication status
         if (user) {
-          await saveWizardProgress({ selected_hooks: data.hooks }, projectId);
+          await saveWizardProgress({ 
+            selected_hooks: data.hooks,
+            current_step: 4 // Ensure current step is saved
+          }, projectId);
         } else if (sessionId) {
           const { error: updateError } = await supabase
             .from('anonymous_usage')
@@ -180,8 +187,10 @@ export const useAdWizardState = () => {
                 business_idea: businessIdea,
                 target_audience: targetAudience,
                 audience_analysis: analysis,
-                selected_hooks: data.hooks
-              }
+                selected_hooks: data.hooks,
+                current_step: 4 // Include current step in wizard data
+              },
+              last_completed_step: 4 // Update last completed step
             })
             .eq('session_id', sessionId);
 
