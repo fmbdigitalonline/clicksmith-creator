@@ -24,35 +24,37 @@ export const useAdGeneration = (
     setGenerationStatus("Initializing generation...");
     
     try {
+      // 1. Check for anonymous session first
       const sessionId = localStorage.getItem('anonymous_session_id');
+      const isAnonymousMode = !!sessionId;
+      let user = null;
+
       console.log('[useAdGeneration] Starting ad generation:', { 
+        isAnonymousMode,
         sessionId,
         platform: selectedPlatform 
       });
 
-      let user = null;
-      if (!sessionId) {
-        try {
-          const { data: userData } = await supabase.auth.getUser();
-          user = userData.user;
-        } catch (e) {
-          console.log('[useAdGeneration] No auth session, treating as anonymous');
-        }
+      // 2. Only perform auth check if not in anonymous mode
+      if (!isAnonymousMode) {
+        const authResponse = await supabase.auth.getSession();
+        user = authResponse.data?.session?.user || null;
       }
 
       setGenerationStatus("Generating ads...");
       
+      // 3. Update request config to include anonymous mode info
       const requestConfig = {
         body: {
           type: 'complete_ads',
           platform: selectedPlatform,
           businessIdea,
           targetAudience,
-          adHooks
-        },
-        headers: sessionId ? {
-          'x-session-id': sessionId
-        } : undefined
+          adHooks,
+          isAnonymous: isAnonymousMode,
+          sessionId: isAnonymousMode ? sessionId : null,
+          userId: user?.id || null
+        }
       };
 
       console.log('[useAdGeneration] Sending request with config:', requestConfig);
@@ -85,7 +87,7 @@ export const useAdGeneration = (
       setAdVariants(variants);
 
       // Update anonymous usage if this is an anonymous session
-      if (sessionId) {
+      if (isAnonymousMode) {
         console.log('[useAdGeneration] Updating anonymous usage with generated ads');
         const { error: anonymousError } = await supabase
           .from('anonymous_usage')
