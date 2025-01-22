@@ -19,27 +19,7 @@ export const useAdWizardState = () => {
   const { toast } = useToast();
   const { projectId } = useParams();
 
-  const canNavigateToStep = useCallback((step: number): boolean => {
-    switch (step) {
-      case 1:
-        return true;
-      case 2:
-        return !!businessIdea;
-      case 3:
-        return !!businessIdea && !!targetAudience;
-      case 4:
-        return !!businessIdea && !!targetAudience && !!audienceAnalysis;
-      default:
-        return false;
-    }
-  }, [businessIdea, targetAudience, audienceAnalysis]);
-
-  const handleStepClick = useCallback((step: number) => {
-    if (canNavigateToStep(step)) {
-      setCurrentStep(step);
-    }
-  }, [canNavigateToStep]);
-
+  // Load saved progress when component mounts
   useEffect(() => {
     const loadSavedProgress = async () => {
       try {
@@ -63,7 +43,7 @@ export const useAdWizardState = () => {
             .from('projects')
             .select('*')
             .eq('id', projectId)
-            .maybeSingle();
+            .single();
 
           if (project) {
             // Set project data
@@ -92,7 +72,7 @@ export const useAdWizardState = () => {
           .from('wizard_progress')
           .select('*')
           .eq('user_id', user.id)
-          .maybeSingle();
+          .single();
 
         if (wizardData) {
           setBusinessIdea(wizardData.business_idea as BusinessIdea);
@@ -102,7 +82,7 @@ export const useAdWizardState = () => {
           setSelectedHooks(hooks as AdHook[]);
           
           // Set appropriate step based on wizard progress
-          if (hooks.length > 0 || wizardData.current_step === 4) {
+          if (hooks.length > 0) {
             setCurrentStep(4);
           } else if (wizardData.audience_analysis) {
             setCurrentStep(3);
@@ -143,10 +123,7 @@ export const useAdWizardState = () => {
       
       // Save progress based on authentication status
       if (user) {
-        await saveWizardProgress({ 
-          audience_analysis: analysis,
-          current_step: 4 // Explicitly set the current step
-        }, projectId);
+        await saveWizardProgress({ audience_analysis: analysis }, projectId);
       } else if (sessionId) {
         // For anonymous users, update the wizard_data and last_completed_step
         const { error: anonymousError } = await supabase
@@ -155,10 +132,9 @@ export const useAdWizardState = () => {
             wizard_data: {
               business_idea: businessIdea,
               target_audience: targetAudience,
-              audience_analysis: analysis,
-              current_step: 4 // Include current step in wizard data
+              audience_analysis: analysis
             },
-            last_completed_step: 4 // Update last completed step
+            last_completed_step: 3
           })
           .eq('session_id', sessionId);
 
@@ -195,10 +171,7 @@ export const useAdWizardState = () => {
         
         // Save hooks based on authentication status
         if (user) {
-          await saveWizardProgress({ 
-            selected_hooks: data.hooks,
-            current_step: 4 // Ensure current step is saved
-          }, projectId);
+          await saveWizardProgress({ selected_hooks: data.hooks }, projectId);
         } else if (sessionId) {
           const { error: updateError } = await supabase
             .from('anonymous_usage')
@@ -207,10 +180,8 @@ export const useAdWizardState = () => {
                 business_idea: businessIdea,
                 target_audience: targetAudience,
                 audience_analysis: analysis,
-                selected_hooks: data.hooks,
-                current_step: 4 // Include current step in wizard data
-              },
-              last_completed_step: 4 // Update last completed step
+                selected_hooks: data.hooks
+              }
             })
             .eq('session_id', sessionId);
 
@@ -266,6 +237,21 @@ export const useAdWizardState = () => {
     }
   }, [projectId, toast]);
 
+  const canNavigateToStep = useCallback((step: number): boolean => {
+    switch (step) {
+      case 1:
+        return true;
+      case 2:
+        return !!businessIdea;
+      case 3:
+        return !!businessIdea && !!targetAudience;
+      case 4:
+        return !!businessIdea && !!targetAudience && !!audienceAnalysis;
+      default:
+        return false;
+    }
+  }, [businessIdea, targetAudience, audienceAnalysis]);
+
   return {
     currentStep,
     businessIdea,
@@ -278,7 +264,6 @@ export const useAdWizardState = () => {
     handleBack,
     handleStartOver,
     canNavigateToStep,
-    handleStepClick,
     setCurrentStep,
   };
 };
