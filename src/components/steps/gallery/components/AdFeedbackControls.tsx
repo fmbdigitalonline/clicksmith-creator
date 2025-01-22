@@ -54,7 +54,6 @@ export const AdFeedbackControls = ({ adId, projectId, onFeedbackSubmit }: AdFeed
         ...(projectId && projectId !== 'new' ? { project_id: projectId } : {})
       };
 
-      // Use upsert to handle duplicate submissions
       const { error: updateError } = await supabase
         .from('ad_feedback')
         .upsert(feedbackData, {
