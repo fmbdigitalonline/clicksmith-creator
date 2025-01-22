@@ -82,79 +82,8 @@ const AdWizard = () => {
         const { data: { user } } = await supabase.auth.getUser();
         let sessionId = localStorage.getItem('anonymous_session_id');
         
-        if (!user) {
-          if (!sessionId) {
-            sessionId = uuidv4();
-            localStorage.setItem('anonymous_session_id', sessionId);
-            console.log('[AdWizard] Created new anonymous session:', sessionId);
-          }
-          
-          console.log('[AdWizard] Anonymous user detected, checking session:', sessionId);
-          
-          try {
-            const { data: anonymousData, error: anonymousError } = await supabase
-              .from('anonymous_usage')
-              .select('wizard_data, used, completed')
-              .eq('session_id', sessionId)
-              .maybeSingle();
-
-            if (anonymousError) {
-              if (anonymousError.code === 'PGRST116') {
-                // If no record exists, create one
-                const { data: newAnonymousData, error: insertError } = await supabase
-                  .from('anonymous_usage')
-                  .insert({
-                    session_id: sessionId,
-                    used: false,
-                    completed: false,
-                    wizard_data: null
-                  })
-                  .select()
-                  .single();
-
-                if (insertError) throw insertError;
-                console.log('[AdWizard] Created new anonymous session record');
-              } else {
-                console.error('[AdWizard] Error fetching anonymous data:', anonymousError);
-                throw anonymousError;
-              }
-            }
-
-            console.log('[AdWizard] Anonymous data retrieved:', anonymousData);
-
-            if (anonymousData?.completed) {
-              console.log('[AdWizard] Anonymous session already completed');
-              toast({
-                title: "Trial completed",
-                description: "Your trial has been completed. Please register to continue generating ads.",
-                duration: 6000,
-                variant: "destructive",
-              });
-              return;
-            }
-
-            if (anonymousData?.wizard_data) {
-              const wizardData = anonymousData.wizard_data as WizardData;
-              if (wizardData.generated_ads && Array.isArray(wizardData.generated_ads)) {
-                console.log('[AdWizard] Loading anonymous user ads:', wizardData.generated_ads);
-                setGeneratedAds(wizardData.generated_ads);
-              }
-            }
-          } catch (error) {
-            console.error('[AdWizard] Error processing anonymous data:', error);
-            toast({
-              title: "Error loading data",
-              description: "We encountered an error loading your previous work. Starting fresh.",
-              variant: "destructive",
-            });
-          }
-          
-          setHasLoadedInitialAds(true);
-          return;
-        }
-
         // If we have anonymous data to migrate
-        if (anonymousData) {
+        if (anonymousData && user) {
           console.log('[AdWizard] Migrating anonymous data to user account');
           const { error: wizardError } = await supabase
             .from('wizard_progress')
@@ -174,45 +103,15 @@ const AdWizard = () => {
           }
         }
 
-        console.log('[AdWizard] Authenticated user, loading project data');
-
-        if (projectId && projectId !== 'new') {
-          const { data: project, error: projectError } = await supabase
-            .from('projects')
-            .select('generated_ads, video_ads_enabled')
-            .eq('id', projectId)
-            .maybeSingle();
-
-          if (projectError) {
-            console.error('[AdWizard] Error loading project:', projectError);
-            toast({
-              title: "Couldn't load your project",
-              description: "We had trouble loading your project data. Please try again.",
-              variant: "destructive",
-            });
-            return;
-          }
-
-          if (!project) {
-            console.log('[AdWizard] Project not found, redirecting to new');
-            navigate('/ad-wizard/new');
-          } else {
-            console.log('[AdWizard] Project loaded successfully:', project);
-            setVideoAdsEnabled(project.video_ads_enabled || false);
-            if (project.generated_ads && Array.isArray(project.generated_ads)) {
-              console.log('[AdWizard] Loading saved ads from project:', project.generated_ads);
-              setGeneratedAds(project.generated_ads);
-            }
-          }
-        } else {
-          console.log('[AdWizard] Loading wizard progress for user');
+        // If user is authenticated, load their progress
+        if (user) {
           const { data: wizardData, error: wizardError } = await supabase
             .from('wizard_progress')
             .select('*')
             .eq('user_id', user.id)
             .maybeSingle();
 
-          if (wizardError && wizardError.code !== 'PGRST116') {
+          if (wizardError) {
             console.error('[AdWizard] Error loading wizard progress:', wizardError);
             toast({
               title: "Couldn't load your progress",
@@ -226,6 +125,7 @@ const AdWizard = () => {
             setGeneratedAds(wizardData.generated_ads);
           }
         }
+
         setHasLoadedInitialAds(true);
       } catch (error) {
         console.error('[AdWizard] Unexpected error in loadProgress:', error);
