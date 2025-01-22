@@ -5,9 +5,10 @@ import { cn } from "@/lib/utils";
 interface StarRatingProps {
   rating: number;
   onRate: (stars: number) => void;
+  disabled?: boolean;
 }
 
-export const StarRating = ({ rating, onRate }: StarRatingProps) => {
+export const StarRating = ({ rating, onRate, disabled }: StarRatingProps) => {
   return (
     <div className="flex space-x-1">
       {[1, 2, 3, 4, 5].map((stars) => (
@@ -15,6 +16,7 @@ export const StarRating = ({ rating, onRate }: StarRatingProps) => {
           key={stars}
           variant="ghost"
           size="sm"
+          disabled={disabled}
           className={cn(
             "p-0 h-8 w-8",
             rating >= stars && "text-yellow-400"

@@ -15,6 +15,7 @@ interface FeedbackDialogProps {
   feedbackText: string;
   onFeedbackChange: (text: string) => void;
   onSubmit: () => void;
+  disabled?: boolean;
 }
 
 export const FeedbackDialog = ({
@@ -23,6 +24,7 @@ export const FeedbackDialog = ({
   feedbackText,
   onFeedbackChange,
   onSubmit,
+  disabled,
 }: FeedbackDialogProps) => {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -38,12 +40,13 @@ export const FeedbackDialog = ({
           value={feedbackText}
           onChange={(e) => onFeedbackChange(e.target.value)}
           className="min-h-[100px]"
+          disabled={disabled}
         />
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={disabled}>
             Cancel
           </Button>
-          <Button onClick={onSubmit}>Submit Feedback</Button>
+          <Button onClick={onSubmit} disabled={disabled}>Submit Feedback</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
