@@ -61,11 +61,19 @@ export const SaveAdButton = ({
     console.log('[SaveAdButton] Starting save operation...');
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      // More explicit auth check with error handling
+      const { data: authData, error: authError } = await supabase.auth.getUser();
       
-      if (!user) {
-        throw new Error('User must be logged in to save feedback');
+      console.log('[SaveAdButton] Auth check:', { 
+        hasUser: !!authData?.user,
+        authError 
+      });
+
+      if (authError || !authData?.user) {
+        throw new Error('Authentication required to save ads');
       }
+
+      const user = authData.user;
 
       // Early return for "new" project
       if (projectId === "new") {
@@ -84,7 +92,7 @@ export const SaveAdButton = ({
       const isValidUUID = projectId && 
                          /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(projectId);
 
-      // Create base feedback data
+      // Create feedback data with explicit null handling
       const feedbackData = {
         id: uuidv4(),
         user_id: user.id,
@@ -93,22 +101,19 @@ export const SaveAdButton = ({
         saved_images: [image.url],
         primary_text: primaryText || hook.text || null,
         headline: headline || hook.description || null,
-        created_at: new Date().toISOString()
+        created_at: new Date().toISOString(),
+        project_id: isValidUUID ? projectId : null  // Explicit project ID handling
       };
 
-      // Only add project_id if valid UUID
-      if (isValidUUID) {
-        Object.assign(feedbackData, { project_id: projectId });
-      }
-
-      console.log('[SaveAdButton] Saving feedback data:', feedbackData);
+      console.log('[SaveAdButton] Attempting to save feedback:', feedbackData);
 
       const { error: feedbackError } = await supabase
         .from('ad_feedback')
         .insert(feedbackData);
 
       if (feedbackError) {
-        throw feedbackError;
+        console.error('[SaveAdButton] Supabase error:', feedbackError);
+        throw new Error(`Database error: ${feedbackError.message}`);  // More specific error
       }
 
       onSaveSuccess();
