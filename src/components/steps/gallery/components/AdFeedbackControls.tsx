@@ -49,7 +49,7 @@ export const AdFeedbackControls = ({ adId, projectId, onFeedbackSubmit }: AdFeed
       const feedbackData = {
         user_id: user.id,
         ad_id: adId,
-        rating: parseInt(rating, 10),
+        rating: parseInt(rating),
         feedback: rating === "0" ? feedback : null,
         ...(projectId && projectId !== 'new' ? { project_id: projectId } : {})
       };
