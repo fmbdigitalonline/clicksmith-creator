@@ -74,19 +74,25 @@ const AdGalleryStep = ({
       showPlatformWarning(selectedPlatform);
       
       try {
-        // Reset platform-specific state before generating new ads
-        if (selectedPlatform === 'linkedin') {
-          setGeneratedPlatforms(prev => {
-            const newSet = new Set(prev);
-            newSet.delete('linkedin');
-            return newSet;
-          });
-        }
+        // Initialize platform state before generation
+        setGeneratedPlatforms(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(selectedPlatform);
+          return newSet;
+        });
         
         const success = await generateAds(selectedPlatform);
         if (success) {
           console.log('[AdGalleryStep] Successfully generated ads for:', selectedPlatform);
           setGeneratedPlatforms(prev => new Set([...prev, selectedPlatform]));
+        } else {
+          console.error('[AdGalleryStep] Failed to generate ads for:', selectedPlatform);
+          // Reset platform state on failure
+          setGeneratedPlatforms(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(selectedPlatform);
+            return newSet;
+          });
         }
       } catch (error) {
         console.error('[AdGalleryStep] Error generating ads:', error);
@@ -96,14 +102,12 @@ const AdGalleryStep = ({
           variant: "destructive",
         });
         
-        // Reset platform generation state on error
-        if (selectedPlatform === 'linkedin') {
-          setGeneratedPlatforms(prev => {
-            const newSet = new Set(prev);
-            newSet.delete('linkedin');
-            return newSet;
-          });
-        }
+        // Reset platform state on error
+        setGeneratedPlatforms(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(selectedPlatform);
+          return newSet;
+        });
       }
     }
   }, [generateAds, isGenerating, toast]);
@@ -152,6 +156,7 @@ const AdGalleryStep = ({
       updatedAds = adVariants;
     } else {
       updatedAds = [...generatedAds];
+      // Only filter out ads for the current platform
       updatedAds = updatedAds.filter(ad => ad.platform !== platform);
       updatedAds.push(...adVariants);
     }
