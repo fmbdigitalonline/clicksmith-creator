@@ -20,10 +20,14 @@ export const AdFeedbackControls = ({
   const [starRating, setStarRating] = useState<number>(0);
   const [showFeedbackDialog, setShowFeedbackDialog] = useState(false);
   const [feedbackText, setFeedbackText] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
 
   const handleStarClick = async (stars: number) => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
     setStarRating(stars);
+    
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
@@ -64,10 +68,15 @@ export const AdFeedbackControls = ({
         description: "Failed to save rating. Please try again.",
         variant: "destructive",
       });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const handleFeedbackSubmit = async () => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
@@ -110,10 +119,15 @@ export const AdFeedbackControls = ({
         description: "Failed to save feedback. Please try again.",
         variant: "destructive",
       });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const handleLike = async () => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
@@ -155,6 +169,8 @@ export const AdFeedbackControls = ({
         description: "Failed to save feedback. Please try again.",
         variant: "destructive",
       });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
