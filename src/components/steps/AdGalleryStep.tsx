@@ -10,6 +10,7 @@ import AdGenerationControls from "./gallery/AdGenerationControls";
 import { useEffect, useState, useCallback } from "react";
 import { AdSizeSelector, AD_FORMATS } from "./gallery/components/AdSizeSelector";
 import { useParams } from "react-router-dom";
+import { useToast } from "@/hooks/use-toast";
 
 interface AdGalleryStepProps {
   businessIdea: BusinessIdea;
@@ -39,6 +40,7 @@ const AdGalleryStep = ({
   const [selectedFormat, setSelectedFormat] = useState(AD_FORMATS[0]);
   const [generatedPlatforms, setGeneratedPlatforms] = useState<Set<string>>(new Set());
   const { projectId } = useParams();
+  const { toast } = useToast();
 
   const {
     platform,
@@ -56,9 +58,20 @@ const AdGalleryStep = ({
     generateAds,
   } = useAdGeneration(businessIdea, targetAudience, adHooks);
 
+  const showPlatformWarning = (platform: string) => {
+    if (platform === 'linkedin' || platform === 'tiktok') {
+      toast({
+        title: `${platform === 'linkedin' ? 'LinkedIn' : 'TikTok'} Ad Generation`,
+        description: `Please note that ${platform === 'linkedin' ? 'LinkedIn' : 'TikTok'} ad generation is currently in beta. Some features may be limited.`,
+        variant: "warning",
+      });
+    }
+  };
+
   const handleGenerateAds = useCallback(async (selectedPlatform: string) => {
     if (!isGenerating) {
       console.log('[AdGalleryStep] Generating ads for platform:', selectedPlatform);
+      showPlatformWarning(selectedPlatform);
       try {
         const success = await generateAds(selectedPlatform);
         if (success) {
@@ -67,11 +80,15 @@ const AdGalleryStep = ({
         }
       } catch (error) {
         console.error('[AdGalleryStep] Error generating ads:', error);
+        toast({
+          title: "Error Generating Ads",
+          description: "There was an error generating your ads. Please try again.",
+          variant: "destructive",
+        });
       }
     }
-  }, [generateAds, isGenerating]);
+  }, [generateAds, isGenerating, toast]);
 
-  // Effect for initial ad generation
   useEffect(() => {
     if (!hasLoadedInitialAds) return;
 
@@ -94,7 +111,6 @@ const AdGalleryStep = ({
     }
   }, [hasLoadedInitialAds, platform, projectId, generatedAds, handleGenerateAds, generatedPlatforms]);
 
-  // Effect for managing generated ads state
   useEffect(() => {
     if (!onAdsGenerated || adVariants.length === 0) {
       console.log('[AdGalleryStep] Skipping ad state update:', {
@@ -117,9 +133,7 @@ const AdGalleryStep = ({
       updatedAds = adVariants;
     } else {
       updatedAds = [...generatedAds];
-      // Remove existing ads for the current platform
       updatedAds = updatedAds.filter(ad => ad.platform !== platform);
-      // Add new ads for the current platform
       updatedAds.push(...adVariants);
     }
 
