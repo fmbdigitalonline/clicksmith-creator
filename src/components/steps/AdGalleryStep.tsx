@@ -72,7 +72,17 @@ const AdGalleryStep = ({
     if (!isGenerating) {
       console.log('[AdGalleryStep] Generating ads for platform:', selectedPlatform);
       showPlatformWarning(selectedPlatform);
+      
       try {
+        // Reset platform-specific state before generating new ads
+        if (selectedPlatform === 'linkedin') {
+          setGeneratedPlatforms(prev => {
+            const newSet = new Set(prev);
+            newSet.delete('linkedin');
+            return newSet;
+          });
+        }
+        
         const success = await generateAds(selectedPlatform);
         if (success) {
           console.log('[AdGalleryStep] Successfully generated ads for:', selectedPlatform);
@@ -85,6 +95,15 @@ const AdGalleryStep = ({
           description: "There was an error generating your ads. Please try again.",
           variant: "destructive",
         });
+        
+        // Reset platform generation state on error
+        if (selectedPlatform === 'linkedin') {
+          setGeneratedPlatforms(prev => {
+            const newSet = new Set(prev);
+            newSet.delete('linkedin');
+            return newSet;
+          });
+        }
       }
     }
   }, [generateAds, isGenerating, toast]);
