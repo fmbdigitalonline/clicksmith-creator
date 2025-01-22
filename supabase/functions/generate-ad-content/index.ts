@@ -44,7 +44,6 @@ serve(async (req) => {
       throw new Error('Missing required environment variables for Supabase client');
     }
 
-    // Enhanced Supabase admin client configuration with explicit auth settings
     const supabaseAdmin = createClient(
       supabaseUrl,
       supabaseServiceRoleKey,
@@ -81,7 +80,7 @@ serve(async (req) => {
       throw new Error('Empty request body');
     }
 
-    const { type, businessIdea, targetAudience, platform = 'facebook', userId, sessionId, isAnonymous } = body;
+    const { type, businessIdea, targetAudience, platform = 'facebook', userId, sessionId, isAnonymous, numVariants = 10 } = body;
 
     console.log('[generate-ad-content] Request details:', {
       type,
@@ -90,10 +89,10 @@ serve(async (req) => {
       sessionId,
       isAnonymous,
       hasBusinessIdea: !!businessIdea,
-      hasTargetAudience: !!targetAudience
+      hasTargetAudience: !!targetAudience,
+      numVariants
     });
 
-    // Log anonymous session details
     if (isAnonymous && sessionId) {
       console.log('[generate-ad-content] Processing anonymous request:', { 
         sessionId,
@@ -120,7 +119,6 @@ serve(async (req) => {
       }
     }
 
-    // For authenticated users, verify credits using service role
     if (userId && !isAnonymous && type !== 'audience_analysis') {
       console.log('[generate-ad-content] Checking credits for user:', userId);
       
@@ -155,7 +153,6 @@ serve(async (req) => {
       }
     }
 
-    // Process the request based on type
     let responseData;
     console.log('[generate-ad-content] Processing request type:', type);
     
@@ -166,19 +163,20 @@ serve(async (req) => {
         const campaignData = await generateCampaign(businessIdea, targetAudience);
         const imageData = await generateImagePrompts(businessIdea, targetAudience, campaignData.campaign);
         
-        const variants = Array.from({ length: 10 }, (_, index) => {
-          const format = PLATFORM_FORMATS[platform as keyof typeof PLATFORM_FORMATS];
-          return {
-            id: crypto.randomUUID(),
-            platform,
-            headline: campaignData.campaign.headlines[index % campaignData.campaign.headlines.length],
-            description: campaignData.campaign.adCopies[index % campaignData.campaign.adCopies.length].content,
-            imageUrl: imageData.images[0]?.url,
-            size: format
-          };
-        });
+        const format = PLATFORM_FORMATS[platform as keyof typeof PLATFORM_FORMATS];
+        if (!format) {
+          throw new Error(`Unsupported platform: ${platform}`);
+        }
 
-        // Update anonymous usage if applicable
+        const variants = Array.from({ length: numVariants }, (_, index) => ({
+          id: crypto.randomUUID(),
+          platform,
+          headline: campaignData.campaign.headlines[index % campaignData.campaign.headlines.length],
+          description: campaignData.campaign.adCopies[index % campaignData.campaign.adCopies.length].content,
+          imageUrl: imageData.images[0]?.url,
+          size: format
+        }));
+
         if (isAnonymous && sessionId) {
           const { error: updateError } = await supabaseAdmin
             .from('anonymous_usage')
@@ -198,7 +196,7 @@ serve(async (req) => {
           }
         }
 
-        console.log('[generate-ad-content] Generated variants count:', variants.length);
+        console.log(`[generate-ad-content] Generated ${variants.length} variants for ${platform}`);
         responseData = { variants };
         break;
       }
