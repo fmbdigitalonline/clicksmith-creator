@@ -59,10 +59,14 @@ const AdGalleryStep = ({
   const handleGenerateAds = useCallback(async (selectedPlatform: string) => {
     if (!isGenerating) {
       console.log('[AdGalleryStep] Generating ads for platform:', selectedPlatform);
-      const success = await generateAds(selectedPlatform);
-      if (success) {
-        console.log('[AdGalleryStep] Successfully generated ads for:', selectedPlatform);
-        setGeneratedPlatforms(prev => new Set([...prev, selectedPlatform]));
+      try {
+        const success = await generateAds(selectedPlatform);
+        if (success) {
+          console.log('[AdGalleryStep] Successfully generated ads for:', selectedPlatform);
+          setGeneratedPlatforms(prev => new Set([...prev, selectedPlatform]));
+        }
+      } catch (error) {
+        console.error('[AdGalleryStep] Error generating ads:', error);
       }
     }
   }, [generateAds, isGenerating]);
@@ -84,11 +88,11 @@ const AdGalleryStep = ({
       shouldGenerateAds
     });
 
-    if (shouldGenerateAds) {
+    if (shouldGenerateAds && !generatedPlatforms.has(platform)) {
       console.log('[AdGalleryStep] Triggering initial ad generation for platform:', platform);
       handleGenerateAds(platform);
     }
-  }, [hasLoadedInitialAds, platform, projectId, generatedAds, handleGenerateAds]);
+  }, [hasLoadedInitialAds, platform, projectId, generatedAds, handleGenerateAds, generatedPlatforms]);
 
   // Effect for managing generated ads state
   useEffect(() => {
@@ -133,7 +137,9 @@ const AdGalleryStep = ({
 
   const onConfirmPlatformChange = async () => {
     const newPlatform = confirmPlatformChange();
-    await handleGenerateAds(newPlatform);
+    if (!generatedPlatforms.has(newPlatform)) {
+      await handleGenerateAds(newPlatform);
+    }
   };
 
   const onCancelPlatformChange = () => {
