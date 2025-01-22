@@ -43,16 +43,41 @@ const AdWizard = () => {
       if (user) {
         const sessionId = localStorage.getItem('anonymous_session_id');
         if (sessionId) {
-          const { data: anonData } = await supabase
+          console.log('[AdWizard] Found anonymous session data to migrate:', sessionId);
+          const { data: anonData, error: anonError } = await supabase
             .from('anonymous_usage')
-            .select('wizard_data')
+            .select('wizard_data, completed')
             .eq('session_id', sessionId)
             .maybeSingle();
 
+          if (anonError) {
+            console.error('[AdWizard] Error fetching anonymous data:', anonError);
+            return;
+          }
+
           if (anonData?.wizard_data) {
+            console.log('[AdWizard] Migrating anonymous data:', anonData.wizard_data);
             setAnonymousData(anonData.wizard_data);
-            // Clear the anonymous session ID after migration
+            
+            // Immediately migrate the data to wizard_progress
+            const { error: wizardError } = await supabase
+              .from('wizard_progress')
+              .upsert({
+                user_id: user.id,
+                business_idea: anonData.wizard_data.business_idea,
+                target_audience: anonData.wizard_data.target_audience,
+                generated_ads: anonData.wizard_data.generated_ads,
+                current_step: anonData.completed ? 4 : 2
+              });
+
+            if (wizardError) {
+              console.error('[AdWizard] Error migrating data to wizard_progress:', wizardError);
+              return;
+            }
+
+            // Clear the anonymous session after successful migration
             localStorage.removeItem('anonymous_session_id');
+            console.log('[AdWizard] Successfully migrated and cleared anonymous session');
           }
         }
       }
