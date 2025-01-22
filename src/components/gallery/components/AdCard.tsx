@@ -7,7 +7,7 @@ interface AdCardProps {
   primaryText?: string;
   headline?: string;
   imageUrl?: string;
-  onFeedbackSubmit: () => void;
+  onFeedbackSubmit?: () => void;
 }
 
 export const AdCard = ({ id, primaryText, headline, imageUrl, onFeedbackSubmit }: AdCardProps) => {

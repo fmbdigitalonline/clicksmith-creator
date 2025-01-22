@@ -4,14 +4,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { StarRating } from "./feedback/StarRating";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { useParams } from "react-router-dom";
 
 interface AdFeedbackControlsProps {
   adId: string;
   projectId?: string;
+  onFeedbackSubmit?: () => void;
 }
 
-export const AdFeedbackControls = ({ adId, projectId }: AdFeedbackControlsProps) => {
+export const AdFeedbackControls = ({ adId, projectId, onFeedbackSubmit }: AdFeedbackControlsProps) => {
   const [rating, setRating] = useState<number>(0);
   const [feedback, setFeedback] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -59,6 +59,11 @@ export const AdFeedbackControls = ({ adId, projectId }: AdFeedbackControlsProps)
       // Reset form
       setRating(0);
       setFeedback("");
+      
+      // Call the callback if provided
+      if (onFeedbackSubmit) {
+        onFeedbackSubmit();
+      }
     } catch (error: any) {
       console.error('Error saving feedback:', error);
       toast({
@@ -77,7 +82,7 @@ export const AdFeedbackControls = ({ adId, projectId }: AdFeedbackControlsProps)
         <label className="text-sm font-medium">Rating</label>
         <StarRating
           rating={rating}
-          onRatingChange={setRating}
+          onRate={setRating}
         />
       </div>
 
