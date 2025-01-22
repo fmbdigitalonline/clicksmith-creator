@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { ThumbsUp, ThumbsDown } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { FeedbackDialog } from "./feedback/FeedbackDialog";
+import { StarRating } from "./feedback/StarRating";
+import { LikeDislikeButtons } from "./feedback/LikeDislikeButtons";
 
 interface AdFeedbackControlsProps {
   adId: string;
@@ -11,122 +11,176 @@ interface AdFeedbackControlsProps {
   onFeedbackSubmit?: () => void;
 }
 
-export const AdFeedbackControls = ({ adId, projectId, onFeedbackSubmit }: AdFeedbackControlsProps) => {
-  const [rating, setRating] = useState<string>("");
-  const [feedback, setFeedback] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
+export const AdFeedbackControls = ({ 
+  adId, 
+  projectId, 
+  onFeedbackSubmit 
+}: AdFeedbackControlsProps) => {
+  const [rating, setRating] = useState<number | null>(null);
+  const [starRating, setStarRating] = useState<number>(0);
+  const [showFeedbackDialog, setShowFeedbackDialog] = useState(false);
+  const [feedbackText, setFeedbackText] = useState("");
   const { toast } = useToast();
 
-  const handleFeedbackSubmit = async () => {
-    if (isSubmitting) return;
-    
-    if (!rating) {
-      toast({
-        title: "Rating Required",
-        description: "Please provide a rating before submitting feedback.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (rating === "0" && !feedback.trim()) {
-      toast({
-        title: "Feedback Required",
-        description: "Please provide feedback when giving a dislike rating.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsSubmitting(true);
+  const handleStarClick = async (stars: number) => {
+    setStarRating(stars);
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      
       if (!user) {
-        throw new Error("You must be logged in to save feedback");
+        toast({
+          title: "Authentication required",
+          description: "Please sign in to provide feedback",
+          variant: "destructive",
+        });
+        return;
       }
 
-      const feedbackData = {
-        user_id: user.id,
-        ad_id: adId,
-        rating: parseInt(rating),
-        feedback: rating === "0" ? feedback : null,
-        ...(projectId && projectId !== 'new' ? { project_id: projectId } : {})
-      };
+      const isValidUUID = projectId && 
+                         projectId !== "new" && 
+                         /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(projectId);
 
-      const { error: updateError } = await supabase
+      const { error } = await supabase
         .from('ad_feedback')
-        .upsert(feedbackData, {
-          onConflict: 'user_id,ad_id'
+        .upsert({
+          user_id: user.id,
+          project_id: isValidUUID ? projectId : null,
+          ad_id: adId,
+          rating: stars,
+          feedback: null
         });
 
-      if (updateError) throw updateError;
+      if (error) throw error;
 
       toast({
-        title: "Feedback Saved",
+        title: "Rating saved",
         description: "Thank you for your feedback!",
       });
-
-      // Reset form
-      setRating("");
-      setFeedback("");
       
-      // Call the callback if provided
-      if (onFeedbackSubmit) {
-        onFeedbackSubmit();
-      }
-    } catch (error: any) {
-      console.error('Error saving feedback:', error);
+      onFeedbackSubmit?.();
+    } catch (error) {
+      console.error('Error saving star rating:', error);
       toast({
         title: "Error",
-        description: error.message || "Failed to save feedback. Please try again.",
+        description: "Failed to save rating. Please try again.",
         variant: "destructive",
       });
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
+  const handleFeedbackSubmit = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast({
+          title: "Authentication required",
+          description: "Please sign in to provide feedback",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const isValidUUID = projectId && 
+                         projectId !== "new" && 
+                         /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(projectId);
+
+      const { error } = await supabase
+        .from('ad_feedback')
+        .upsert({
+          user_id: user.id,
+          project_id: isValidUUID ? projectId : null,
+          ad_id: adId,
+          rating: 0,
+          feedback: feedbackText
+        });
+
+      if (error) throw error;
+
+      setShowFeedbackDialog(false);
+      setFeedbackText("");
+      onFeedbackSubmit?.();
+
+      toast({
+        title: "Feedback saved",
+        description: "Thank you for your feedback!",
+      });
+    } catch (error) {
+      console.error('Error saving feedback:', error);
+      toast({
+        title: "Error",
+        description: "Failed to save feedback. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleLike = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast({
+          title: "Authentication required",
+          description: "Please sign in to provide feedback",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const isValidUUID = projectId && 
+                         projectId !== "new" && 
+                         /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(projectId);
+
+      const { error } = await supabase
+        .from('ad_feedback')
+        .upsert({
+          user_id: user.id,
+          project_id: isValidUUID ? projectId : null,
+          ad_id: adId,
+          rating: 1,
+          feedback: null
+        });
+
+      if (error) throw error;
+
+      setRating(1);
+      onFeedbackSubmit?.();
+
+      toast({
+        title: "Feedback saved",
+        description: "Thank you for your feedback!",
+      });
+    } catch (error) {
+      console.error('Error saving feedback:', error);
+      toast({
+        title: "Error",
+        description: "Failed to save feedback. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDislike = () => {
+    setRating(0);
+    setShowFeedbackDialog(true);
+  };
+
   return (
-    <div className="space-y-4">
-      <div className="flex space-x-4">
-        <Button
-          variant={rating === "1" ? "default" : "outline"}
-          onClick={() => setRating("1")}
-          className="flex-1"
-        >
-          <ThumbsUp className="w-4 h-4 mr-2" />
-          Like
-        </Button>
-        <Button
-          variant={rating === "0" ? "default" : "outline"}
-          onClick={() => setRating("0")}
-          className="flex-1"
-        >
-          <ThumbsDown className="w-4 h-4 mr-2" />
-          Dislike
-        </Button>
+    <>
+      <div className="flex items-center justify-between space-x-2">
+        <LikeDislikeButtons
+          rating={rating}
+          onLike={handleLike}
+          onDislike={handleDislike}
+        />
+        <StarRating rating={starRating} onRate={handleStarClick} />
       </div>
 
-      {rating === "0" && (
-        <div className="space-y-2">
-          <label className="text-sm font-medium">Please tell us why you dislike this ad</label>
-          <Textarea
-            placeholder="Share your thoughts about this ad..."
-            value={feedback}
-            onChange={(e) => setFeedback(e.target.value)}
-            className="min-h-[100px]"
-          />
-        </div>
-      )}
-
-      <Button
-        onClick={handleFeedbackSubmit}
-        disabled={isSubmitting}
-        className="w-full"
-      >
-        {isSubmitting ? "Saving..." : "Submit Feedback"}
-      </Button>
-    </div>
+      <FeedbackDialog
+        open={showFeedbackDialog}
+        onOpenChange={setShowFeedbackDialog}
+        feedbackText={feedbackText}
+        onFeedbackChange={setFeedbackText}
+        onSubmit={handleFeedbackSubmit}
+      />
+    </>
   );
 };

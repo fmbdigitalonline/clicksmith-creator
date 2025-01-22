@@ -6,7 +6,7 @@ interface SavedAdCardProps {
   primaryText?: string;
   headline?: string;
   imageUrl?: string;
-  onFeedbackSubmit?: () => void;
+  onFeedbackSubmit: () => void;
 }
 
 export const SavedAdCard = ({ 
