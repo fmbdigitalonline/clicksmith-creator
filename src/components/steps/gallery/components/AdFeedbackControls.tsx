@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { StarRating } from "./feedback/StarRating";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { ThumbsUp, ThumbsDown } from "lucide-react";
 
 interface AdFeedbackControlsProps {
   adId: string;
@@ -13,6 +13,7 @@ interface AdFeedbackControlsProps {
 
 export const AdFeedbackControls = ({ adId, projectId, onFeedbackSubmit }: AdFeedbackControlsProps) => {
   const [rating, setRating] = useState<number>(0);
+  const [feedback, setFeedback] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
 
@@ -40,6 +41,7 @@ export const AdFeedbackControls = ({ adId, projectId, onFeedbackSubmit }: AdFeed
         user_id: user.id,
         ad_id: adId,
         rating,
+        feedback,
         ...(projectId && projectId !== 'new' ? { project_id: projectId } : {})
       };
 
@@ -56,6 +58,7 @@ export const AdFeedbackControls = ({ adId, projectId, onFeedbackSubmit }: AdFeed
 
       // Reset form
       setRating(0);
+      setFeedback("");
       
       // Call the callback if provided
       if (onFeedbackSubmit) {
@@ -75,28 +78,27 @@ export const AdFeedbackControls = ({ adId, projectId, onFeedbackSubmit }: AdFeed
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-2">
-        <Button
-          variant={rating === 1 ? "default" : "outline"}
-          onClick={() => setRating(1)}
-          disabled={isSubmitting}
-        >
-          <ThumbsUp className="w-4 h-4 mr-2" />
-          Like
-        </Button>
-        <Button
-          variant={rating === -1 ? "default" : "outline"}
-          onClick={() => setRating(-1)}
-          disabled={isSubmitting}
-        >
-          <ThumbsDown className="w-4 h-4 mr-2" />
-          Dislike
-        </Button>
+      <div className="space-y-2">
+        <label className="text-sm font-medium">Rating</label>
+        <StarRating
+          rating={rating}
+          onRate={setRating}
+        />
+      </div>
+
+      <div className="space-y-2">
+        <label className="text-sm font-medium">Feedback</label>
+        <Textarea
+          placeholder="Share your thoughts about this ad..."
+          value={feedback}
+          onChange={(e) => setFeedback(e.target.value)}
+          className="min-h-[100px]"
+        />
       </div>
 
       <Button
         onClick={handleFeedbackSubmit}
-        disabled={isSubmitting || !rating}
+        disabled={isSubmitting}
         className="w-full"
       >
         {isSubmitting ? "Saving..." : "Submit Feedback"}

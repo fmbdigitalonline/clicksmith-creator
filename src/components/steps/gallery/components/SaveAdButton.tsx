@@ -33,7 +33,7 @@ export const SaveAdButton = ({
   const { toast } = useToast();
 
   const handleSave = async () => {
-    if (isSaving) return; // Prevent multiple clicks while saving
+    if (isSaving) return; // Prevent duplicate saves while in progress
 
     if (!rating) {
       toast({
