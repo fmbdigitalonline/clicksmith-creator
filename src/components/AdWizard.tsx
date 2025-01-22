@@ -14,13 +14,13 @@ import { Video, Image } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Database } from "@/integrations/supabase/types";
 import { useToast } from "@/hooks/use-toast";
-import { v4 as uuidv4 } from 'uuid';
 
 type WizardProgress = Database['public']['Tables']['wizard_progress']['Row'];
 type WizardData = {
   business_idea?: any;
   target_audience?: any;
   generated_ads?: any[];
+  completed?: boolean;
 };
 
 const AdWizard = () => {
@@ -29,7 +29,7 @@ const AdWizard = () => {
   const [generatedAds, setGeneratedAds] = useState<any[]>([]);
   const [hasLoadedInitialAds, setHasLoadedInitialAds] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
-  const [anonymousData, setAnonymousData] = useState<any>(null);
+  const [anonymousData, setAnonymousData] = useState<WizardData | null>(null);
   const navigate = useNavigate();
   const { projectId } = useParams();
   const { toast } = useToast();
@@ -56,17 +56,18 @@ const AdWizard = () => {
           }
 
           if (anonData?.wizard_data) {
-            console.log('[AdWizard] Migrating anonymous data:', anonData.wizard_data);
-            setAnonymousData(anonData.wizard_data);
+            const wizardData = anonData.wizard_data as WizardData;
+            console.log('[AdWizard] Migrating anonymous data:', wizardData);
+            setAnonymousData(wizardData);
             
             // Immediately migrate the data to wizard_progress
             const { error: wizardError } = await supabase
               .from('wizard_progress')
               .upsert({
                 user_id: user.id,
-                business_idea: anonData.wizard_data.business_idea,
-                target_audience: anonData.wizard_data.target_audience,
-                generated_ads: anonData.wizard_data.generated_ads,
+                business_idea: wizardData.business_idea,
+                target_audience: wizardData.target_audience,
+                generated_ads: wizardData.generated_ads,
                 current_step: anonData.completed ? 4 : 2
               });
 
