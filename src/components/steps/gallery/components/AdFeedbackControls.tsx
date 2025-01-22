@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { StarRating } from "./feedback/StarRating";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { ThumbsUp, ThumbsDown } from "lucide-react";
@@ -14,6 +13,7 @@ interface AdFeedbackControlsProps {
 
 export const AdFeedbackControls = ({ adId, projectId, onFeedbackSubmit }: AdFeedbackControlsProps) => {
   const [rating, setRating] = useState<string>("");
+  const [feedback, setFeedback] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
 
@@ -24,6 +24,15 @@ export const AdFeedbackControls = ({ adId, projectId, onFeedbackSubmit }: AdFeed
       toast({
         title: "Rating Required",
         description: "Please provide a rating before submitting feedback.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (rating === "0" && !feedback.trim()) {
+      toast({
+        title: "Feedback Required",
+        description: "Please provide feedback when giving a dislike rating.",
         variant: "destructive",
       });
       return;
@@ -41,11 +50,12 @@ export const AdFeedbackControls = ({ adId, projectId, onFeedbackSubmit }: AdFeed
         user_id: user.id,
         ad_id: adId,
         rating: parseInt(rating, 10),
+        feedback: rating === "0" ? feedback : null,
         ...(projectId && projectId !== 'new' ? { project_id: projectId } : {})
       };
 
-      // First try to update existing feedback
-      const { data: existingFeedback, error: updateError } = await supabase
+      // Use upsert to handle duplicate submissions
+      const { error: updateError } = await supabase
         .from('ad_feedback')
         .upsert(feedbackData, {
           onConflict: 'user_id,ad_id'
@@ -60,6 +70,7 @@ export const AdFeedbackControls = ({ adId, projectId, onFeedbackSubmit }: AdFeed
 
       // Reset form
       setRating("");
+      setFeedback("");
       
       // Call the callback if provided
       if (onFeedbackSubmit) {
@@ -97,6 +108,18 @@ export const AdFeedbackControls = ({ adId, projectId, onFeedbackSubmit }: AdFeed
           Dislike
         </Button>
       </div>
+
+      {rating === "0" && (
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Please tell us why you dislike this ad</label>
+          <Textarea
+            placeholder="Share your thoughts about this ad..."
+            value={feedback}
+            onChange={(e) => setFeedback(e.target.value)}
+            className="min-h-[100px]"
+          />
+        </div>
+      )}
 
       <Button
         onClick={handleFeedbackSubmit}
