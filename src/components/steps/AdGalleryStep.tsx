@@ -29,7 +29,6 @@ const AdGalleryStep = ({
   businessIdea,
   targetAudience,
   adHooks,
-  generatedImages,
   onStartOver,
   onBack,
   onCreateProject,
@@ -109,16 +108,10 @@ const AdGalleryStep = ({
 
     let updatedAds;
     if (isNewProject) {
-      // For new projects, just use the new variants
       updatedAds = adVariants;
     } else {
-      // For existing projects, merge with existing ads
       updatedAds = [...generatedAds];
-      
-      // Remove existing ads for the current platform
       updatedAds = updatedAds.filter(ad => ad.platform !== platform);
-      
-      // Add the new variants for the current platform
       updatedAds.push(...adVariants);
     }
 

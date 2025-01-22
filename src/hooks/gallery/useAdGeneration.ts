@@ -79,10 +79,10 @@ export const useAdGeneration = (
 
       console.log('Generated variants:', data.variants);
 
-      // Ensure we have exactly 10 variants
+      // Ensure we have exactly 10 variants with the correct platform
       const variants = Array.from({ length: 10 }, (_, index) => ({
         ...data.variants[index % data.variants.length],
-        id: crypto.randomUUID(), // Ensure unique IDs
+        id: crypto.randomUUID(),
         platform: selectedPlatform,
       }));
 
