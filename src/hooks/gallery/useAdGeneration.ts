@@ -22,7 +22,7 @@ export const useAdGeneration = (
 
   const generateAds = async (selectedPlatform: string) => {
     setIsGenerating(true);
-    setGenerationStatus("Initializing generation...");
+    setGenerationStatus(`Initializing ${selectedPlatform} ad generation...`);
     
     try {
       const { data: { user }, error: userError } = await supabase.auth.getUser();
@@ -60,14 +60,17 @@ export const useAdGeneration = (
         throw error;
       }
 
+      if (!data?.variants || !Array.isArray(data.variants)) {
+        throw new Error('Invalid response format from server');
+      }
+
       console.log(`Generated ${selectedPlatform} variants:`, data.variants);
 
       // Ensure we have exactly 10 variants with the correct platform and format
-      const variants = Array.from({ length: 10 }, (_, index) => ({
-        ...data.variants[index % data.variants.length],
-        id: crypto.randomUUID(),
+      const variants = data.variants.map(variant => ({
+        ...variant,
         platform: selectedPlatform,
-        size: getPlatformFormat(selectedPlatform)
+        id: variant.id || crypto.randomUUID(),
       }));
 
       setAdVariants(variants);
@@ -91,16 +94,6 @@ export const useAdGeneration = (
       setIsGenerating(false);
       setGenerationStatus("");
     }
-  };
-
-  const getPlatformFormat = (platform: string) => {
-    const formats = {
-      facebook: { width: 1200, height: 628, label: "Facebook Feed" },
-      google: { width: 1200, height: 628, label: "Google Display" },
-      linkedin: { width: 1200, height: 627, label: "LinkedIn Feed" },
-      tiktok: { width: 1080, height: 1920, label: "TikTok Feed" }
-    };
-    return formats[platform as keyof typeof formats];
   };
 
   return {
