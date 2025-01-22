@@ -58,8 +58,11 @@ const AdGalleryStep = ({
   const handleGenerateAds = useCallback(async (selectedPlatform: string) => {
     if (!isGenerating) {
       console.log('[AdGalleryStep] Generating ads for platform:', selectedPlatform);
-      await generateAds(selectedPlatform);
-      setGeneratedPlatforms(prev => new Set([...prev, selectedPlatform]));
+      const success = await generateAds(selectedPlatform);
+      if (success) {
+        console.log('[AdGalleryStep] Successfully generated ads for:', selectedPlatform);
+        setGeneratedPlatforms(prev => new Set([...prev, selectedPlatform]));
+      }
     }
   }, [generateAds, isGenerating]);
 

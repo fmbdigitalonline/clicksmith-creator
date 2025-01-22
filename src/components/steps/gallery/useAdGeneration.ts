@@ -22,7 +22,7 @@ export const useAdGeneration = (
 
   const generateAds = async (selectedPlatform: string) => {
     setIsGenerating(true);
-    setGenerationStatus("Initializing generation...");
+    setGenerationStatus(`Initializing ${selectedPlatform} ad generation...`);
     
     try {
       const { data: { user }, error: userError } = await supabase.auth.getUser();
@@ -32,7 +32,7 @@ export const useAdGeneration = (
         throw new Error('User must be logged in to generate ads');
       }
 
-      setGenerationStatus("Generating ads...");
+      setGenerationStatus(`Generating ${selectedPlatform} ads...`);
       
       const { data, error } = await supabase.functions.invoke('generate-ad-content', {
         body: {
@@ -42,11 +42,12 @@ export const useAdGeneration = (
           targetAudience,
           adHooks,
           userId: user.id,
-          numVariants: 10 // Explicitly request 10 variants
+          numVariants: 10
         },
       });
 
       if (error) {
+        console.error('Error generating ads:', error);
         if (error.message.includes('No credits available')) {
           toast({
             title: "No credits available",
@@ -54,18 +55,22 @@ export const useAdGeneration = (
             variant: "destructive",
           });
           navigate('/pricing');
-          return;
+          return false;
         }
         throw error;
       }
 
-      console.log('Generated variants:', data.variants);
+      if (!data?.variants || !Array.isArray(data.variants)) {
+        throw new Error('Invalid response format from server');
+      }
 
-      // Ensure we have exactly 10 variants
-      const variants = Array.from({ length: 10 }, (_, index) => ({
-        ...data.variants[index % data.variants.length],
-        id: crypto.randomUUID(), // Ensure unique IDs
+      console.log(`Generated ${selectedPlatform} variants:`, data.variants);
+
+      // Ensure we have exactly 10 variants with the correct platform and format
+      const variants = data.variants.map(variant => ({
+        ...variant,
         platform: selectedPlatform,
+        id: variant.id || crypto.randomUUID(),
       }));
 
       setAdVariants(variants);
@@ -78,6 +83,8 @@ export const useAdGeneration = (
         title: "Ads generated successfully",
         description: `Your new ${selectedPlatform} ad variants are ready!`,
       });
+
+      return true;
     } catch (error: any) {
       console.error('Ad generation error:', error);
       toast({
@@ -85,6 +92,7 @@ export const useAdGeneration = (
         description: error.message || "Failed to generate ads. Please try again.",
         variant: "destructive",
       });
+      return false;
     } finally {
       setIsGenerating(false);
       setGenerationStatus("");
