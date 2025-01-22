@@ -12,8 +12,9 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <WizardStateProvider>
         <BrowserRouter>
-          <AppLayout />
-          <Toaster />
+          <AppLayout>
+            <Toaster />
+          </AppLayout>
         </BrowserRouter>
       </WizardStateProvider>
     </QueryClientProvider>
