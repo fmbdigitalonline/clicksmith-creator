@@ -26,7 +26,6 @@ export const AdFeedbackControls = ({
   const handleStarClick = async (stars: number) => {
     if (isSubmitting) return;
     setIsSubmitting(true);
-    setStarRating(stars);
     
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -55,12 +54,13 @@ export const AdFeedbackControls = ({
 
       if (error) throw error;
 
+      setStarRating(stars);
+      onFeedbackSubmit?.();
+
       toast({
         title: "Rating saved",
         description: "Thank you for your feedback!",
       });
-      
-      onFeedbackSubmit?.();
     } catch (error) {
       console.error('Error saving star rating:', error);
       toast({
