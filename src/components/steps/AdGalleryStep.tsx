@@ -15,7 +15,6 @@ interface AdGalleryStepProps {
   businessIdea: BusinessIdea;
   targetAudience: TargetAudience;
   adHooks: AdHook[];
-  generatedImages?: AdImage[];
   onStartOver: () => void;
   onBack: () => void;
   onCreateProject: () => void;

@@ -25,31 +25,14 @@ export const useAdGeneration = (
     setGenerationStatus("Initializing generation...");
     
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      const sessionId = localStorage.getItem('anonymous_session_id');
-      const isAnonymous = !user && sessionId;
-
-      if (!user && !sessionId) {
-        throw new Error('No authenticated user or anonymous session found');
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError) throw userError;
+      
+      if (!user) {
+        throw new Error('User must be logged in to generate ads');
       }
 
-      setGenerationStatus("Generating ads...");
-
-      console.log('About to call generate-ad-content with:', {
-        selectedPlatform,
-        user: user?.id,
-        sessionId,
-        isAnonymous,
-        businessIdea: {
-          ...businessIdea,
-          description: businessIdea.description?.substring(0, 50) + '...'
-        },
-        targetAudience: {
-          ...targetAudience,
-          description: targetAudience.description?.substring(0, 50) + '...'
-        },
-        adHooksCount: adHooks?.length
-      });
+      setGenerationStatus(`Generating ${selectedPlatform} ads...`);
       
       const { data, error } = await supabase.functions.invoke('generate-ad-content', {
         body: {
@@ -58,13 +41,13 @@ export const useAdGeneration = (
           businessIdea,
           targetAudience,
           adHooks,
-          userId: user?.id,
-          sessionId,
-          isAnonymous
+          userId: user.id,
+          numVariants: 10
         },
       });
 
       if (error) {
+        console.error('Error generating ads:', error);
         if (error.message.includes('No credits available')) {
           toast({
             title: "No credits available",
@@ -77,22 +60,21 @@ export const useAdGeneration = (
         throw error;
       }
 
-      console.log('Generated variants:', data.variants);
+      console.log(`Generated ${selectedPlatform} variants:`, data.variants);
 
-      // Ensure we have exactly 10 variants with the correct platform
+      // Ensure we have exactly 10 variants with the correct platform and format
       const variants = Array.from({ length: 10 }, (_, index) => ({
         ...data.variants[index % data.variants.length],
         id: crypto.randomUUID(),
         platform: selectedPlatform,
+        size: getPlatformFormat(selectedPlatform)
       }));
 
       setAdVariants(variants);
 
-      // Refresh credits display only for authenticated users
-      if (user) {
-        queryClient.invalidateQueries({ queryKey: ['subscription'] });
-        queryClient.invalidateQueries({ queryKey: ['free_tier_usage'] });
-      }
+      // Refresh credits display
+      queryClient.invalidateQueries({ queryKey: ['subscription'] });
+      queryClient.invalidateQueries({ queryKey: ['free_tier_usage'] });
 
       toast({
         title: "Ads generated successfully",
@@ -109,6 +91,16 @@ export const useAdGeneration = (
       setIsGenerating(false);
       setGenerationStatus("");
     }
+  };
+
+  const getPlatformFormat = (platform: string) => {
+    const formats = {
+      facebook: { width: 1200, height: 628, label: "Facebook Feed" },
+      google: { width: 1200, height: 628, label: "Google Display" },
+      linkedin: { width: 1200, height: 627, label: "LinkedIn Feed" },
+      tiktok: { width: 1080, height: 1920, label: "TikTok Feed" }
+    };
+    return formats[platform as keyof typeof formats];
   };
 
   return {
