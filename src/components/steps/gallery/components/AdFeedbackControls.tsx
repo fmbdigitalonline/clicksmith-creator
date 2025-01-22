@@ -24,8 +24,13 @@ export const AdFeedbackControls = ({
   const { toast } = useToast();
 
   const handleStarClick = async (stars: number) => {
-    if (isSubmitting) return;
+    if (isSubmitting) {
+      console.log('[AdFeedbackControls] Submission in progress, preventing duplicate');
+      return;
+    }
+    
     setIsSubmitting(true);
+    console.log('[AdFeedbackControls] Starting star rating submission');
     
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -62,7 +67,7 @@ export const AdFeedbackControls = ({
         description: "Thank you for your feedback!",
       });
     } catch (error) {
-      console.error('Error saving star rating:', error);
+      console.error('[AdFeedbackControls] Error saving star rating:', error);
       toast({
         title: "Error",
         description: "Failed to save rating. Please try again.",
@@ -70,12 +75,18 @@ export const AdFeedbackControls = ({
       });
     } finally {
       setIsSubmitting(false);
+      console.log('[AdFeedbackControls] Star rating submission completed');
     }
   };
 
   const handleFeedbackSubmit = async () => {
-    if (isSubmitting) return;
+    if (isSubmitting) {
+      console.log('[AdFeedbackControls] Submission in progress, preventing duplicate');
+      return;
+    }
+    
     setIsSubmitting(true);
+    console.log('[AdFeedbackControls] Starting feedback submission');
     
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -113,7 +124,7 @@ export const AdFeedbackControls = ({
         description: "Thank you for your feedback!",
       });
     } catch (error) {
-      console.error('Error saving feedback:', error);
+      console.error('[AdFeedbackControls] Error saving feedback:', error);
       toast({
         title: "Error",
         description: "Failed to save feedback. Please try again.",
@@ -121,12 +132,18 @@ export const AdFeedbackControls = ({
       });
     } finally {
       setIsSubmitting(false);
+      console.log('[AdFeedbackControls] Feedback submission completed');
     }
   };
 
   const handleLike = async () => {
-    if (isSubmitting) return;
+    if (isSubmitting) {
+      console.log('[AdFeedbackControls] Submission in progress, preventing duplicate');
+      return;
+    }
+    
     setIsSubmitting(true);
+    console.log('[AdFeedbackControls] Starting like submission');
     
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -163,7 +180,7 @@ export const AdFeedbackControls = ({
         description: "Thank you for your feedback!",
       });
     } catch (error) {
-      console.error('Error saving feedback:', error);
+      console.error('[AdFeedbackControls] Error saving feedback:', error);
       toast({
         title: "Error",
         description: "Failed to save feedback. Please try again.",
@@ -171,6 +188,7 @@ export const AdFeedbackControls = ({
       });
     } finally {
       setIsSubmitting(false);
+      console.log('[AdFeedbackControls] Like submission completed');
     }
   };
 
@@ -186,8 +204,13 @@ export const AdFeedbackControls = ({
           rating={rating}
           onLike={handleLike}
           onDislike={handleDislike}
+          disabled={isSubmitting}
         />
-        <StarRating rating={starRating} onRate={handleStarClick} />
+        <StarRating 
+          rating={starRating} 
+          onRate={handleStarClick}
+          disabled={isSubmitting} 
+        />
       </div>
 
       <FeedbackDialog
@@ -196,6 +219,7 @@ export const AdFeedbackControls = ({
         feedbackText={feedbackText}
         onFeedbackChange={setFeedbackText}
         onSubmit={handleFeedbackSubmit}
+        disabled={isSubmitting}
       />
     </>
   );
