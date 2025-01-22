@@ -62,7 +62,8 @@ const AdWizard = () => {
           return;
         }
 
-        setGeneratedAds(data?.generated_ads || []);
+        const adsArray = Array.isArray(data?.generated_ads) ? data.generated_ads : [];
+        setGeneratedAds(adsArray);
         setHasLoadedInitialAds(true);
       }
     };
