@@ -33,7 +33,11 @@ export const SaveAdButton = ({
   const { toast } = useToast();
 
   const handleSave = async () => {
-    if (isSaving) return;
+    // Prevent multiple clicks during submission
+    if (isSaving) {
+      console.log('[SaveAdButton] Submission already in progress, preventing duplicate');
+      return;
+    }
 
     if (!rating) {
       toast({
@@ -54,6 +58,8 @@ export const SaveAdButton = ({
     }
 
     setSaving(true);
+    console.log('[SaveAdButton] Starting save operation...');
+
     try {
       const { data: { user } } = await supabase.auth.getUser();
       
@@ -122,6 +128,7 @@ export const SaveAdButton = ({
         variant: "destructive",
       });
     } finally {
+      console.log('[SaveAdButton] Save operation completed');
       setSaving(false);
     }
   };
