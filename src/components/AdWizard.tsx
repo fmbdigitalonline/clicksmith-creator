@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useToast } from "@/components/ui/use-toast";
-import { useWizardState } from "@/hooks/useAdWizardState";
+import { useAdWizardState } from "@/hooks/useAdWizardState";
 import WizardHeader from "@/components/wizard/WizardHeader";
 import WizardProgress from "@/components/WizardProgress";
-import WizardControls from "@/components/wizard/WizardControls";
-import WizardContent from "@/components/wizard/WizardContent";
+import { WizardControls } from "@/components/wizard/WizardControls";
+import { WizardContent } from "@/components/wizard/WizardContent";
 import CreateProjectDialog from "@/components/projects/CreateProjectDialog";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -16,7 +16,7 @@ type User = {
 };
 
 const AdWizard = () => {
-  const { currentStep, canNavigateToStep, handleStepClick } = useWizardState();
+  const { currentStep, canNavigateToStep, handleStepClick } = useAdWizardState();
   const [showCreateProject, setShowCreateProject] = useState(false);
   const [videoAdsEnabled, setVideoAdsEnabled] = useState(false);
   const [generatedAds, setGeneratedAds] = useState<any[]>([]);
@@ -48,9 +48,10 @@ const AdWizard = () => {
     const loadInitialAds = async () => {
       if (projectId) {
         const { data, error } = await supabase
-          .from('ads')
-          .select('*')
-          .eq('project_id', projectId);
+          .from('projects')
+          .select('generated_ads')
+          .eq('id', projectId)
+          .single();
 
         if (error) {
           toast({
@@ -61,7 +62,7 @@ const AdWizard = () => {
           return;
         }
 
-        setGeneratedAds(data);
+        setGeneratedAds(data?.generated_ads || []);
         setHasLoadedInitialAds(true);
       }
     };
