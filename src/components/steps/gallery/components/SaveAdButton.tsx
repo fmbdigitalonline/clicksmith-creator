@@ -33,7 +33,6 @@ export const SaveAdButton = ({
   const { toast } = useToast();
 
   const handleSave = async () => {
-    // Prevent multiple clicks during submission
     if (isSaving) {
       console.log('[SaveAdButton] Submission already in progress, preventing duplicate');
       return;
@@ -61,7 +60,6 @@ export const SaveAdButton = ({
     console.log('[SaveAdButton] Starting save operation...');
 
     try {
-      // More explicit auth check with error handling
       const { data: authData, error: authError } = await supabase.auth.getUser();
       
       console.log('[SaveAdButton] Auth check:', { 
@@ -75,7 +73,6 @@ export const SaveAdButton = ({
 
       const user = authData.user;
 
-      // Early return for "new" project
       if (projectId === "new") {
         if (onCreateProject) {
           onCreateProject();
@@ -88,11 +85,9 @@ export const SaveAdButton = ({
         return;
       }
 
-      // Only include project_id if it's a valid UUID
       const isValidUUID = projectId && 
                          /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(projectId);
 
-      // Create feedback data with explicit null handling
       const feedbackData = {
         id: uuidv4(),
         user_id: user.id,
@@ -102,18 +97,53 @@ export const SaveAdButton = ({
         primary_text: primaryText || hook.text || null,
         headline: headline || hook.description || null,
         created_at: new Date().toISOString(),
-        project_id: isValidUUID ? projectId : null  // Explicit project ID handling
+        project_id: isValidUUID ? projectId : null
       };
 
-      console.log('[SaveAdButton] Attempting to save feedback:', feedbackData);
+      console.log('[SaveAdButton] Attempting to save/update feedback');
 
-      const { error: feedbackError } = await supabase
+      // First try to update existing feedback
+      const { data: existingData, error: checkError } = await supabase
         .from('ad_feedback')
-        .insert(feedbackData);
+        .select()
+        .match({ 
+          user_id: user.id,
+          primary_text: feedbackData.primary_text,
+          headline: feedbackData.headline 
+        })
+        .maybeSingle();
 
-      if (feedbackError) {
-        console.error('[SaveAdButton] Supabase error:', feedbackError);
-        throw new Error(`Database error: ${feedbackError.message}`);  // More specific error
+      if (checkError) {
+        console.error('[SaveAdButton] Error checking existing feedback:', checkError);
+        throw checkError;
+      }
+
+      if (existingData) {
+        // Update existing feedback
+        const { error: updateError } = await supabase
+          .from('ad_feedback')
+          .update({
+            rating: feedbackData.rating,
+            feedback: feedbackData.feedback,
+            saved_images: feedbackData.saved_images,
+            created_at: feedbackData.created_at
+          })
+          .eq('id', existingData.id);
+
+        if (updateError) {
+          console.error('[SaveAdButton] Error updating feedback:', updateError);
+          throw updateError;
+        }
+      } else {
+        // Insert new feedback
+        const { error: insertError } = await supabase
+          .from('ad_feedback')
+          .insert(feedbackData);
+
+        if (insertError) {
+          console.error('[SaveAdButton] Error inserting feedback:', insertError);
+          throw insertError;
+        }
       }
 
       onSaveSuccess();
