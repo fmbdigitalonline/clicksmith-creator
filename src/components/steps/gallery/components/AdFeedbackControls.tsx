@@ -4,6 +4,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { StarRating } from "./feedback/StarRating";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { ThumbsUp, ThumbsDown } from "lucide-react";
 
 interface AdFeedbackControlsProps {
   adId: string;
@@ -12,8 +13,7 @@ interface AdFeedbackControlsProps {
 }
 
 export const AdFeedbackControls = ({ adId, projectId, onFeedbackSubmit }: AdFeedbackControlsProps) => {
-  const [rating, setRating] = useState<number>(0);
-  const [feedback, setFeedback] = useState("");
+  const [rating, setRating] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
 
@@ -40,16 +40,18 @@ export const AdFeedbackControls = ({ adId, projectId, onFeedbackSubmit }: AdFeed
       const feedbackData = {
         user_id: user.id,
         ad_id: adId,
-        rating,
-        feedback,
+        rating: parseInt(rating, 10),
         ...(projectId && projectId !== 'new' ? { project_id: projectId } : {})
       };
 
-      const { error } = await supabase
+      // First try to update existing feedback
+      const { data: existingFeedback, error: updateError } = await supabase
         .from('ad_feedback')
-        .insert(feedbackData);
+        .upsert(feedbackData, {
+          onConflict: 'user_id,ad_id'
+        });
 
-      if (error) throw error;
+      if (updateError) throw updateError;
 
       toast({
         title: "Feedback Saved",
@@ -57,8 +59,7 @@ export const AdFeedbackControls = ({ adId, projectId, onFeedbackSubmit }: AdFeed
       });
 
       // Reset form
-      setRating(0);
-      setFeedback("");
+      setRating("");
       
       // Call the callback if provided
       if (onFeedbackSubmit) {
@@ -78,22 +79,23 @@ export const AdFeedbackControls = ({ adId, projectId, onFeedbackSubmit }: AdFeed
 
   return (
     <div className="space-y-4">
-      <div className="space-y-2">
-        <label className="text-sm font-medium">Rating</label>
-        <StarRating
-          rating={rating}
-          onRate={setRating}
-        />
-      </div>
-
-      <div className="space-y-2">
-        <label className="text-sm font-medium">Feedback</label>
-        <Textarea
-          placeholder="Share your thoughts about this ad..."
-          value={feedback}
-          onChange={(e) => setFeedback(e.target.value)}
-          className="min-h-[100px]"
-        />
+      <div className="flex space-x-4">
+        <Button
+          variant={rating === "1" ? "default" : "outline"}
+          onClick={() => setRating("1")}
+          className="flex-1"
+        >
+          <ThumbsUp className="w-4 h-4 mr-2" />
+          Like
+        </Button>
+        <Button
+          variant={rating === "0" ? "default" : "outline"}
+          onClick={() => setRating("0")}
+          className="flex-1"
+        >
+          <ThumbsDown className="w-4 h-4 mr-2" />
+          Dislike
+        </Button>
       </div>
 
       <Button
