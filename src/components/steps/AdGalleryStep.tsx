@@ -1,4 +1,4 @@
-import { BusinessIdea, TargetAudience, AdHook, AdImage } from "@/types/adWizard";
+import { BusinessIdea, TargetAudience, AdHook } from "@/types/adWizard";
 import { TabsContent } from "@/components/ui/tabs";
 import LoadingState from "./complete/LoadingState";
 import PlatformTabs from "./gallery/PlatformTabs";
@@ -39,6 +39,7 @@ const AdGalleryStep = ({
   const [selectedFormat, setSelectedFormat] = useState(AD_FORMATS[0]);
   const [generatedPlatforms, setGeneratedPlatforms] = useState<Set<string>>(new Set());
   const { projectId } = useParams();
+
   const {
     platform,
     showPlatformChangeDialog,
@@ -72,7 +73,7 @@ const AdGalleryStep = ({
 
     const isNewProject = projectId === 'new';
     const existingPlatformAds = generatedAds.filter(ad => ad.platform === platform);
-    const shouldGenerateAds = isNewProject || existingPlatformAds.length === 0 || !generatedPlatforms.has(platform);
+    const shouldGenerateAds = isNewProject || existingPlatformAds.length === 0;
 
     console.log('[AdGalleryStep] Initial ad generation check:', {
       hasLoadedInitialAds,
@@ -87,7 +88,7 @@ const AdGalleryStep = ({
       console.log('[AdGalleryStep] Triggering initial ad generation for platform:', platform);
       handleGenerateAds(platform);
     }
-  }, [hasLoadedInitialAds, platform, projectId, generatedAds, handleGenerateAds, generatedPlatforms]);
+  }, [hasLoadedInitialAds, platform, projectId, generatedAds, handleGenerateAds]);
 
   // Effect for managing generated ads state
   useEffect(() => {
@@ -112,7 +113,9 @@ const AdGalleryStep = ({
       updatedAds = adVariants;
     } else {
       updatedAds = [...generatedAds];
+      // Remove existing ads for the current platform
       updatedAds = updatedAds.filter(ad => ad.platform !== platform);
+      // Add new ads for the current platform
       updatedAds.push(...adVariants);
     }
 
