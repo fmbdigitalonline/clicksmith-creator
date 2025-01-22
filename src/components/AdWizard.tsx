@@ -99,8 +99,25 @@ const AdWizard = () => {
               .maybeSingle();
 
             if (anonymousError) {
-              console.error('[AdWizard] Error fetching anonymous data:', anonymousError);
-              throw anonymousError;
+              if (anonymousError.code === 'PGRST116') {
+                // If no record exists, create one
+                const { data: newAnonymousData, error: insertError } = await supabase
+                  .from('anonymous_usage')
+                  .insert({
+                    session_id: sessionId,
+                    used: false,
+                    completed: false,
+                    wizard_data: null
+                  })
+                  .select()
+                  .single();
+
+                if (insertError) throw insertError;
+                console.log('[AdWizard] Created new anonymous session record');
+              } else {
+                console.error('[AdWizard] Error fetching anonymous data:', anonymousError);
+                throw anonymousError;
+              }
             }
 
             console.log('[AdWizard] Anonymous data retrieved:', anonymousData);
@@ -132,11 +149,6 @@ const AdWizard = () => {
             });
           }
           
-          toast({
-            title: "Trial mode active",
-            description: "You can try generating one set of ads before registering.",
-            duration: 6000,
-          });
           setHasLoadedInitialAds(true);
           return;
         }
