@@ -12,21 +12,21 @@ export const SavedAdsGallery = () => {
 
   const fetchSavedAds = async () => {
     try {
-      console.log("Starting to fetch saved ads...");
+      console.log("[SavedAdsGallery] Starting to fetch saved ads...");
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       
       if (userError) {
-        console.error("Error fetching user:", userError);
+        console.error("[SavedAdsGallery] Error fetching user:", userError);
         throw userError;
       }
 
       if (!user) {
-        console.log("No authenticated user found");
+        console.log("[SavedAdsGallery] No authenticated user found");
         setIsLoading(false);
         return;
       }
 
-      console.log("Authenticated user found:", user.id);
+      console.log("[SavedAdsGallery] Authenticated user found:", user.id);
 
       const { data: feedbackData, error: feedbackError } = await supabase
         .from('ad_feedback')
@@ -36,11 +36,11 @@ export const SavedAdsGallery = () => {
         .order('created_at', { ascending: false });
 
       if (feedbackError) {
-        console.error('Error fetching feedback data:', feedbackError);
+        console.error('[SavedAdsGallery] Error fetching feedback data:', feedbackError);
         throw feedbackError;
       }
 
-      console.log("Raw feedback data:", feedbackData);
+      console.log("[SavedAdsGallery] Raw feedback data:", feedbackData);
 
       // Improved data processing
       const feedbackAds: SavedAd[] = (feedbackData || [])
@@ -72,10 +72,10 @@ export const SavedAdsGallery = () => {
           };
         });
 
-      console.log("Processed feedback ads:", feedbackAds);
+      console.log("[SavedAdsGallery] Processed feedback ads:", feedbackAds);
       setSavedAds(feedbackAds);
     } catch (error) {
-      console.error('Error in fetchSavedAds:', error);
+      console.error('[SavedAdsGallery] Error in fetchSavedAds:', error);
       toast({
         title: "Error Loading Ads",
         description: error instanceof Error ? error.message : "Failed to load saved ads. Please try again.",

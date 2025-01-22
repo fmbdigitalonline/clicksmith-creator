@@ -33,7 +33,7 @@ export const SaveAdButton = ({
   const { toast } = useToast();
 
   const handleSave = async () => {
-    if (isSaving) return; // Prevent duplicate saves while in progress
+    if (isSaving) return;
 
     if (!rating) {
       toast({
@@ -53,25 +53,25 @@ export const SaveAdButton = ({
       return;
     }
 
-    // Early return for "new" project
-    if (projectId === "new") {
-      if (onCreateProject) {
-        onCreateProject();
-      } else {
-        toast({
-          title: "Create Project First",
-          description: "Please create a project to save your ad.",
-        });
-      }
-      return;
-    }
-
     setSaving(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
       
       if (!user) {
         throw new Error('User must be logged in to save feedback');
+      }
+
+      // Early return for "new" project
+      if (projectId === "new") {
+        if (onCreateProject) {
+          onCreateProject();
+        } else {
+          toast({
+            title: "Create Project First",
+            description: "Please create a project to save your ad.",
+          });
+        }
+        return;
       }
 
       // Only include project_id if it's a valid UUID
@@ -95,6 +95,8 @@ export const SaveAdButton = ({
         Object.assign(feedbackData, { project_id: projectId });
       }
 
+      console.log('[SaveAdButton] Saving feedback data:', feedbackData);
+
       const { error: feedbackError } = await supabase
         .from('ad_feedback')
         .insert(feedbackData);
@@ -111,7 +113,7 @@ export const SaveAdButton = ({
           : "Your feedback has been saved.",
       });
     } catch (error) {
-      console.error('Error saving feedback:', error);
+      console.error('[SaveAdButton] Error saving feedback:', error);
       toast({
         title: "Error",
         description: error instanceof Error 
