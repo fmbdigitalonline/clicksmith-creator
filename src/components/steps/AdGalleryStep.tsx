@@ -57,9 +57,10 @@ const AdGalleryStep = ({
     generateAds,
   } = useAdGeneration(businessIdea, targetAudience, adHooks);
 
-  const handleGenerateAds = useCallback((selectedPlatform: string) => {
+  const handleGenerateAds = useCallback(async (selectedPlatform: string) => {
     if (!isGenerating) {
-      generateAds(selectedPlatform);
+      console.log('[AdGalleryStep] Generating ads for platform:', selectedPlatform);
+      await generateAds(selectedPlatform);
     }
   }, [generateAds, isGenerating]);
 
@@ -101,44 +102,41 @@ const AdGalleryStep = ({
     const isNewProject = projectId === 'new';
     console.log('[AdGalleryStep] Updating ads state:', {
       isNewProject,
+      platform,
       adVariantsCount: adVariants.length,
       currentAdsCount: generatedAds.length
     });
 
-    const updatedAds = isNewProject
-      ? adVariants
-      : generatedAds.map(existingAd => {
-          const newVariant = adVariants.find(
-            variant => variant.platform === existingAd.platform && variant.id === existingAd.id
-          );
-          return newVariant || existingAd;
-        });
-
-    if (!isNewProject) {
-      adVariants.forEach(newVariant => {
-        const exists = updatedAds.some(
-          ad => ad.platform === newVariant.platform && ad.id === newVariant.id
-        );
-        if (!exists) {
-          updatedAds.push(newVariant);
-        }
-      });
+    let updatedAds;
+    if (isNewProject) {
+      // For new projects, just use the new variants
+      updatedAds = adVariants;
+    } else {
+      // For existing projects, merge with existing ads
+      updatedAds = [...generatedAds];
+      
+      // Remove existing ads for the current platform
+      updatedAds = updatedAds.filter(ad => ad.platform !== platform);
+      
+      // Add the new variants for the current platform
+      updatedAds.push(...adVariants);
     }
 
     console.log('[AdGalleryStep] Final ads update:', {
-      updatedAdsCount: updatedAds.length
+      updatedAdsCount: updatedAds.length,
+      platform
     });
 
     onAdsGenerated(updatedAds);
-  }, [adVariants, onAdsGenerated, projectId, generatedAds]);
+  }, [adVariants, onAdsGenerated, projectId, generatedAds, platform]);
 
   const onPlatformChange = (newPlatform: "facebook" | "google" | "linkedin" | "tiktok") => {
     handlePlatformChange(newPlatform, adVariants.length > 0);
   };
 
-  const onConfirmPlatformChange = () => {
+  const onConfirmPlatformChange = async () => {
     const newPlatform = confirmPlatformChange();
-    handleGenerateAds(newPlatform);
+    await handleGenerateAds(newPlatform);
   };
 
   const onCancelPlatformChange = () => {
@@ -153,23 +151,27 @@ const AdGalleryStep = ({
     setSelectedFormat(format);
   };
 
-  const renderPlatformContent = (platformName: string) => (
-    <TabsContent value={platformName} className="space-y-4">
-      <div className="flex justify-end mb-4">
-        <AdSizeSelector
+  const renderPlatformContent = (platformName: string) => {
+    const platformAds = generatedAds.filter(ad => ad.platform === platformName);
+    
+    return (
+      <TabsContent value={platformName} className="space-y-4">
+        <div className="flex justify-end mb-4">
+          <AdSizeSelector
+            selectedFormat={selectedFormat}
+            onFormatChange={handleFormatChange}
+          />
+        </div>
+        <PlatformContent
+          platformName={platformName}
+          adVariants={platformAds}
+          onCreateProject={onCreateProject}
+          videoAdsEnabled={videoAdsEnabled}
           selectedFormat={selectedFormat}
-          onFormatChange={handleFormatChange}
         />
-      </div>
-      <PlatformContent
-        platformName={platformName}
-        adVariants={generatedAds.length > 0 ? generatedAds : adVariants}
-        onCreateProject={onCreateProject}
-        videoAdsEnabled={videoAdsEnabled}
-        selectedFormat={selectedFormat}
-      />
-    </TabsContent>
-  );
+      </TabsContent>
+    );
+  };
 
   return (
     <div className="space-y-6 md:space-y-8">
