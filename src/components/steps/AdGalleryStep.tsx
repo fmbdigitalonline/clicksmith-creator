@@ -37,7 +37,7 @@ const AdGalleryStep = ({
   hasLoadedInitialAds = false,
 }: AdGalleryStepProps) => {
   const [selectedFormat, setSelectedFormat] = useState(AD_FORMATS[0]);
-  const [hasGeneratedInitialAds, setHasGeneratedInitialAds] = useState(false);
+  const [generatedPlatforms, setGeneratedPlatforms] = useState<Set<string>>(new Set());
   const { projectId } = useParams();
   const {
     platform,
@@ -59,20 +59,21 @@ const AdGalleryStep = ({
     if (!isGenerating) {
       console.log('[AdGalleryStep] Generating ads for platform:', selectedPlatform);
       await generateAds(selectedPlatform);
+      setGeneratedPlatforms(prev => new Set([...prev, selectedPlatform]));
     }
   }, [generateAds, isGenerating]);
 
   // Effect for initial ad generation
   useEffect(() => {
-    if (!hasLoadedInitialAds || hasGeneratedInitialAds) return;
+    if (!hasLoadedInitialAds) return;
 
     const isNewProject = projectId === 'new';
     const existingPlatformAds = generatedAds.filter(ad => ad.platform === platform);
-    const shouldGenerateAds = isNewProject || existingPlatformAds.length === 0;
+    const shouldGenerateAds = isNewProject || existingPlatformAds.length === 0 || !generatedPlatforms.has(platform);
 
     console.log('[AdGalleryStep] Initial ad generation check:', {
       hasLoadedInitialAds,
-      hasGeneratedInitialAds,
+      generatedPlatforms: Array.from(generatedPlatforms),
       isNewProject,
       platform,
       existingAdsCount: existingPlatformAds.length,
@@ -80,12 +81,10 @@ const AdGalleryStep = ({
     });
 
     if (shouldGenerateAds) {
-      console.log('[AdGalleryStep] Triggering initial ad generation');
+      console.log('[AdGalleryStep] Triggering initial ad generation for platform:', platform);
       handleGenerateAds(platform);
     }
-
-    setHasGeneratedInitialAds(true);
-  }, [hasLoadedInitialAds, hasGeneratedInitialAds, platform, projectId, generatedAds, handleGenerateAds]);
+  }, [hasLoadedInitialAds, platform, projectId, generatedAds, handleGenerateAds, generatedPlatforms]);
 
   // Effect for managing generated ads state
   useEffect(() => {
