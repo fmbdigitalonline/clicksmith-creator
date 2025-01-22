@@ -1,4 +1,6 @@
 import { CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useState } from "react";
 
 interface AdContentProps {
   primaryText?: string;
@@ -7,6 +9,20 @@ interface AdContentProps {
 }
 
 export const AdContent = ({ primaryText, headline, imageUrl }: AdContentProps) => {
+  const [isImageLoading, setIsImageLoading] = useState(true);
+  const [imageError, setImageError] = useState(false);
+
+  const handleImageLoad = () => {
+    setIsImageLoading(false);
+    setImageError(false);
+  };
+
+  const handleImageError = () => {
+    setIsImageLoading(false);
+    setImageError(true);
+    console.error('[AdContent] Failed to load image:', imageUrl);
+  };
+
   return (
     <>
       {primaryText && (
@@ -18,15 +34,29 @@ export const AdContent = ({ primaryText, headline, imageUrl }: AdContentProps) =
         </CardContent>
       )}
       
-      {imageUrl && (
-        <div className="aspect-video relative">
+      <div className="aspect-video relative">
+        {isImageLoading && (
+          <Skeleton className="w-full h-full absolute inset-0" />
+        )}
+        
+        {imageUrl && (
           <img
             src={imageUrl}
             alt="Ad creative"
-            className="object-cover w-full h-full"
+            className={`object-cover w-full h-full transition-opacity duration-200 ${
+              isImageLoading ? 'opacity-0' : 'opacity-100'
+            }`}
+            onLoad={handleImageLoad}
+            onError={handleImageError}
           />
-        </div>
-      )}
+        )}
+
+        {imageError && (
+          <div className="absolute inset-0 flex items-center justify-center bg-gray-100 text-gray-500">
+            <p>Failed to load image</p>
+          </div>
+        )}
+      </div>
 
       {headline && (
         <CardContent className="p-4">
