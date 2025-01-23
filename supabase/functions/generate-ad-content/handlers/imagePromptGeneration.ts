@@ -92,7 +92,7 @@ Return ONLY a valid JSON array with exactly 1 item in this format:
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4',
+        model: 'gpt-4o-mini',
         messages: [
           { 
             role: 'system', 
