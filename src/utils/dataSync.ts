@@ -37,10 +37,10 @@ export const createDataBackup = async (userId: string, data: WizardData): Promis
       type: 'auto'
     };
 
-    // Convert WizardData to match the expected database schema
-    const jsonData = {
+    const wizardData = {
       business_idea: data.business_idea || null,
       target_audience: data.target_audience || null,
+      audience_analysis: data.audience_analysis || null,
       selected_hooks: data.selected_hooks || null,
       generated_ads: data.generated_ads || null,
       current_step: data.current_step || 1,
@@ -85,7 +85,6 @@ export const syncWizardProgress = async (userId: string, data: WizardData): Prom
 
     await createDataBackup(userId, data);
 
-    // Prepare data matching the wizard_progress table schema
     const wizardData = {
       user_id: userId,
       business_idea: data.business_idea || null,
@@ -151,7 +150,6 @@ export const handleAnonymousSave = async (sessionId: string, data: WizardData): 
       return { success: false, error: 'Maximum saves reached for anonymous session' };
     }
 
-    // Convert WizardData to match the anonymous_usage table schema
     const wizardData = {
       business_idea: data.business_idea || null,
       target_audience: data.target_audience || null,
@@ -186,7 +184,6 @@ export const handleAnonymousSave = async (sessionId: string, data: WizardData): 
   }
 };
 
-// Cleanup function to be called periodically
 export const performMaintenance = async () => {
   const { error } = await supabase.rpc('cleanup_stale_locks');
   if (error) {
