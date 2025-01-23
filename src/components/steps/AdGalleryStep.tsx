@@ -74,7 +74,6 @@ const AdGalleryStep = ({
       showPlatformWarning(selectedPlatform);
       
       try {
-        // Initialize platform state before generation
         setGeneratedPlatforms(prev => {
           const newSet = new Set(prev);
           newSet.delete(selectedPlatform);
@@ -85,9 +84,22 @@ const AdGalleryStep = ({
         if (success) {
           console.log('[AdGalleryStep] Successfully generated ads for:', selectedPlatform);
           setGeneratedPlatforms(prev => new Set([...prev, selectedPlatform]));
+          
+          // Only update the state with new variants, don't save them automatically
+          if (onAdsGenerated) {
+            onAdsGenerated(adVariants.map(ad => ({
+              ...ad,
+              platform: selectedPlatform,
+              id: ad.id || crypto.randomUUID(),
+              size: ad.size || {
+                width: 1200,
+                height: 628,
+                label: `${selectedPlatform} Feed`
+              }
+            })));
+          }
         } else {
           console.error('[AdGalleryStep] Failed to generate ads for:', selectedPlatform);
-          // Reset platform state on failure
           setGeneratedPlatforms(prev => {
             const newSet = new Set(prev);
             newSet.delete(selectedPlatform);
@@ -101,16 +113,9 @@ const AdGalleryStep = ({
           description: "There was an error generating your ads. Please try again.",
           variant: "destructive",
         });
-        
-        // Reset platform state on error
-        setGeneratedPlatforms(prev => {
-          const newSet = new Set(prev);
-          newSet.delete(selectedPlatform);
-          return newSet;
-        });
       }
     }
-  }, [generateAds, isGenerating, toast]);
+  }, [generateAds, isGenerating, onAdsGenerated, adVariants, toast]);
 
   useEffect(() => {
     if (!hasLoadedInitialAds) return;
@@ -133,41 +138,6 @@ const AdGalleryStep = ({
       handleGenerateAds(platform);
     }
   }, [hasLoadedInitialAds, platform, projectId, generatedAds, handleGenerateAds, generatedPlatforms]);
-
-  useEffect(() => {
-    if (!onAdsGenerated || adVariants.length === 0) {
-      console.log('[AdGalleryStep] Skipping ad state update:', {
-        hasCallback: !!onAdsGenerated,
-        variantsCount: adVariants.length
-      });
-      return;
-    }
-
-    const isNewProject = projectId === 'new';
-    console.log('[AdGalleryStep] Updating ads state:', {
-      isNewProject,
-      platform,
-      adVariantsCount: adVariants.length,
-      currentAdsCount: generatedAds.length
-    });
-
-    let updatedAds;
-    if (isNewProject) {
-      updatedAds = adVariants;
-    } else {
-      updatedAds = [...generatedAds];
-      // Only filter out ads for the current platform
-      updatedAds = updatedAds.filter(ad => ad.platform !== platform);
-      updatedAds.push(...adVariants);
-    }
-
-    console.log('[AdGalleryStep] Final ads update:', {
-      updatedAdsCount: updatedAds.length,
-      platform
-    });
-
-    onAdsGenerated(updatedAds);
-  }, [adVariants, onAdsGenerated, projectId, generatedAds, platform]);
 
   const onPlatformChange = (newPlatform: "facebook" | "google" | "linkedin" | "tiktok") => {
     handlePlatformChange(newPlatform, adVariants.length > 0);
