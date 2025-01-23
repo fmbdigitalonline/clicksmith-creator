@@ -5,6 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
 import { useState } from "react";
+import logger from "@/utils/logger";
 
 export const useAdGeneration = (
   businessIdea: BusinessIdea,
@@ -21,18 +22,31 @@ export const useAdGeneration = (
   const queryClient = useQueryClient();
 
   const generateAds = async (selectedPlatform: string) => {
+    const startTime = performance.now();
+    logger.info('AdGeneration', 'Starting ad generation', { 
+      platform: selectedPlatform,
+      projectId 
+    });
+    
     setIsGenerating(true);
     setGenerationStatus(`Initializing ${selectedPlatform} ad generation...`);
     
     try {
       const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError) throw userError;
+      if (userError) {
+        logger.error('AdGeneration', 'User authentication error', userError);
+        throw userError;
+      }
       
       if (!user) {
+        logger.error('AdGeneration', 'No authenticated user found');
         throw new Error('User must be logged in to generate ads');
       }
 
-      setGenerationStatus(`Generating ${selectedPlatform} ads...`);
+      logger.info('AdGeneration', 'Generating ads', {
+        userId: user.id,
+        platform: selectedPlatform
+      });
       
       const { data, error } = await supabase.functions.invoke('generate-ad-content', {
         body: {
@@ -47,7 +61,7 @@ export const useAdGeneration = (
       });
 
       if (error) {
-        console.error('Error generating ads:', error);
+        logger.error('AdGeneration', 'Error generating ads', error);
         if (error.message.includes('No credits available')) {
           toast({
             title: "No credits available",
@@ -60,11 +74,11 @@ export const useAdGeneration = (
         throw error;
       }
 
-      if (!data?.variants || !Array.isArray(data.variants)) {
-        throw new Error('Invalid response format from server');
-      }
-
-      console.log(`Generated ${selectedPlatform} variants:`, data.variants);
+      const endTime = performance.now();
+      logger.info('AdGeneration', 'Generation completed', {
+        duration: endTime - startTime,
+        variantsCount: data?.variants?.length
+      });
 
       // Ensure we have exactly 10 variants with the correct platform and format
       const variants = data.variants.map(variant => ({
@@ -86,7 +100,7 @@ export const useAdGeneration = (
 
       return true;
     } catch (error: any) {
-      console.error('Ad generation error:', error);
+      logger.error('AdGeneration', 'Ad generation failed', error);
       toast({
         title: "Error generating ads",
         description: error.message || "Failed to generate ads. Please try again.",

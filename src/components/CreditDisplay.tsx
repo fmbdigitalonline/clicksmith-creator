@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useEffect } from "react";
+import logger from "@/utils/logger";
 
 export const CreditDisplay = () => {
   const { toast } = useToast();
@@ -12,8 +13,12 @@ export const CreditDisplay = () => {
   const { data: user } = useQuery({
     queryKey: ["user"],
     queryFn: async () => {
+      logger.info('CreditDisplay', 'Fetching user data');
       const { data: { user }, error } = await supabase.auth.getUser();
-      if (error) throw error;
+      if (error) {
+        logger.error('CreditDisplay', 'Error fetching user', error);
+        throw error;
+      }
       return user;
     },
   });
@@ -22,6 +27,8 @@ export const CreditDisplay = () => {
     queryKey: ["subscription", user?.id],
     queryFn: async () => {
       if (!user?.id) return null;
+      logger.info('CreditDisplay', 'Checking subscription', { userId: user.id });
+      
       const { data, error } = await supabase
         .from("subscriptions")
         .select("*")
@@ -30,6 +37,7 @@ export const CreditDisplay = () => {
         .maybeSingle();
 
       if (error && error.code !== "PGRST116") {
+        logger.error('CreditDisplay', 'Error checking subscription', error);
         toast({
           title: "Error checking subscription",
           description: "We couldn't verify your subscription status. Please try again.",
@@ -38,6 +46,7 @@ export const CreditDisplay = () => {
         return null;
       }
 
+      logger.info('CreditDisplay', 'Subscription status', { hasSubscription: !!data });
       return data;
     },
     enabled: !!user?.id,

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import logger from "@/utils/logger";
 
 type AuthEvent = 'SIGNED_IN' | 'SIGNED_OUT' | 'TOKEN_REFRESHED' | 'USER_UPDATED';
 
@@ -14,10 +15,11 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     const checkSession = async () => {
       try {
+        logger.info('ProtectedRoute', 'Checking session');
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
         
         if (sessionError) {
-          console.error("Session error:", sessionError);
+          logger.error('ProtectedRoute', 'Session error', sessionError);
           setIsAuthenticated(false);
           navigate('/login', { replace: true });
           return;
@@ -26,6 +28,7 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
         // Check for anonymous session
         const anonymousSessionId = localStorage.getItem('anonymous_session_id');
         if (!session && anonymousSessionId) {
+          logger.info('ProtectedRoute', 'Checking anonymous session', { anonymousSessionId });
           const { data: usage } = await supabase
             .from('anonymous_usage')
             .select('used')
@@ -33,18 +36,19 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
             .single();
 
           if (usage && !usage.used) {
+            logger.info('ProtectedRoute', 'Valid anonymous session found');
             navigate('/ad-wizard/new', { replace: true });
             return;
           }
         }
 
         if (!session) {
+          logger.info('ProtectedRoute', 'No valid session found');
           setIsAuthenticated(false);
           navigate('/login', { replace: true });
           return;
         }
 
-        // Only attempt to refresh if we have a valid session
         if (session) {
           try {
             const { data: { user }, error: refreshError } = await supabase.auth.refreshSession();
@@ -92,8 +96,9 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
             });
           }
         }
+
       } catch (error) {
-        console.error("Auth error:", error);
+        logger.error('ProtectedRoute', 'Authentication check failed', error);
         setIsAuthenticated(false);
         navigate('/login', { replace: true });
       } finally {
@@ -106,11 +111,12 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log("Auth state changed:", event);
+      logger.info('ProtectedRoute', 'Auth state changed', { event, userId: session?.user?.id });
       
       const handleAuthEvent = (event: AuthEvent) => {
         switch (event) {
           case 'SIGNED_OUT':
+            logger.info('ProtectedRoute', 'User signed out');
             setIsAuthenticated(false);
             navigate('/login', { replace: true });
             toast({
@@ -120,9 +126,11 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
             break;
           case 'SIGNED_IN':
           case 'TOKEN_REFRESHED':
+            logger.info('ProtectedRoute', 'User authenticated', { event });
             setIsAuthenticated(true);
             break;
           case 'USER_UPDATED':
+            logger.info('ProtectedRoute', 'User profile updated');
             setIsAuthenticated(!!session);
             break;
         }
@@ -149,4 +157,3 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   }
 
   return <>{children}</>;
-};
