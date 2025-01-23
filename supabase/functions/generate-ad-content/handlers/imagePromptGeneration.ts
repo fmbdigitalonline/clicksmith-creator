@@ -3,23 +3,51 @@ import { generateWithReplicate } from './utils/replicateUtils.ts';
 
 const safeJSONParse = (str: string) => {
   try {
-    // First clean any markdown formatting
-    let cleaned = str.replace(/```json\s*/g, '')  // Remove ```json
-                    .replace(/```\s*/g, '')       // Remove closing ```
-                    .replace(/[\u0000-\u001F\u007F-\u009F]/g, '')
-                    .replace(/\n/g, ' ')
-                    .trim();
+    // First clean any markdown formatting and special characters
+    let cleaned = str
+      .replace(/```json\s*/g, '')  // Remove ```json
+      .replace(/```\s*/g, '')      // Remove closing ```
+      .replace(/[\u0000-\u001F\u007F-\u009F]/g, '') // Remove control characters
+      .trim();
     
     // If the string starts with a markdown block, extract just the JSON
     const jsonMatch = cleaned.match(/\[.*\]/s);
     if (jsonMatch) {
       cleaned = jsonMatch[0];
     }
+
+    // Ensure all quotes are properly escaped
+    cleaned = cleaned.replace(/(?<!\\)"/g, '\\"').replace(/\\"/g, '"');
+    
+    // Add proper quotes around property names if missing
+    cleaned = cleaned.replace(/(\{|\,)\s*([a-zA-Z0-9_]+)\s*\:/g, '$1"$2":');
+    
+    console.log('Cleaned JSON string:', cleaned);
     
     return JSON.parse(cleaned);
   } catch (error) {
     console.error('JSON Parse Error:', error);
     console.log('Problematic string:', str);
+    
+    // Attempt to extract array content as fallback
+    try {
+      const arrayMatch = str.match(/\[(.*)\]/s);
+      if (arrayMatch) {
+        const arrayContent = arrayMatch[1].trim();
+        const items = arrayContent.split('},{').map(item => {
+          let cleanItem = item.replace(/^\{|\}$/g, '').trim();
+          // Ensure property names are quoted
+          cleanItem = cleanItem.replace(/([a-zA-Z0-9_]+):/g, '"$1":');
+          return `{${cleanItem}}`;
+        });
+        const jsonArray = `[${items.join(',')}]`;
+        console.log('Fallback JSON array:', jsonArray);
+        return JSON.parse(jsonArray);
+      }
+    } catch (fallbackError) {
+      console.error('Fallback parsing failed:', fallbackError);
+    }
+    
     throw new Error(`Failed to parse JSON: ${error.message}`);
   }
 };
