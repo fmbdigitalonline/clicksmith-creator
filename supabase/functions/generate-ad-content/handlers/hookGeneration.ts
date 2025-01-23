@@ -7,14 +7,19 @@ ${JSON.stringify(businessIdea, null, 2)}
 Target Audience:
 ${JSON.stringify(targetAudience, null, 2)}
 
-Create 10 marketing hooks that:
-1. Address specific pain points
-2. Are very short and impactful
-3. Make the audience stop and read
-4. Call out the target audience either obviously or through shared knowledge
-5. Can be questions, statements, or commands
-6. Can use humor or emotion when appropriate
-7. Must make it obvious the ad is for them
+Create EXACTLY 10 unique and different marketing hooks that:
+1. Must be completely different from each other - no similar themes or approaches
+2. Must address specific pain points
+3. Must be very short and impactful
+4. Must make the audience stop and read
+5. Must call out the target audience either obviously or through shared knowledge
+6. Can be questions, statements, or commands
+7. Can use humor or emotion when appropriate
+8. Must make it obvious the ad is for them
+9. Must each focus on a different aspect or benefit
+10. Must each have a unique angle or perspective
+
+IMPORTANT: Generate EXACTLY 10 completely different hooks, each with its own unique approach and focus.
 
 Return ONLY a valid JSON array with exactly 10 items in this format:
 [
@@ -34,15 +39,15 @@ Return ONLY a valid JSON array with exactly 10 items in this format:
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: 'gpt-4o',
         messages: [
           {
             role: 'system',
-            content: 'You are an expert marketing strategist that creates compelling marketing angles and hooks based on deep audience analysis. Focus on creating angles that address specific pain points and hooks that make the target audience stop and read. Return ONLY raw JSON arrays without any markdown formatting.'
+            content: 'You are an expert marketing strategist that creates compelling and diverse marketing angles and hooks based on deep audience analysis. You must create exactly 10 completely different hooks, each with its own unique approach and focus. Never repeat similar themes or approaches.'
           },
           { role: 'user', content: prompt }
         ],
-        temperature: 0.8,
+        temperature: 1.0,
         max_tokens: 2000,
       }),
     });

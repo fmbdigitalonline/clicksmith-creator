@@ -44,10 +44,21 @@ Key Pain Points to Address:
 ${allPainPoints.map(point => `- ${point}`).join('\n')}
 
 Create 1 image prompt that:
-1. Visually represents the value proposition
-2. Connects emotionally with the target audience by addressing their pain points
-3. Is detailed enough for high-quality image generation
-4. Follows professional advertising best practices
+1. Must be STRICTLY photorealistic - NO cartoon, illustration, or artistic styles
+2. Must look like it was shot with a professional DSLR camera
+3. Must have professional studio lighting and composition
+4. Must be suitable for commercial advertising
+5. Must visually represent the value proposition
+6. Must connect emotionally with the target audience
+7. Must address their pain points visually
+8. Must follow professional advertising best practices
+
+IMPORTANT REQUIREMENTS:
+- ONLY photorealistic commercial photography style
+- NO artistic interpretations or stylization
+- NO cartoon, illustration, or digital art styles
+- Must look like a real photograph taken with professional equipment
+- Clean, high-end commercial advertising aesthetic
 
 Return ONLY a valid JSON array with exactly 1 item in this format:
 [
@@ -71,11 +82,11 @@ Return ONLY a valid JSON array with exactly 1 item in this format:
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: 'gpt-4o',
         messages: [
           { 
             role: 'system', 
-            content: 'You are an expert at creating detailed image prompts for marketing visuals that align with business goals and target audiences.'
+            content: 'You are an expert commercial photographer and art director who creates detailed prompts for photorealistic marketing visuals. You ONLY create prompts for professional, commercial photography style images - never cartoons, illustrations, or artistic interpretations.'
           },
           { role: 'user', content: prompt }
         ],
