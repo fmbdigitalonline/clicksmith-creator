@@ -25,12 +25,63 @@ const ProjectList = ({ onStartAdWizard }: ProjectListProps) => {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const { toast } = useToast();
 
+  // Query to check free tier usage
+  const { data: freeUsage } = useQuery({
+    queryKey: ["free_tier_usage"],
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return null;
+
+      const { data, error } = await supabase
+        .from("free_tier_usage")
+        .select("*")
+        .eq("user_id", user.id)
+        .single();
+
+      if (error && error.code !== "PGRST116") {
+        console.error('Error fetching free tier usage:', error);
+        return null;
+      }
+
+      return data;
+    },
+  });
+
+  // Query to check if user has an active subscription
+  const { data: subscription } = useQuery({
+    queryKey: ["subscription"],
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return null;
+
+      const { data, error } = await supabase
+        .from("subscriptions")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("active", true)
+        .single();
+
+      if (error && error.code !== "PGRST116") {
+        console.error('Error fetching subscription:', error);
+        return null;
+      }
+
+      return data;
+    },
+  });
+
   const { data: projects, refetch, error, isLoading } = useQuery({
     queryKey: ["projects"],
     queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error("User not authenticated");
+      }
+
       const { data, error } = await supabase
         .from("projects")
         .select("*")
+        .eq('user_id', user.id)
         .order("created_at", { ascending: false });
 
       if (error) {
@@ -42,7 +93,6 @@ const ProjectList = ({ onStartAdWizard }: ProjectListProps) => {
         throw error;
       }
 
-      // Transform the data to ensure business_idea has the correct type
       return (data as DatabaseProject[]).map(project => ({
         ...project,
         business_idea: project.business_idea as Project['business_idea']
@@ -51,6 +101,15 @@ const ProjectList = ({ onStartAdWizard }: ProjectListProps) => {
   });
 
   const handleCreateProject = () => {
+    // Check if user has reached free tier limit and has no subscription
+    if (freeUsage?.generations_used >= 12 && !subscription?.active) {
+      toast({
+        title: "Free tier limit reached",
+        description: "You've used all your free generations. Please upgrade to continue creating projects.",
+        variant: "destructive",
+      });
+      return;
+    }
     setIsCreateOpen(true);
   };
 
