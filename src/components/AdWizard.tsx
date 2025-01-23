@@ -240,7 +240,7 @@ const AdWizard = () => {
         // Create a new project if we don't have one
         if (!projectId || projectId === 'new') {
           const timestamp = new Date().toISOString().slice(0, 19).replace('T', ' ');
-          const projectTitle = `${businessIdea?.description || 'New Ad Project'} - ${timestamp}`;
+          const projectTitle = `${businessIdea?.description?.slice(0, 30) || 'New Ad Project'} - ${timestamp}`;
           
           const { data: newProject, error: projectError } = await supabase
             .from('projects')
@@ -253,7 +253,7 @@ const AdWizard = () => {
               audience_analysis: audienceAnalysis,
               generated_ads: newAds.map(ad => ({
                 ...ad,
-                platform: ad.platform || 'facebook', // Ensure platform is set
+                platform: ad.platform || 'facebook',
                 id: ad.id || crypto.randomUUID(),
                 size: ad.size || {
                   width: 1200,
@@ -281,7 +281,7 @@ const AdWizard = () => {
             .update({ 
               generated_ads: newAds.map(ad => ({
                 ...ad,
-                platform: ad.platform || 'facebook', // Ensure platform is set
+                platform: ad.platform || 'facebook',
                 id: ad.id || crypto.randomUUID(),
                 size: ad.size || {
                   width: 1200,
