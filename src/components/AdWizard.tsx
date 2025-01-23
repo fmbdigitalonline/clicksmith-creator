@@ -21,19 +21,15 @@ const AdWizard = () => {
   const { toast } = useToast();
   const [generatedAds, setGeneratedAds] = useState<Ad[]>([]);
   const [hasLoadedInitialAds, setHasLoadedInitialAds] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const {
     currentStep,
     setCurrentStep,
     businessIdea,
-    setBusinessIdea,
     targetAudience,
-    setTargetAudience,
     audienceAnalysis,
-    setAudienceAnalysis,
     handleStartOver,
-    isLoading,
-    setIsLoading,
-  } = useAdWizardState(projectId);
+  } = useAdWizardState();
 
   const { generateAds, isGenerating } = useGenerateAds();
 
@@ -116,7 +112,6 @@ const AdWizard = () => {
     audienceAnalysis,
     generateAds,
     generatedAds.length,
-    setIsLoading,
     toast,
   ]);
 
@@ -130,7 +125,9 @@ const AdWizard = () => {
       component: (
         <BusinessIdeaForm
           value={businessIdea}
-          onChange={setBusinessIdea}
+          onChange={(idea) => {
+            // Handle business idea changes
+          }}
           onNext={handleNext}
         />
       ),
@@ -140,7 +137,9 @@ const AdWizard = () => {
       component: (
         <TargetAudienceForm
           value={targetAudience}
-          onChange={setTargetAudience}
+          onChange={(audience) => {
+            // Handle target audience changes
+          }}
           onNext={handleNext}
           onBack={handleBack}
         />
@@ -151,7 +150,9 @@ const AdWizard = () => {
       component: (
         <AudienceAnalysis
           value={audienceAnalysis}
-          onChange={setAudienceAnalysis}
+          onChange={(analysis) => {
+            // Handle audience analysis changes
+          }}
           onNext={handleNext}
           onBack={handleBack}
           businessIdea={businessIdea}
