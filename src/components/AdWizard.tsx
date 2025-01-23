@@ -277,8 +277,8 @@ const AdWizard = () => {
       const sessionId = localStorage.getItem('anonymous_session_id');
 
       if (user) {
-        console.log('[AdWizard] User is authenticated, but not automatically saving ads');
-        // Only update wizard progress to track completion
+        console.log('[AdWizard] User is authenticated, updating wizard progress');
+        // Update wizard progress to track completion of steps 1-3
         const { error: progressError } = await supabase
           .from('wizard_progress')
           .upsert({
@@ -293,6 +293,11 @@ const AdWizard = () => {
 
         if (progressError) {
           console.error('[AdWizard] Error updating wizard progress:', progressError);
+          toast({
+            title: "Error Saving Progress",
+            description: "There was an error saving your progress. Please try again.",
+            variant: "destructive",
+          });
         }
       } else if (sessionId) {
         console.log('[AdWizard] Updating anonymous usage data');
@@ -303,9 +308,11 @@ const AdWizard = () => {
             used: true,
             wizard_data: {
               business_idea: businessIdea,
-              target_audience: targetAudience
+              target_audience: targetAudience,
+              audience_analysis: audienceAnalysis
             },
-            completed: true
+            completed: true,
+            last_completed_step: 3
           }, {
             onConflict: 'session_id'
           });
@@ -317,8 +324,8 @@ const AdWizard = () => {
     } catch (error: any) {
       console.error('[AdWizard] Error in handleAdsGenerated:', error);
       toast({
-        title: "Couldn't update progress",
-        description: "There was an error updating your progress. Your ads were generated but not saved.",
+        title: "Couldn't Update Progress",
+        description: "There was an error updating your progress. Your progress for steps 1-3 may not be saved.",
         variant: "destructive",
       });
     }
