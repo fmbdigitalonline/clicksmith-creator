@@ -1,12 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useEffect } from "react";
 
 export const CreditDisplay = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const { data: user } = useQuery({
     queryKey: ["user"],
@@ -73,7 +74,7 @@ export const CreditDisplay = () => {
   useEffect(() => {
     if (user && freeUsage && !subscription) {
       const freeUsed = freeUsage.generations_used || 0;
-      if (freeUsed >= 12) {
+      if (freeUsed >= 12 && location.pathname.includes('/ad-wizard')) {
         toast({
           title: "Free credits exhausted",
           description: "Please upgrade to continue generating ads.",
@@ -81,7 +82,7 @@ export const CreditDisplay = () => {
         });
         navigate('/pricing');
       }
-    } else if (subscription?.credits_remaining === 0) {
+    } else if (subscription?.credits_remaining === 0 && location.pathname.includes('/ad-wizard')) {
       toast({
         title: "Credits exhausted",
         description: "Please purchase more credits to continue.",
@@ -89,7 +90,7 @@ export const CreditDisplay = () => {
       });
       navigate('/pricing');
     }
-  }, [user, freeUsage, subscription, toast, navigate]);
+  }, [user, freeUsage, subscription, toast, navigate, location.pathname]);
 
   const getCreditsDisplay = () => {
     if (!user) return "";
