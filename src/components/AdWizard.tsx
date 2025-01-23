@@ -170,7 +170,7 @@ const AdWizard = () => {
             .from('wizard_progress')
             .select('*')
             .eq('user_id', user.id)
-            .maybeSingle();  // Changed from single() to maybeSingle()
+            .maybeSingle();
 
           if (wizardError) {
             console.error('[AdWizard] Error loading wizard progress:', wizardError);
@@ -370,6 +370,12 @@ const AdWizard = () => {
     }
   };
 
+  const handleStartOverWithReset = async () => {
+    setGeneratedAds([]); // Clear generated ads
+    setHasLoadedInitialAds(false); // Reset loading state
+    handleStartOver(); // Call original handleStartOver from useAdWizardState
+  };
+
   const currentStepComponent = useMemo(() => {
     switch (currentStep) {
       case 1:
@@ -400,7 +406,7 @@ const AdWizard = () => {
             businessIdea={businessIdea}
             targetAudience={targetAudience}
             adHooks={selectedHooks}
-            onStartOver={handleStartOver}
+            onStartOver={handleStartOverWithReset}
             onBack={handleBack}
             onCreateProject={handleCreateProject}
             videoAdsEnabled={videoAdsEnabled}
