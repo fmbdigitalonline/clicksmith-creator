@@ -1,20 +1,19 @@
-import { useAdWizardState } from "@/hooks/useAdWizardState";
+import { useState, useMemo, useEffect } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { Database } from "@/integrations/supabase/types";
+import { WizardStateProvider, useWizardState } from "./wizard/WizardStateProvider";
+import WizardAuthentication from "./wizard/WizardAuthentication";
+import WizardControls from "./wizard/WizardControls";
+import WizardHeader from "./wizard/WizardHeader";
+import WizardProgress from "./WizardProgress";
+import CreateProjectDialog from "./projects/CreateProjectDialog";
 import IdeaStep from "./steps/BusinessIdeaStep";
 import AudienceStep from "./steps/AudienceStep";
 import AudienceAnalysisStep from "./steps/AudienceAnalysisStep";
 import AdGalleryStep from "./steps/AdGalleryStep";
 import RegistrationWall from "./steps/auth/RegistrationWall";
-import WizardHeader from "./wizard/WizardHeader";
-import WizardProgress from "./WizardProgress";
-import { useState, useMemo, useEffect } from "react";
-import CreateProjectDialog from "./projects/CreateProjectDialog";
-import { useNavigate, useParams } from "react-router-dom";
-import { Toggle } from "./ui/toggle";
-import { Video, Image } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
-import { Database } from "@/integrations/supabase/types";
-import { useToast } from "@/hooks/use-toast";
-import { v4 as uuidv4 } from 'uuid';
 
 type WizardProgress = Database['public']['Tables']['wizard_progress']['Row'];
 type WizardData = {
@@ -24,123 +23,16 @@ type WizardData = {
   completed?: boolean;
 };
 
-const AdWizard = () => {
+const WizardContent = () => {
   const [showCreateProject, setShowCreateProject] = useState(false);
   const [videoAdsEnabled, setVideoAdsEnabled] = useState(false);
   const [generatedAds, setGeneratedAds] = useState<any[]>([]);
   const [hasLoadedInitialAds, setHasLoadedInitialAds] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [anonymousData, setAnonymousData] = useState<WizardData | null>(null);
-  const [authError, setAuthError] = useState<string | null>(null);
   const navigate = useNavigate();
   const { projectId } = useParams();
   const { toast } = useToast();
-
-  useEffect(() => {
-    let isMounted = true;
-    let retryCount = 0;
-    const maxRetries = 3;
-    
-    const checkUser = async () => {
-      try {
-        const { data: { user }, error: sessionError } = await supabase.auth.getUser();
-        
-        if (sessionError) {
-          console.error('[AdWizard] Session error:', sessionError);
-          if (retryCount < maxRetries) {
-            retryCount++;
-            setTimeout(checkUser, 1000 * retryCount); // Exponential backoff
-            return;
-          }
-          setAuthError(sessionError.message);
-          return;
-        }
-
-        if (!isMounted) return;
-        setCurrentUser(user);
-        setAuthError(null);
-
-        if (user) {
-          const sessionId = localStorage.getItem('anonymous_session_id');
-          if (sessionId) {
-            console.log('[AdWizard] Found anonymous session data to migrate:', sessionId);
-            
-            const migrationLock = localStorage.getItem('migration_in_progress');
-            if (migrationLock) {
-              console.log('[AdWizard] Migration already in progress');
-              return;
-            }
-            
-            localStorage.setItem('migration_in_progress', 'true');
-
-            try {
-              const { data: anonData, error: anonError } = await supabase
-                .from('anonymous_usage')
-                .select('wizard_data, completed')
-                .eq('session_id', sessionId)
-                .maybeSingle();
-
-              if (anonError) {
-                console.error('[AdWizard] Error fetching anonymous data:', anonError);
-                return;
-              }
-
-              if (anonData?.wizard_data) {
-                const wizardData = anonData.wizard_data as WizardData;
-                console.log('[AdWizard] Migrating anonymous data:', wizardData);
-                
-                if (!isMounted) return;
-                setAnonymousData(wizardData);
-                
-                const { error: wizardError } = await supabase
-                  .from('wizard_progress')
-                  .upsert({
-                    user_id: user.id,
-                    business_idea: wizardData.business_idea,
-                    target_audience: wizardData.target_audience,
-                    generated_ads: wizardData.generated_ads,
-                    current_step: anonData.completed ? 4 : 2
-                  }, {
-                    onConflict: 'user_id',
-                    ignoreDuplicates: false
-                  });
-
-                if (wizardError) {
-                  console.error('[AdWizard] Error migrating data:', wizardError);
-                  toast({
-                    title: "Migration Error",
-                    description: "There was an error saving your previous work. Please try again.",
-                    variant: "destructive",
-                  });
-                  return;
-                }
-
-                localStorage.removeItem('anonymous_session_id');
-                localStorage.removeItem('migration_in_progress');
-                console.log('[AdWizard] Successfully migrated and cleared anonymous session');
-              }
-            } catch (error) {
-              console.error('[AdWizard] Migration error:', error);
-              localStorage.removeItem('migration_in_progress');
-            }
-          }
-        }
-      } catch (error) {
-        console.error('[AdWizard] Error in checkUser:', error);
-        if (retryCount < maxRetries) {
-          retryCount++;
-          setTimeout(checkUser, 1000 * retryCount);
-        } else {
-          setAuthError('Failed to check authentication status. Please refresh the page.');
-        }
-      }
-    };
-
-    checkUser();
-    return () => {
-      isMounted = false;
-    };
-  }, [toast]);
 
   const {
     currentStep,
@@ -155,21 +47,18 @@ const AdWizard = () => {
     handleStartOver,
     canNavigateToStep,
     setCurrentStep,
-  } = useAdWizardState();
+  } = useWizardState();
 
   useEffect(() => {
     const loadProgress = async () => {
       try {
         console.log('[AdWizard] Starting to load progress');
-        const { data: { user } } = await supabase.auth.getUser();
-        let sessionId = localStorage.getItem('anonymous_session_id');
-        
-        if (anonymousData && user) {
+        if (anonymousData && currentUser) {
           console.log('[AdWizard] Migrating anonymous data to user account');
           const { error: wizardError } = await supabase
             .from('wizard_progress')
             .upsert({
-              user_id: user.id,
+              user_id: currentUser.id,
               business_idea: anonymousData.business_idea,
               target_audience: anonymousData.target_audience,
               generated_ads: anonymousData.generated_ads,
@@ -184,11 +73,11 @@ const AdWizard = () => {
           }
         }
 
-        if (user) {
+        if (currentUser) {
           const { data: wizardData, error: wizardError } = await supabase
             .from('wizard_progress')
             .select('*')
-            .eq('user_id', user.id)
+            .eq('user_id', currentUser.id)
             .maybeSingle();
 
           if (wizardError) {
@@ -219,12 +108,9 @@ const AdWizard = () => {
     };
 
     loadProgress();
-  }, [projectId, navigate, toast, anonymousData]);
+  }, [projectId, navigate, toast, anonymousData, currentUser]);
 
-  const handleCreateProject = () => {
-    setShowCreateProject(true);
-  };
-
+  const handleCreateProject = () => setShowCreateProject(true);
   const handleProjectCreated = (projectId: string) => {
     setShowCreateProject(false);
     navigate(`/ad-wizard/${projectId}`);
@@ -251,10 +137,9 @@ const AdWizard = () => {
     setGeneratedAds(newAds);
     
     try {
-      const { data: { user } } = await supabase.auth.getUser();
       const sessionId = localStorage.getItem('anonymous_session_id');
 
-      if (!user && sessionId) {
+      if (!currentUser && sessionId) {
         console.log('[AdWizard] Saving ads for anonymous user');
         const { error: anonymousError } = await supabase
           .from('anonymous_usage')
@@ -334,15 +219,30 @@ const AdWizard = () => {
       default:
         return null;
     }
-  }, [currentStep, businessIdea, targetAudience, audienceAnalysis, selectedHooks, videoAdsEnabled, generatedAds, hasLoadedInitialAds, currentUser]);
+  }, [
+    currentStep,
+    businessIdea,
+    targetAudience,
+    audienceAnalysis,
+    selectedHooks,
+    videoAdsEnabled,
+    generatedAds,
+    hasLoadedInitialAds,
+    currentUser,
+    handleBack,
+    handleIdeaSubmit,
+    handleAudienceSelect,
+    handleAnalysisComplete,
+    handleStartOver
+  ]);
 
   return (
     <div className="container max-w-6xl mx-auto px-4 py-8">
-      {authError && (
-        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-md text-red-700">
-          {authError}
-        </div>
-      )}
+      <WizardAuthentication 
+        onUserChange={setCurrentUser}
+        onAnonymousDataChange={setAnonymousData}
+      />
+
       <WizardHeader
         title="Idea Pilot"
         description="Quickly go from idea to ready-to-run ads by testing different audience segments with AI-powered social media ad campaigns."
@@ -356,22 +256,10 @@ const AdWizard = () => {
         />
       </div>
 
-      <div className="flex items-center justify-end mb-6 space-x-2">
-        <span className="text-sm text-gray-600">Image Ads</span>
-        <Toggle
-          pressed={videoAdsEnabled}
-          onPressedChange={handleVideoAdsToggle}
-          aria-label="Toggle video ads"
-          className="data-[state=on]:bg-facebook"
-        >
-          {videoAdsEnabled ? (
-            <Video className="h-4 w-4" />
-          ) : (
-            <Image className="h-4 w-4" />
-          )}
-        </Toggle>
-        <span className="text-sm text-gray-600">Video Ads</span>
-      </div>
+      <WizardControls
+        videoAdsEnabled={videoAdsEnabled}
+        onVideoAdsToggle={handleVideoAdsToggle}
+      />
 
       {currentStepComponent}
 
@@ -382,6 +270,14 @@ const AdWizard = () => {
         initialBusinessIdea={businessIdea?.description}
       />
     </div>
+  );
+};
+
+const AdWizard = () => {
+  return (
+    <WizardStateProvider>
+      <WizardContent />
+    </WizardStateProvider>
   );
 };
 
