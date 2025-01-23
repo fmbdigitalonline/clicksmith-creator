@@ -1,5 +1,7 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { AdFeedbackControls } from "@/components/steps/gallery/components/AdFeedbackControls";
+import { useState } from "react";
+import { Loader2 } from "lucide-react";
 
 interface SavedAdCardProps {
   id: string;
@@ -16,6 +18,19 @@ export const SavedAdCard = ({
   imageUrl,
   onFeedbackSubmit 
 }: SavedAdCardProps) => {
+  const [imageLoading, setImageLoading] = useState(true);
+  const [imageError, setImageError] = useState(false);
+
+  const handleImageLoad = () => {
+    setImageLoading(false);
+    setImageError(false);
+  };
+
+  const handleImageError = () => {
+    setImageLoading(false);
+    setImageError(true);
+  };
+
   return (
     <Card className="overflow-hidden">
       {/* Primary Text Section */}
@@ -31,11 +46,25 @@ export const SavedAdCard = ({
       {/* Image Section */}
       {imageUrl && (
         <div className="aspect-video relative">
-          <img
-            src={imageUrl}
-            alt="Ad creative"
-            className="object-cover w-full h-full"
-          />
+          {imageLoading && (
+            <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
+              <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+            </div>
+          )}
+          {imageError ? (
+            <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
+              <p className="text-sm text-gray-500">Failed to load image</p>
+            </div>
+          ) : (
+            <img
+              src={imageUrl}
+              alt="Ad creative"
+              className="object-cover w-full h-full"
+              onLoad={handleImageLoad}
+              onError={handleImageError}
+              style={{ display: imageLoading ? 'none' : 'block' }}
+            />
+          )}
         </div>
       )}
 

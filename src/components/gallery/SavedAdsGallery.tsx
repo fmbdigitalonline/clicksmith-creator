@@ -4,10 +4,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { SavedAdsList } from "./components/SavedAdsList";
 import { EmptyState } from "./components/EmptyState";
 import { SavedAd, AdFeedbackRow } from "./types";
+import { Loader2 } from "lucide-react";
 
 export const SavedAdsGallery = () => {
   const [savedAds, setSavedAds] = useState<SavedAd[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
   const fetchSavedAds = async () => {
@@ -42,13 +44,18 @@ export const SavedAdsGallery = () => {
 
       console.log("[SavedAdsGallery] Raw feedback data:", feedbackData);
 
-      // Improved data processing
+      // Improved data processing with validation
       const feedbackAds: SavedAd[] = (feedbackData || [])
         .filter((ad: AdFeedbackRow) => {
           // Ensure we have valid saved_images data
-          return ad.saved_images !== null && 
+          const hasValidImages = ad.saved_images !== null && 
             (Array.isArray(ad.saved_images) ? ad.saved_images.length > 0 : 
              typeof ad.saved_images === 'string' && ad.saved_images.length > 0);
+          
+          if (!hasValidImages) {
+            console.warn('[SavedAdsGallery] Skipping ad with invalid images:', ad.id);
+          }
+          return hasValidImages;
         })
         .map((ad: AdFeedbackRow) => {
           // Process saved_images more carefully
@@ -74,8 +81,10 @@ export const SavedAdsGallery = () => {
 
       console.log("[SavedAdsGallery] Processed feedback ads:", feedbackAds);
       setSavedAds(feedbackAds);
+      setError(null);
     } catch (error) {
       console.error('[SavedAdsGallery] Error in fetchSavedAds:', error);
+      setError('Failed to load saved ads. Please try again.');
       toast({
         title: "Error Loading Ads",
         description: error instanceof Error ? error.message : "Failed to load saved ads. Please try again.",
@@ -105,7 +114,21 @@ export const SavedAdsGallery = () => {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center p-8">
-        <div className="text-gray-500">Loading saved ads...</div>
+        <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-8 text-center">
+        <p className="text-red-500">{error}</p>
+        <button 
+          onClick={fetchSavedAds}
+          className="mt-4 text-facebook hover:underline"
+        >
+          Try Again
+        </button>
       </div>
     );
   }
