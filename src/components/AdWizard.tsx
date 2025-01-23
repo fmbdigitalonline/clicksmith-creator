@@ -236,30 +236,66 @@ const AdWizard = () => {
 
       if (user) {
         console.log('[AdWizard] Saving ads for authenticated user');
-        if (projectId && projectId !== 'new') {
+        
+        // Create a new project if we don't have one
+        if (!projectId || projectId === 'new') {
+          const { data: newProject, error: projectError } = await supabase
+            .from('projects')
+            .insert({
+              title: businessIdea?.description || 'New Ad Project',
+              description: 'Automatically created from Ad Wizard',
+              user_id: user.id,
+              business_idea: businessIdea,
+              target_audience: targetAudience,
+              audience_analysis: audienceAnalysis,
+              generated_ads: newAds,
+              status: 'draft'
+            })
+            .select()
+            .single();
+
+          if (projectError) {
+            console.error('[AdWizard] Error creating project:', projectError);
+            throw projectError;
+          }
+
+          if (newProject) {
+            navigate(`/ad-wizard/${newProject.id}`);
+          }
+        } else {
+          // Update existing project
           const { error: updateError } = await supabase
             .from('projects')
-            .update({ generated_ads: newAds })
+            .update({ 
+              generated_ads: newAds,
+              business_idea: businessIdea,
+              target_audience: targetAudience,
+              audience_analysis: audienceAnalysis,
+              updated_at: new Date().toISOString()
+            })
             .eq('id', projectId);
 
           if (updateError) {
             console.error('[AdWizard] Error updating project ads:', updateError);
             throw updateError;
           }
-        } else {
-          const { error: upsertError } = await supabase
-            .from('wizard_progress')
-            .upsert({
-              user_id: user.id,
-              generated_ads: newAds
-            }, {
-              onConflict: 'user_id'
-            });
+        }
 
-          if (upsertError) {
-            console.error('[AdWizard] Error upserting wizard progress:', upsertError);
-            throw upsertError;
-          }
+        // Also update wizard_progress
+        const { error: progressError } = await supabase
+          .from('wizard_progress')
+          .upsert({
+            user_id: user.id,
+            generated_ads: newAds,
+            business_idea: businessIdea,
+            target_audience: targetAudience,
+            audience_analysis: audienceAnalysis
+          }, {
+            onConflict: 'user_id'
+          });
+
+        if (progressError) {
+          console.error('[AdWizard] Error updating wizard progress:', progressError);
         }
       } else if (sessionId) {
         console.log('[AdWizard] Saving ads for anonymous user');
