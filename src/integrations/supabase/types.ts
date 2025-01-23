@@ -160,6 +160,33 @@ export type Database = {
         }
         Relationships: []
       }
+      data_backups: {
+        Row: {
+          backup_type: Database["public"]["Enums"]["backup_type"]
+          created_at: string
+          data: string
+          id: string
+          metadata: Json
+          user_id: string
+        }
+        Insert: {
+          backup_type?: Database["public"]["Enums"]["backup_type"]
+          created_at?: string
+          data: string
+          id?: string
+          metadata?: Json
+          user_id: string
+        }
+        Update: {
+          backup_type?: Database["public"]["Enums"]["backup_type"]
+          created_at?: string
+          data?: string
+          id?: string
+          metadata?: Json
+          user_id?: string
+        }
+        Relationships: []
+      }
       documents: {
         Row: {
           content: string | null
@@ -653,6 +680,7 @@ export type Database = {
       }
     }
     Enums: {
+      backup_type: "auto" | "manual"
       credit_operation_type: "credit_add" | "credit_deduct" | "credit_refund"
     }
     CompositeTypes: {

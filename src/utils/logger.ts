@@ -1,6 +1,4 @@
-type LogLevel = 'info' | 'warn' | 'error' | 'debug' | 'performance';
-
-interface LogContext {
+export interface LogContext {
   component?: string;
   action?: string;
   message?: string;
@@ -25,7 +23,7 @@ class Logger {
     return Logger.instance;
   }
 
-  private formatMessage(level: LogLevel, context: LogContext, message?: string): string {
+  private formatMessage(level: string, context: LogContext, message?: string): string {
     const timestamp = new Date().toISOString();
     const component = context.component ? `[${context.component}]` : '';
     const action = context.action ? `(${context.action})` : '';

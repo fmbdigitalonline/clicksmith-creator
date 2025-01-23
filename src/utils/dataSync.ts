@@ -1,7 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { validateWizardData } from "./validation";
 import logger from "./logger";
-import { LogContext } from "./logger";
+import type { LogContext } from "./logger";
 import { encryptData, decryptData } from "./encryption";
 
 interface SyncResult {
@@ -24,13 +24,11 @@ export const createDataBackup = async (userId: string, data: Record<string, any>
       type: 'auto'
     };
 
-    const { error } = await supabase
-      .from('data_backups')
-      .insert({
-        user_id: userId,
-        data: encryptedData,
-        metadata
-      });
+    const { error } = await supabase.rpc('create_backup', {
+      p_user_id: userId,
+      p_data: encryptedData,
+      p_metadata: metadata
+    });
 
     if (error) throw error;
     
@@ -53,15 +51,13 @@ export const createDataBackup = async (userId: string, data: Record<string, any>
 
 export const restoreFromBackup = async (userId: string, backupId: string): Promise<Record<string, any> | null> => {
   try {
-    const { data, error } = await supabase
-      .from('data_backups')
-      .select('data')
-      .eq('user_id', userId)
-      .eq('id', backupId)
-      .single();
+    const { data, error } = await supabase.rpc('get_backup', {
+      p_user_id: userId,
+      p_backup_id: backupId
+    });
 
     if (error) throw error;
-    if (!data) return null;
+    if (!data?.data) return null;
 
     const decryptedData = await decryptData(data.data);
     return JSON.parse(decryptedData);
