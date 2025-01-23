@@ -3,9 +3,19 @@ import { generateWithReplicate } from './utils/replicateUtils.ts';
 
 const safeJSONParse = (str: string) => {
   try {
-    const cleaned = str.replace(/[\u0000-\u001F\u007F-\u009F]/g, '')
-                      .replace(/\n/g, ' ')
-                      .trim();
+    // First clean any markdown formatting
+    let cleaned = str.replace(/```json\s*/g, '')  // Remove ```json
+                    .replace(/```\s*/g, '')       // Remove closing ```
+                    .replace(/[\u0000-\u001F\u007F-\u009F]/g, '')
+                    .replace(/\n/g, ' ')
+                    .trim();
+    
+    // If the string starts with a markdown block, extract just the JSON
+    const jsonMatch = cleaned.match(/\[.*\]/s);
+    if (jsonMatch) {
+      cleaned = jsonMatch[0];
+    }
+    
     return JSON.parse(cleaned);
   } catch (error) {
     console.error('JSON Parse Error:', error);
@@ -82,7 +92,7 @@ Return ONLY a valid JSON array with exactly 1 item in this format:
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o',
+        model: 'gpt-4',
         messages: [
           { 
             role: 'system', 
