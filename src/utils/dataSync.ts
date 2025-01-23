@@ -24,11 +24,14 @@ export const createDataBackup = async (userId: string, data: Record<string, any>
       type: 'auto'
     };
 
-    const { error } = await supabase.rpc('create_backup', {
-      p_user_id: userId,
-      p_data: encryptedData,
-      p_metadata: metadata
-    });
+    const { error } = await supabase
+      .from('data_backups')
+      .insert({
+        user_id: userId,
+        data: encryptedData,
+        metadata,
+        backup_type: 'auto'
+      });
 
     if (error) throw error;
     
@@ -51,13 +54,15 @@ export const createDataBackup = async (userId: string, data: Record<string, any>
 
 export const restoreFromBackup = async (userId: string, backupId: string): Promise<Record<string, any> | null> => {
   try {
-    const { data, error } = await supabase.rpc('get_backup', {
-      p_user_id: userId,
-      p_backup_id: backupId
-    });
+    const { data, error } = await supabase
+      .from('data_backups')
+      .select('data')
+      .eq('user_id', userId)
+      .eq('id', backupId)
+      .single();
 
     if (error) throw error;
-    if (!data?.data) return null;
+    if (!data) return null;
 
     const decryptedData = await decryptData(data.data);
     return JSON.parse(decryptedData);
