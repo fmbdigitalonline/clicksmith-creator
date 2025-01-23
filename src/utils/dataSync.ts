@@ -18,7 +18,7 @@ interface BackupMetadata {
 export const createDataBackup = async (userId: string, data: Record<string, any>): Promise<boolean> => {
   try {
     const encryptedData = await encryptData(JSON.stringify(data));
-    const metadata: BackupMetadata = {
+    const metadata: Record<string, any> = {
       timestamp: new Date().toISOString(),
       version: 1,
       type: 'auto'
@@ -59,7 +59,7 @@ export const restoreFromBackup = async (userId: string, backupId: string): Promi
       .select('data')
       .eq('user_id', userId)
       .eq('id', backupId)
-      .single();
+      .maybeSingle();
 
     if (error) throw error;
     if (!data) return null;
@@ -85,13 +85,15 @@ export const syncWizardProgress = async (userId: string, data: Record<string, an
     // Create a backup before syncing
     await createDataBackup(userId, data);
 
+    const wizardData = {
+      user_id: userId,
+      ...data,
+      updated_at: new Date().toISOString()
+    };
+
     const { error } = await supabase
       .from('wizard_progress')
-      .upsert({
-        user_id: userId,
-        ...data,
-        updated_at: new Date().toISOString()
-      }, {
+      .upsert(wizardData, {
         onConflict: 'user_id'
       });
 
@@ -125,7 +127,7 @@ export const migrateAnonymousData = async (sessionId: string, userId: string): P
       .from('anonymous_usage')
       .select('wizard_data')
       .eq('session_id', sessionId)
-      .single();
+      .maybeSingle();
 
     if (fetchError) throw fetchError;
 
@@ -142,13 +144,15 @@ export const migrateAnonymousData = async (sessionId: string, userId: string): P
       throw new Error('Invalid anonymous data format');
     }
 
+    const wizardData = {
+      user_id: userId,
+      ...anonymousData.wizard_data,
+      updated_at: new Date().toISOString()
+    };
+
     const { error: migrationError } = await supabase
       .from('wizard_progress')
-      .upsert({
-        user_id: userId,
-        ...anonymousData.wizard_data,
-        updated_at: new Date().toISOString()
-      });
+      .upsert(wizardData);
 
     if (migrationError) throw migrationError;
 
