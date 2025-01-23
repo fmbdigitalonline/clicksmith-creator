@@ -85,9 +85,13 @@ const AdGalleryStep = ({
           console.log('[AdGalleryStep] Successfully generated ads for:', selectedPlatform);
           setGeneratedPlatforms(prev => new Set([...prev, selectedPlatform]));
           
-          // Only update the state with new variants, don't save them automatically
           if (onAdsGenerated) {
-            onAdsGenerated(adVariants.map(ad => ({
+            const updatedAds = [...generatedAds];
+            // Remove existing ads for the current platform
+            const filteredAds = updatedAds.filter(ad => ad.platform !== selectedPlatform);
+            
+            // Add the newly generated ads
+            const newAds = adVariants.map(ad => ({
               ...ad,
               platform: selectedPlatform,
               id: ad.id || crypto.randomUUID(),
@@ -96,7 +100,9 @@ const AdGalleryStep = ({
                 height: 628,
                 label: `${selectedPlatform} Feed`
               }
-            })));
+            }));
+            
+            onAdsGenerated([...filteredAds, ...newAds]);
           }
         } else {
           console.error('[AdGalleryStep] Failed to generate ads for:', selectedPlatform);
@@ -115,7 +121,7 @@ const AdGalleryStep = ({
         });
       }
     }
-  }, [generateAds, isGenerating, onAdsGenerated, adVariants, toast]);
+  }, [generateAds, isGenerating, onAdsGenerated, adVariants, generatedAds, toast]);
 
   useEffect(() => {
     if (!hasLoadedInitialAds) return;
