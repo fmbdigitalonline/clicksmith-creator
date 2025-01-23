@@ -44,13 +44,11 @@ const AdWizard = () => {
         if (!isMounted) return;
         setCurrentUser(user);
 
-        // Only attempt migration if user just registered
         if (user) {
           const sessionId = localStorage.getItem('anonymous_session_id');
           if (sessionId) {
             console.log('[AdWizard] Found anonymous session data to migrate:', sessionId);
             
-            // Lock to prevent race condition
             const migrationLock = localStorage.getItem('migration_in_progress');
             if (migrationLock) {
               console.log('[AdWizard] Migration already in progress');
@@ -78,7 +76,6 @@ const AdWizard = () => {
                 if (!isMounted) return;
                 setAnonymousData(wizardData);
                 
-                // Migrate data to wizard_progress
                 const { error: wizardError } = await supabase
                   .from('wizard_progress')
                   .upsert({
@@ -99,7 +96,6 @@ const AdWizard = () => {
                   return;
                 }
 
-                // Clear anonymous data only after successful migration
                 localStorage.removeItem('anonymous_session_id');
                 localStorage.removeItem('migration_in_progress');
                 console.log('[AdWizard] Successfully migrated and cleared anonymous session');
@@ -143,7 +139,6 @@ const AdWizard = () => {
         const { data: { user } } = await supabase.auth.getUser();
         let sessionId = localStorage.getItem('anonymous_session_id');
         
-        // If we have anonymous data to migrate
         if (anonymousData && user) {
           console.log('[AdWizard] Migrating anonymous data to user account');
           const { error: wizardError } = await supabase
@@ -164,13 +159,12 @@ const AdWizard = () => {
           }
         }
 
-        // If user is authenticated, load their progress
         if (user) {
           const { data: wizardData, error: wizardError } = await supabase
             .from('wizard_progress')
             .select('*')
             .eq('user_id', user.id)
-            .maybeSingle();  // Changed from single() to maybeSingle()
+            .maybeSingle();
 
           if (wizardError) {
             console.error('[AdWizard] Error loading wizard progress:', wizardError);
@@ -235,107 +229,11 @@ const AdWizard = () => {
       const { data: { user } } = await supabase.auth.getUser();
       const sessionId = localStorage.getItem('anonymous_session_id');
 
-      if (user) {
-        console.log('[AdWizard] Saving ads for authenticated user');
-        
-        // Create a new project if we don't have one
-        if (!projectId || projectId === 'new') {
-          const timestamp = new Date().toISOString().slice(0, 19).replace('T', ' ');
-          const shortUuid = uuidv4().split('-')[0]; // Use first segment of UUID
-          const projectTitle = `${businessIdea?.description?.slice(0, 30) || 'New Ad Project'} - ${timestamp} - ${shortUuid}`;
-          
-          const { data: newProject, error: projectError } = await supabase
-            .from('projects')
-            .insert({
-              title: projectTitle,
-              description: 'Automatically created from Ad Wizard',
-              user_id: user.id,
-              business_idea: businessIdea,
-              target_audience: targetAudience,
-              audience_analysis: audienceAnalysis,
-              generated_ads: newAds.map(ad => ({
-                ...ad,
-                platform: ad.platform || 'facebook',
-                id: ad.id || crypto.randomUUID(),
-                size: ad.size || {
-                  width: 1200,
-                  height: 628,
-                  label: `${ad.platform || 'facebook'} Feed`
-                }
-              })),
-              status: 'draft'
-            })
-            .select()
-            .single();
-
-          if (projectError) {
-            console.error('[AdWizard] Error creating project:', projectError);
-            throw projectError;
-          }
-
-          if (newProject) {
-            navigate(`/ad-wizard/${newProject.id}`);
-          }
-        } else {
-          // Update existing project
-          const { error: updateError } = await supabase
-            .from('projects')
-            .update({ 
-              generated_ads: newAds.map(ad => ({
-                ...ad,
-                platform: ad.platform || 'facebook',
-                id: ad.id || crypto.randomUUID(),
-                size: ad.size || {
-                  width: 1200,
-                  height: 628,
-                  label: `${ad.platform || 'facebook'} Feed`
-                }
-              })),
-              business_idea: businessIdea,
-              target_audience: targetAudience,
-              audience_analysis: audienceAnalysis,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', projectId);
-
-          if (updateError) {
-            console.error('[AdWizard] Error updating project ads:', updateError);
-            throw updateError;
-          }
-        }
-
-        // Also update wizard_progress
-        const { error: progressError } = await supabase
-          .from('wizard_progress')
-          .upsert({
-            user_id: user.id,
-            generated_ads: newAds.map(ad => ({
-              ...ad,
-              platform: ad.platform || 'facebook',
-              id: ad.id || crypto.randomUUID(),
-              size: ad.size || {
-                width: 1200,
-                height: 628,
-                label: `${ad.platform || 'facebook'} Feed`
-              }
-            })),
-            business_idea: businessIdea,
-            target_audience: targetAudience,
-            audience_analysis: audienceAnalysis
-          }, {
-            onConflict: 'user_id'
-          });
-
-        if (progressError) {
-          console.error('[AdWizard] Error updating wizard progress:', progressError);
-        }
-      } else if (sessionId) {
+      if (!user && sessionId) {
         console.log('[AdWizard] Saving ads for anonymous user');
         const { error: anonymousError } = await supabase
           .from('anonymous_usage')
-          .upsert({
-            session_id: sessionId,
-            used: true,
+          .update({
             wizard_data: {
               business_idea: businessIdea,
               target_audience: targetAudience,
@@ -351,9 +249,8 @@ const AdWizard = () => {
               }))
             },
             completed: true
-          }, {
-            onConflict: 'session_id'
-          });
+          })
+          .eq('session_id', sessionId);
 
         if (anonymousError) {
           console.error('[AdWizard] Error saving anonymous ads:', anonymousError);
