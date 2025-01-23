@@ -74,18 +74,12 @@ const AdGalleryStep = ({
       showPlatformWarning(selectedPlatform);
       
       try {
-        setGeneratedPlatforms(prev => {
-          const newSet = new Set(prev);
-          newSet.delete(selectedPlatform);
-          return newSet;
-        });
-        
         const success = await generateAds(selectedPlatform);
         if (success) {
           console.log('[AdGalleryStep] Successfully generated ads for:', selectedPlatform);
           setGeneratedPlatforms(prev => new Set([...prev, selectedPlatform]));
           
-          if (onAdsGenerated) {
+          if (onAdsGenerated && adVariants.length > 0) {
             const updatedAds = [...generatedAds];
             // Remove existing ads for the current platform
             const filteredAds = updatedAds.filter(ad => ad.platform !== selectedPlatform);
