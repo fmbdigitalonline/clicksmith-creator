@@ -8,6 +8,8 @@ interface LogContext {
   duration?: number;
   error?: any;
   details?: Record<string, any>;
+  count?: number;
+  status?: string;
 }
 
 class Logger {

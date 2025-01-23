@@ -1,8 +1,13 @@
 import { supabase } from "@/integrations/supabase/client";
 import { validateWizardData } from "./validation";
-import { handleError } from "./errorBoundary";
+import logger from "./logger";
 
-export const syncWizardProgress = async (userId: string, data: any) => {
+interface SyncResult {
+  success: boolean;
+  error?: string;
+}
+
+export const syncWizardProgress = async (userId: string, data: Record<string, any>): Promise<SyncResult> => {
   try {
     if (!validateWizardData(data)) {
       throw new Error('Invalid wizard data format');
@@ -20,16 +25,30 @@ export const syncWizardProgress = async (userId: string, data: any) => {
 
     if (error) throw error;
 
-    return true;
+    logger.info('Wizard progress synced successfully', {
+      component: 'dataSync',
+      action: 'syncWizardProgress',
+      userId,
+      details: { dataKeys: Object.keys(data) }
+    });
+
+    return { success: true };
   } catch (error) {
-    handleError(error as Error, 'syncWizardProgress');
-    return false;
+    logger.error('Failed to sync wizard progress', {
+      component: 'dataSync',
+      action: 'syncWizardProgress',
+      error,
+      userId
+    });
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
+    };
   }
 };
 
-export const migrateAnonymousData = async (sessionId: string, userId: string) => {
+export const migrateAnonymousData = async (sessionId: string, userId: string): Promise<SyncResult> => {
   try {
-    // Start transaction
     const { data: anonymousData, error: fetchError } = await supabase
       .from('anonymous_usage')
       .select('wizard_data')
@@ -39,16 +58,18 @@ export const migrateAnonymousData = async (sessionId: string, userId: string) =>
     if (fetchError) throw fetchError;
 
     if (!anonymousData?.wizard_data) {
-      console.log('[Migration] No anonymous data found to migrate');
-      return true;
+      logger.info('No anonymous data found to migrate', {
+        component: 'dataSync',
+        action: 'migrateAnonymousData',
+        userId
+      });
+      return { success: true };
     }
 
-    // Validate data before migration
     if (!validateWizardData(anonymousData.wizard_data)) {
       throw new Error('Invalid anonymous data format');
     }
 
-    // Migrate to user account
     const { error: migrationError } = await supabase
       .from('wizard_progress')
       .upsert({
@@ -59,20 +80,37 @@ export const migrateAnonymousData = async (sessionId: string, userId: string) =>
 
     if (migrationError) throw migrationError;
 
-    // Clean up anonymous data
     const { error: cleanupError } = await supabase
       .from('anonymous_usage')
       .delete()
       .eq('session_id', sessionId);
 
     if (cleanupError) {
-      console.error('[Migration] Cleanup error:', cleanupError);
-      // Don't throw here as the migration was successful
+      logger.warn('Failed to cleanup anonymous data', {
+        component: 'dataSync',
+        action: 'migrateAnonymousData',
+        error: cleanupError,
+        userId
+      });
     }
 
-    return true;
+    logger.info('Anonymous data migrated successfully', {
+      component: 'dataSync',
+      action: 'migrateAnonymousData',
+      userId
+    });
+
+    return { success: true };
   } catch (error) {
-    handleError(error as Error, 'migrateAnonymousData');
-    return false;
+    logger.error('Failed to migrate anonymous data', {
+      component: 'dataSync',
+      action: 'migrateAnonymousData',
+      error,
+      userId
+    });
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
+    };
   }
 };
