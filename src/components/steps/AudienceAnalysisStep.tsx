@@ -11,6 +11,7 @@ import { BusinessIdea, TargetAudience, AudienceAnalysis } from "@/types/adWizard
 import { ArrowLeft, ArrowRight, Loader2, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
+import { useNavigate } from "react-router-dom";
 
 interface AudienceAnalysisStepProps {
   businessIdea: BusinessIdea;
@@ -30,6 +31,7 @@ const AudienceAnalysisStep = ({
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [regenerationCount, setRegenerationCount] = useState(0);
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   const generateAnalysis = async () => {
     setIsLoading(true);
@@ -44,7 +46,19 @@ const AudienceAnalysisStep = ({
         }
       });
 
-      if (error) throw error;
+      if (error) {
+        // Check if the error is due to completed anonymous trial
+        if (error.message.includes("Anonymous trial has been completed")) {
+          toast({
+            title: "Trial Completed",
+            description: "Please sign up to continue and access your generated content.",
+            variant: "default",
+          });
+          navigate('/login');
+          return;
+        }
+        throw error;
+      }
 
       setAnalysis(data.analysis);
       setRegenerationCount(prev => prev + 1);
@@ -54,7 +68,7 @@ const AudienceAnalysisStep = ({
         description: "New deep audience analysis has been generated successfully.",
       });
     } catch (error) {
-      console.error('Error generating analysis:', error);
+      console.error('[AudienceAnalysisStep] Error generating analysis:', error);
       toast({
         title: "Generation Failed",
         description: "Failed to generate audience analysis. Please try again.",
@@ -80,6 +94,27 @@ const AudienceAnalysisStep = ({
       // Update anonymous usage to mark step 3 as completed
       const sessionId = localStorage.getItem('anonymous_session_id');
       if (sessionId) {
+        const { data: usageData, error: checkError } = await supabase
+          .from('anonymous_usage')
+          .select('completed')
+          .eq('session_id', sessionId)
+          .single();
+
+        if (checkError) {
+          console.error('[AudienceAnalysisStep] Error checking anonymous usage:', checkError);
+        }
+
+        // If trial is completed, redirect to login
+        if (usageData?.completed) {
+          toast({
+            title: "Trial Completed",
+            description: "Please sign up to continue and access your generated content.",
+            variant: "default",
+          });
+          navigate('/login');
+          return;
+        }
+
         const { error: updateError } = await supabase
           .from('anonymous_usage')
           .update({
@@ -111,6 +146,8 @@ const AudienceAnalysisStep = ({
       setIsTransitioning(false);
     }
   };
+
+  // ... keep existing code (UI rendering part)
 
   return (
     <div className="space-y-6 md:space-y-8">
