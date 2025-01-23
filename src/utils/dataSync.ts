@@ -34,12 +34,12 @@ export const createDataBackup = async (userId: string, data: WizardData) => {
         type: 'wizard_progress',
         version: '1.0'
       },
-      backup_type: 'auto'
+      backup_type: 'auto' as const // Explicitly type as 'auto' | 'manual'
     };
 
     const { error } = await supabase
       .from('data_backups')
-      .insert([backupData]);
+      .insert(backupData);
 
     if (error) {
       logger.error("Failed to create data backup:", { 
