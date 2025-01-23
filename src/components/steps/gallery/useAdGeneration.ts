@@ -6,6 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
 import { useState } from "react";
 import logger from "@/utils/logger";
+import { createDataBackup } from "@/utils/dataSync";
 
 export const useAdGeneration = (
   businessIdea: BusinessIdea,
@@ -22,34 +23,41 @@ export const useAdGeneration = (
   const queryClient = useQueryClient();
 
   const generateAds = async (selectedPlatform: string) => {
-    const startTime = performance.now();
-    logger.info("Starting ad generation", { 
-      component: "AdGeneration",
-      details: { platform: selectedPlatform, projectId }
+    logger.info('Starting ad generation', {
+      component: 'useAdGeneration',
+      action: 'generateAds',
+      details: { platform: selectedPlatform }
     });
-    
+
     setIsGenerating(true);
     setGenerationStatus(`Initializing ${selectedPlatform} ad generation...`);
     
     try {
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (userError) {
-        logger.error("User authentication error", {
-          component: "AdGeneration",
+        logger.error('User authentication error', {
+          component: 'useAdGeneration',
+          action: 'generateAds',
           error: userError
         });
         throw userError;
       }
       
       if (!user) {
-        logger.error("No authenticated user found", { component: "AdGeneration" });
         throw new Error('User must be logged in to generate ads');
       }
 
-      logger.info("Generating ads", {
-        component: "AdGeneration",
-        details: { userId: user.id, platform: selectedPlatform }
-      });
+      // Create a backup before generation
+      if (projectId && projectId !== 'new') {
+        await createDataBackup(user.id, {
+          businessIdea,
+          targetAudience,
+          adHooks,
+          platform: selectedPlatform
+        });
+      }
+
+      setGenerationStatus(`Generating ${selectedPlatform} ads...`);
       
       const { data, error } = await supabase.functions.invoke('generate-ad-content', {
         body: {
@@ -64,7 +72,12 @@ export const useAdGeneration = (
       });
 
       if (error) {
-        logger.error("Error generating ads", error);
+        logger.error('Generation error', {
+          component: 'useAdGeneration',
+          action: 'generateAds',
+          error
+        });
+        
         if (error.message.includes('No credits available')) {
           toast({
             title: "No credits available",
@@ -77,11 +90,14 @@ export const useAdGeneration = (
         throw error;
       }
 
-      const endTime = performance.now();
-      logger.info("Generation completed", {
-        component: "AdGeneration",
-        duration: endTime - startTime,
-        variantsCount: data?.variants?.length
+      if (!data?.variants || !Array.isArray(data.variants)) {
+        throw new Error('Invalid response format from server');
+      }
+
+      logger.info('Generated variants successfully', {
+        component: 'useAdGeneration',
+        action: 'generateAds',
+        details: { count: data.variants.length }
       });
 
       const variants = data.variants.map(variant => ({
@@ -102,10 +118,12 @@ export const useAdGeneration = (
 
       return true;
     } catch (error: any) {
-      logger.error("Ad generation failed", {
-        component: "AdGeneration",
+      logger.error('Error in ad generation', {
+        component: 'useAdGeneration',
+        action: 'generateAds',
         error
       });
+      
       toast({
         title: "Error generating ads",
         description: error.message || "Failed to generate ads. Please try again.",

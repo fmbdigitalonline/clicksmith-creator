@@ -1,17 +1,88 @@
 import { supabase } from "@/integrations/supabase/client";
 import { validateWizardData } from "./validation";
 import logger from "./logger";
+import { LogContext } from "./logger";
+import { encryptData, decryptData } from "./encryption";
 
 interface SyncResult {
   success: boolean;
   error?: string;
 }
 
+interface BackupMetadata {
+  timestamp: string;
+  version: number;
+  type: 'auto' | 'manual';
+}
+
+export const createDataBackup = async (userId: string, data: Record<string, any>): Promise<boolean> => {
+  try {
+    const encryptedData = await encryptData(JSON.stringify(data));
+    const metadata: BackupMetadata = {
+      timestamp: new Date().toISOString(),
+      version: 1,
+      type: 'auto'
+    };
+
+    const { error } = await supabase
+      .from('data_backups')
+      .insert({
+        user_id: userId,
+        data: encryptedData,
+        metadata
+      });
+
+    if (error) throw error;
+    
+    logger.info('Data backup created successfully', {
+      component: 'dataSync',
+      action: 'createDataBackup',
+      userId
+    });
+
+    return true;
+  } catch (error) {
+    logger.error('Failed to create data backup', {
+      component: 'dataSync',
+      action: 'createDataBackup',
+      error
+    });
+    return false;
+  }
+};
+
+export const restoreFromBackup = async (userId: string, backupId: string): Promise<Record<string, any> | null> => {
+  try {
+    const { data, error } = await supabase
+      .from('data_backups')
+      .select('data')
+      .eq('user_id', userId)
+      .eq('id', backupId)
+      .single();
+
+    if (error) throw error;
+    if (!data) return null;
+
+    const decryptedData = await decryptData(data.data);
+    return JSON.parse(decryptedData);
+  } catch (error) {
+    logger.error('Failed to restore from backup', {
+      component: 'dataSync',
+      action: 'restoreFromBackup',
+      error
+    });
+    return null;
+  }
+};
+
 export const syncWizardProgress = async (userId: string, data: Record<string, any>): Promise<SyncResult> => {
   try {
     if (!validateWizardData(data)) {
       throw new Error('Invalid wizard data format');
     }
+
+    // Create a backup before syncing
+    await createDataBackup(userId, data);
 
     const { error } = await supabase
       .from('wizard_progress')
@@ -30,7 +101,7 @@ export const syncWizardProgress = async (userId: string, data: Record<string, an
       action: 'syncWizardProgress',
       userId,
       details: { dataKeys: Object.keys(data) }
-    });
+    } as LogContext);
 
     return { success: true };
   } catch (error) {
@@ -39,7 +110,7 @@ export const syncWizardProgress = async (userId: string, data: Record<string, an
       action: 'syncWizardProgress',
       error,
       userId
-    });
+    } as LogContext);
     return { 
       success: false, 
       error: error instanceof Error ? error.message : 'Unknown error occurred'
