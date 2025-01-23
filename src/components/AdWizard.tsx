@@ -76,6 +76,7 @@ const AdWizard = () => {
                 if (!isMounted) return;
                 setAnonymousData(wizardData);
                 
+                // Use upsert with on_conflict parameter
                 const { error: wizardError } = await supabase
                   .from('wizard_progress')
                   .upsert({
@@ -84,6 +85,9 @@ const AdWizard = () => {
                     target_audience: wizardData.target_audience,
                     generated_ads: wizardData.generated_ads,
                     current_step: anonData.completed ? 4 : 2
+                  }, {
+                    onConflict: 'user_id',
+                    ignoreDuplicates: false
                   });
 
                 if (wizardError) {
