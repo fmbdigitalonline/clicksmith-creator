@@ -3,6 +3,7 @@ import { validateWizardData } from "./validation";
 import logger from "./logger";
 import type { LogContext } from "./logger";
 import { encryptData, decryptData } from "./encryption";
+import { Json } from "@/integrations/supabase/types";
 
 interface BackupMetadata {
   timestamp: string;
@@ -15,10 +16,21 @@ interface SyncResult {
   error?: string;
 }
 
+interface WizardData {
+  current_step?: number;
+  business_idea?: Record<string, any> | null;
+  target_audience?: Record<string, any> | null;
+  audience_analysis?: Record<string, any> | null;
+  selected_hooks?: Record<string, any>[] | null;
+  ad_format?: Record<string, any> | null;
+  video_ad_preferences?: Record<string, any> | null;
+  generated_ads?: Record<string, any>[] | null;
+}
+
 export const createDataBackup = async (userId: string, data: Record<string, any>): Promise<boolean> => {
   try {
     const encryptedData = await encryptData(JSON.stringify(data));
-    const metadata: BackupMetadata = {
+    const metadata: Record<string, any> = {
       timestamp: new Date().toISOString(),
       version: 1,
       type: 'auto'
@@ -76,7 +88,7 @@ export const restoreFromBackup = async (userId: string, backupId: string): Promi
   }
 };
 
-export const syncWizardProgress = async (userId: string, data: Record<string, any>): Promise<SyncResult> => {
+export const syncWizardProgress = async (userId: string, data: WizardData): Promise<SyncResult> => {
   try {
     if (!validateWizardData(data)) {
       throw new Error('Invalid wizard data format');
@@ -147,26 +159,27 @@ export const migrateAnonymousData = async (sessionId: string, userId: string): P
       return { success: true };
     }
 
-    if (!validateWizardData(anonymousData.wizard_data)) {
+    const wizardData = anonymousData.wizard_data as WizardData;
+    if (!validateWizardData(wizardData)) {
       throw new Error('Invalid anonymous data format');
     }
 
-    const wizardData = {
+    const dataToSync = {
       user_id: userId,
-      current_step: anonymousData.wizard_data.current_step || 1,
-      business_idea: anonymousData.wizard_data.business_idea || null,
-      target_audience: anonymousData.wizard_data.target_audience || null,
-      audience_analysis: anonymousData.wizard_data.audience_analysis || null,
-      selected_hooks: anonymousData.wizard_data.selected_hooks || null,
-      ad_format: anonymousData.wizard_data.ad_format || null,
-      video_ad_preferences: anonymousData.wizard_data.video_ad_preferences || null,
-      generated_ads: anonymousData.wizard_data.generated_ads || null,
+      current_step: wizardData.current_step || 1,
+      business_idea: wizardData.business_idea || null,
+      target_audience: wizardData.target_audience || null,
+      audience_analysis: wizardData.audience_analysis || null,
+      selected_hooks: wizardData.selected_hooks || null,
+      ad_format: wizardData.ad_format || null,
+      video_ad_preferences: wizardData.video_ad_preferences || null,
+      generated_ads: wizardData.generated_ads || null,
       updated_at: new Date().toISOString()
     };
 
     const { error: migrationError } = await supabase
       .from('wizard_progress')
-      .upsert(wizardData);
+      .upsert(dataToSync);
 
     if (migrationError) throw migrationError;
 
