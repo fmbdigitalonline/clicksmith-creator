@@ -31,6 +31,7 @@ const AdWizard = () => {
   const [hasLoadedInitialAds, setHasLoadedInitialAds] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [anonymousData, setAnonymousData] = useState<WizardData | null>(null);
+  const [isLoadingAuth, setIsLoadingAuth] = useState(true);
   const navigate = useNavigate();
   const { projectId } = useParams();
   const { toast } = useToast();
@@ -40,8 +41,17 @@ const AdWizard = () => {
     
     const checkUser = async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
+        setIsLoadingAuth(true);
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        
+        if (authError) {
+          console.error('[AdWizard] Auth error:', authError);
+          return;
+        }
+
         if (!isMounted) return;
+        
+        console.log('[AdWizard] Current user:', user?.id);
         setCurrentUser(user);
 
         // Only attempt migration if user just registered
@@ -115,12 +125,28 @@ const AdWizard = () => {
         }
       } catch (error) {
         console.error('[AdWizard] Error in checkUser:', error);
+      } finally {
+        if (isMounted) {
+          setIsLoadingAuth(false);
+        }
       }
     };
 
+    // Set up auth state listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('[AdWizard] Auth state changed:', event, session?.user?.id);
+      if (event === 'SIGNED_IN') {
+        checkUser();
+      } else if (event === 'SIGNED_OUT') {
+        setCurrentUser(null);
+      }
+    });
+
     checkUser();
+
     return () => {
       isMounted = false;
+      subscription.unsubscribe();
     };
   }, [toast]);
 
@@ -374,6 +400,10 @@ const AdWizard = () => {
   };
 
   const currentStepComponent = useMemo(() => {
+    if (isLoadingAuth) {
+      return <div>Loading...</div>;
+    }
+
     switch (currentStep) {
       case 1:
         return <IdeaStep onNext={handleIdeaSubmit} />;
@@ -415,7 +445,7 @@ const AdWizard = () => {
       default:
         return null;
     }
-  }, [currentStep, businessIdea, targetAudience, audienceAnalysis, selectedHooks, videoAdsEnabled, generatedAds, hasLoadedInitialAds, currentUser]);
+  }, [currentStep, businessIdea, targetAudience, audienceAnalysis, selectedHooks, videoAdsEnabled, generatedAds, hasLoadedInitialAds, currentUser, isLoadingAuth]);
 
   return (
     <div className="container max-w-6xl mx-auto px-4 py-8">
