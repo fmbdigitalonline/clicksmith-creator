@@ -54,7 +54,7 @@ const AdWizard = () => {
         console.log('[AdWizard] Current user:', user?.id);
         setCurrentUser(user);
 
-        // Only attempt migration if user just registered
+        // Only attempt migration if user just registered and we have anonymous data
         if (user) {
           const sessionId = localStorage.getItem('anonymous_session_id');
           if (sessionId) {
@@ -139,6 +139,9 @@ const AdWizard = () => {
         checkUser();
       } else if (event === 'SIGNED_OUT') {
         setCurrentUser(null);
+        setAnonymousData(null);
+        localStorage.removeItem('anonymous_session_id');
+        localStorage.removeItem('migration_in_progress');
       }
     });
 
