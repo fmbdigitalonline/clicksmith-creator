@@ -86,7 +86,7 @@ const AdWizard = () => {
                     business_idea: wizardData.business_idea,
                     target_audience: wizardData.target_audience,
                     generated_ads: wizardData.generated_ads,
-                    current_step: anonData.completed ? 4 : 2
+                    current_step: 4  // Ensure they land on step 4
                   });
 
                 if (wizardError) {
@@ -103,6 +103,9 @@ const AdWizard = () => {
                 localStorage.removeItem('anonymous_session_id');
                 localStorage.removeItem('migration_in_progress');
                 console.log('[AdWizard] Successfully migrated and cleared anonymous session');
+                
+                // Set current step to 4 after successful migration
+                setCurrentStep(4);
               }
             } catch (error) {
               console.error('[AdWizard] Migration error:', error);
