@@ -72,15 +72,43 @@ const AudienceAnalysisStep = ({
   }, []);
 
   const handleNext = async () => {
-    if (analysis) {
-      setIsTransitioning(true);
-      try {
-        // Add a small delay to ensure smooth transition animation
-        await new Promise(resolve => setTimeout(resolve, 300));
-        onNext(analysis);
-      } finally {
-        setIsTransitioning(false);
+    if (!analysis || isTransitioning) return;
+    
+    setIsTransitioning(true);
+    
+    try {
+      // Update anonymous usage to mark step 3 as completed
+      const sessionId = localStorage.getItem('anonymous_session_id');
+      if (sessionId) {
+        const { error: updateError } = await supabase
+          .from('anonymous_usage')
+          .update({
+            last_completed_step: 3,
+            wizard_data: {
+              business_idea: businessIdea,
+              target_audience: targetAudience,
+              audience_analysis: analysis
+            }
+          })
+          .eq('session_id', sessionId);
+
+        if (updateError) {
+          console.error('[AudienceAnalysisStep] Error updating anonymous usage:', updateError);
+        }
       }
+
+      // Add a small delay to ensure smooth transition animation
+      await new Promise(resolve => setTimeout(resolve, 300));
+      onNext(analysis);
+    } catch (error) {
+      console.error('[AudienceAnalysisStep] Error in handleNext:', error);
+      toast({
+        title: "Error",
+        description: "There was a problem proceeding to the next step. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsTransitioning(false);
     }
   };
 
