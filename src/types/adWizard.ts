@@ -60,3 +60,36 @@ export type AdImage = {
 };
 
 export type Step = "idea" | "audience" | "analysis" | "campaign" | "format" | "size" | "hook" | "complete";
+
+export type WizardProgress = {
+  id: string;
+  user_id: string;
+  business_idea: BusinessIdea | null;
+  target_audience: TargetAudience | null;
+  audience_analysis: AudienceAnalysis | null;
+  selected_hooks: AdHook[] | null;
+  ad_format: {
+    format: string;
+    dimensions: {
+      width: number;
+      height: number;
+    };
+  } | null;
+  video_ad_preferences: {
+    format: string;
+    duration: number;
+  } | null;
+  generated_ads: any[] | null;
+  current_step: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AnonymousWizardData = {
+  business_idea?: BusinessIdea;
+  target_audience?: TargetAudience;
+  audience_analysis?: AudienceAnalysis;
+  selected_hooks?: AdHook[];
+  generated_ads?: any[];
+  completed?: boolean;
+};

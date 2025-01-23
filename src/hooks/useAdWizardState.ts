@@ -3,7 +3,9 @@ import {
   BusinessIdea,
   TargetAudience,
   AudienceAnalysis,
-  AdHook
+  AdHook,
+  WizardProgress,
+  AnonymousWizardData
 } from "@/types/adWizard";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -19,7 +21,6 @@ export const useAdWizardState = () => {
   const { toast } = useToast();
   const { projectId } = useParams();
 
-  // Load saved progress when component mounts
   useEffect(() => {
     const loadSavedProgress = async () => {
       try {
@@ -99,19 +100,19 @@ export const useAdWizardState = () => {
           }
 
           if (wizardData) {
-            console.log('[useAdWizardState] Loaded wizard progress:', wizardData);
-            setBusinessIdea(wizardData.business_idea as BusinessIdea);
-            setTargetAudience(wizardData.target_audience as TargetAudience);
-            setAudienceAnalysis(wizardData.audience_analysis as AudienceAnalysis);
-            const hooks = Array.isArray(wizardData.selected_hooks) ? wizardData.selected_hooks : [];
-            setSelectedHooks(hooks as AdHook[]);
+            const progress = wizardData as WizardProgress;
+            console.log('[useAdWizardState] Loaded wizard progress:', progress);
+            setBusinessIdea(progress.business_idea);
+            setTargetAudience(progress.target_audience);
+            setAudienceAnalysis(progress.audience_analysis);
+            setSelectedHooks(progress.selected_hooks || []);
             
             // Set appropriate step based on wizard progress
-            if (hooks.length > 0) {
+            if (progress.selected_hooks?.length > 0) {
               setCurrentStep(4);
-            } else if (wizardData.audience_analysis) {
+            } else if (progress.audience_analysis) {
               setCurrentStep(3);
-            } else if (wizardData.target_audience) {
+            } else if (progress.target_audience) {
               setCurrentStep(2);
             } else {
               setCurrentStep(1);
@@ -147,15 +148,14 @@ export const useAdWizardState = () => {
             }
 
             if (anonData?.wizard_data) {
-              const wizardData = anonData.wizard_data;
-              setBusinessIdea(wizardData.business_idea as BusinessIdea);
-              setTargetAudience(wizardData.target_audience as TargetAudience);
-              setAudienceAnalysis(wizardData.audience_analysis as AudienceAnalysis);
-              const hooks = Array.isArray(wizardData.selected_hooks) ? wizardData.selected_hooks : [];
-              setSelectedHooks(hooks as AdHook[]);
+              const wizardData = anonData.wizard_data as AnonymousWizardData;
+              setBusinessIdea(wizardData.business_idea || null);
+              setTargetAudience(wizardData.target_audience || null);
+              setAudienceAnalysis(wizardData.audience_analysis || null);
+              setSelectedHooks(wizardData.selected_hooks || []);
               
               // Set appropriate step based on available data
-              if (hooks.length > 0) {
+              if (wizardData.selected_hooks?.length > 0) {
                 setCurrentStep(4);
               } else if (wizardData.audience_analysis) {
                 setCurrentStep(3);
