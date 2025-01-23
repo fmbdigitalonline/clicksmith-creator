@@ -4,21 +4,21 @@ import logger from "./logger";
 import type { LogContext } from "./logger";
 import { encryptData, decryptData } from "./encryption";
 
-interface SyncResult {
-  success: boolean;
-  error?: string;
-}
-
 interface BackupMetadata {
   timestamp: string;
   version: number;
   type: 'auto' | 'manual';
 }
 
+interface SyncResult {
+  success: boolean;
+  error?: string;
+}
+
 export const createDataBackup = async (userId: string, data: Record<string, any>): Promise<boolean> => {
   try {
     const encryptedData = await encryptData(JSON.stringify(data));
-    const metadata: Record<string, any> = {
+    const metadata: BackupMetadata = {
       timestamp: new Date().toISOString(),
       version: 1,
       type: 'auto'
@@ -87,7 +87,14 @@ export const syncWizardProgress = async (userId: string, data: Record<string, an
 
     const wizardData = {
       user_id: userId,
-      ...data,
+      current_step: data.current_step || 1,
+      business_idea: data.business_idea || null,
+      target_audience: data.target_audience || null,
+      audience_analysis: data.audience_analysis || null,
+      selected_hooks: data.selected_hooks || null,
+      ad_format: data.ad_format || null,
+      video_ad_preferences: data.video_ad_preferences || null,
+      generated_ads: data.generated_ads || null,
       updated_at: new Date().toISOString()
     };
 
@@ -146,7 +153,14 @@ export const migrateAnonymousData = async (sessionId: string, userId: string): P
 
     const wizardData = {
       user_id: userId,
-      ...anonymousData.wizard_data,
+      current_step: anonymousData.wizard_data.current_step || 1,
+      business_idea: anonymousData.wizard_data.business_idea || null,
+      target_audience: anonymousData.wizard_data.target_audience || null,
+      audience_analysis: anonymousData.wizard_data.audience_analysis || null,
+      selected_hooks: anonymousData.wizard_data.selected_hooks || null,
+      ad_format: anonymousData.wizard_data.ad_format || null,
+      video_ad_preferences: anonymousData.wizard_data.video_ad_preferences || null,
+      generated_ads: anonymousData.wizard_data.generated_ads || null,
       updated_at: new Date().toISOString()
     };
 
