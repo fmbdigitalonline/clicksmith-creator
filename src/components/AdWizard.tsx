@@ -282,7 +282,7 @@ const AdWizard = () => {
         const { error: progressError } = await supabase
           .from('wizard_progress')
           .upsert({
-            user_id: user.id,
+            user_id: user.id, // Explicitly set user_id
             business_idea: businessIdea,
             target_audience: targetAudience,
             audience_analysis: audienceAnalysis,
