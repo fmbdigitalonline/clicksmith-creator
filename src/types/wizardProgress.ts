@@ -1,3 +1,9 @@
+export interface WizardHook {
+  imageUrl?: string;
+  description?: string;
+  text?: string;
+}
+
 export interface WizardData {
   business_idea?: {
     description: string;
@@ -43,4 +49,6 @@ export interface WizardData {
   version?: number;
 }
 
-export type { WizardHook } from './adWizard';
+export interface WizardProgressData {
+  selected_hooks: WizardHook[];
+}

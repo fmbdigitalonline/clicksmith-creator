@@ -1,10 +1,11 @@
+import { useState } from "react";
 import { BusinessIdea, TargetAudience, AdHook } from "@/types/adWizard";
 import { VideoAdVariant } from "@/types/videoAdTypes";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
-import { useState } from "react";
+import { createDataBackup } from "@/utils/dataSync";
 
 export const useAdGeneration = (
   businessIdea: BusinessIdea,
@@ -36,15 +37,24 @@ export const useAdGeneration = (
         throw new Error('User must be logged in to generate ads');
       }
 
+      if (projectId && projectId !== 'new') {
+        await createDataBackup(user.id, {
+          business_idea: businessIdea,
+          target_audience: targetAudience,
+          selected_hooks: adHooks,
+          current_step: 4
+        });
+      }
+
       setGenerationStatus(`Generating ${selectedPlatform} ads...`);
       
       const { data, error } = await supabase.functions.invoke('generate-ad-content', {
         body: {
           type: 'complete_ads',
           platform: selectedPlatform,
-          businessIdea,
-          targetAudience,
-          adHooks,
+          business_idea: businessIdea,
+          target_audience: targetAudience,
+          selected_hooks: adHooks,
           userId: user.id,
           numVariants: 10
         },
@@ -70,7 +80,6 @@ export const useAdGeneration = (
 
       console.log(`[useAdGeneration] Generated ${selectedPlatform} variants:`, data.variants);
 
-      // Ensure we have exactly 10 variants with the correct platform and format
       const variants = data.variants.map(variant => ({
         ...variant,
         platform: selectedPlatform,
@@ -79,7 +88,6 @@ export const useAdGeneration = (
 
       setAdVariants(variants);
 
-      // Refresh credits display
       queryClient.invalidateQueries({ queryKey: ['subscription'] });
       queryClient.invalidateQueries({ queryKey: ['free_tier_usage'] });
 

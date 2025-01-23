@@ -3,23 +3,13 @@ import { validateWizardData } from "./validation";
 import logger from "./logger";
 import type { LogContext } from "./logger";
 import { encryptData } from "./encryption";
-import { WizardData } from "@/types/wizardProgress";
-import { Json } from "@/integrations/supabase/types";
+import type { WizardData } from "@/types/wizardProgress";
+import type { Json } from "@/integrations/supabase/types";
 
 const MAX_RETRY_ATTEMPTS = 3;
 const RETRY_DELAY = 1000;
 const MAX_ANONYMOUS_SAVES = 10;
 const SAVE_RATE_LIMIT = 5000; // 5 seconds
-
-interface WizardData {
-  current_step?: number;
-  business_idea?: Record<string, any> | null;
-  target_audience?: Record<string, any> | null;
-  audience_analysis?: Record<string, any> | null;
-  selected_hooks?: Record<string, any>[] | null;
-  generated_ads?: Record<string, any>[] | null;
-  version?: number;
-}
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -47,15 +37,14 @@ export const createDataBackup = async (userId: string, data: WizardData): Promis
       type: 'auto'
     };
 
-    const jsonData: Json = {
-      ...data,
+    const jsonData = {
       business_idea: data.business_idea || null,
       target_audience: data.target_audience || null,
       selected_hooks: data.selected_hooks || null,
       generated_ads: data.generated_ads || null,
       current_step: data.current_step || 1,
       version: data.version || 1
-    };
+    } as Json;
 
     await retryOperation(async () => {
       const { error } = await supabase
@@ -88,11 +77,6 @@ export const createDataBackup = async (userId: string, data: WizardData): Promis
 };
 
 export const syncWizardProgress = async (userId: string, data: WizardData): Promise<{ success: boolean; error?: string }> => {
-  const lockId = await acquireMigrationLock(userId, 'wizard_sync');
-  if (!lockId) {
-    return { success: false, error: 'Failed to acquire lock' };
-  }
-
   try {
     if (!validateWizardData(data)) {
       throw new Error('Invalid wizard data format');
@@ -136,8 +120,6 @@ export const syncWizardProgress = async (userId: string, data: WizardData): Prom
       success: false, 
       error: error instanceof Error ? error.message : 'Unknown error occurred'
     };
-  } finally {
-    await releaseMigrationLock(lockId);
   }
 };
 
@@ -189,5 +171,12 @@ export const handleAnonymousSave = async (sessionId: string, data: WizardData): 
 
 // Cleanup function to be called periodically
 export const performMaintenance = async () => {
-  await cleanupStaleLocks();
+  const { error } = await supabase.rpc('cleanup_stale_locks');
+  if (error) {
+    logger.error('Failed to cleanup stale locks', {
+      component: 'dataSync',
+      action: 'performMaintenance',
+      error
+    });
+  }
 };
