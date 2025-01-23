@@ -31,18 +31,34 @@ const AdWizard = () => {
   const [hasLoadedInitialAds, setHasLoadedInitialAds] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [anonymousData, setAnonymousData] = useState<WizardData | null>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
   const navigate = useNavigate();
   const { projectId } = useParams();
   const { toast } = useToast();
 
   useEffect(() => {
     let isMounted = true;
+    let retryCount = 0;
+    const maxRetries = 3;
     
     const checkUser = async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
+        const { data: { user }, error: sessionError } = await supabase.auth.getUser();
+        
+        if (sessionError) {
+          console.error('[AdWizard] Session error:', sessionError);
+          if (retryCount < maxRetries) {
+            retryCount++;
+            setTimeout(checkUser, 1000 * retryCount); // Exponential backoff
+            return;
+          }
+          setAuthError(sessionError.message);
+          return;
+        }
+
         if (!isMounted) return;
         setCurrentUser(user);
+        setAuthError(null);
 
         if (user) {
           const sessionId = localStorage.getItem('anonymous_session_id');
@@ -76,7 +92,6 @@ const AdWizard = () => {
                 if (!isMounted) return;
                 setAnonymousData(wizardData);
                 
-                // Use upsert with on_conflict parameter
                 const { error: wizardError } = await supabase
                   .from('wizard_progress')
                   .upsert({
@@ -112,6 +127,12 @@ const AdWizard = () => {
         }
       } catch (error) {
         console.error('[AdWizard] Error in checkUser:', error);
+        if (retryCount < maxRetries) {
+          retryCount++;
+          setTimeout(checkUser, 1000 * retryCount);
+        } else {
+          setAuthError('Failed to check authentication status. Please refresh the page.');
+        }
       }
     };
 
@@ -317,6 +338,11 @@ const AdWizard = () => {
 
   return (
     <div className="container max-w-6xl mx-auto px-4 py-8">
+      {authError && (
+        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-md text-red-700">
+          {authError}
+        </div>
+      )}
       <WizardHeader
         title="Idea Pilot"
         description="Quickly go from idea to ready-to-run ads by testing different audience segments with AI-powered social media ad campaigns."
