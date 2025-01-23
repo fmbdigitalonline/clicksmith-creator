@@ -11,7 +11,7 @@ const PLATFORM_FORMATS = {
   facebook: { width: 1200, height: 628, label: "Facebook Feed" },
   google: { width: 1200, height: 628, label: "Google Display" },
   linkedin: { width: 1200, height: 627, label: "LinkedIn Feed" },
-  tiktok: { width: 1080, height: 1920, label: "TikTok Feed" }
+  tiktok: { width: 1080, height: 1920, label: "TikTok Feed", vertical: true }
 };
 
 serve(async (req) => {
@@ -161,7 +161,13 @@ serve(async (req) => {
       case 'video_ads': {
         console.log('[generate-ad-content] Generating campaign for platform:', platform);
         const campaignData = await generateCampaign(businessIdea, targetAudience);
-        const imageData = await generateImagePrompts(businessIdea, targetAudience, campaignData.campaign);
+        
+        // Adjust image prompts based on platform
+        const imagePromptOptions = platform === 'tiktok' ? 
+          { vertical: true, style: 'vertical social media content optimized for TikTok' } : 
+          {};
+        
+        const imageData = await generateImagePrompts(businessIdea, targetAudience, campaignData.campaign, imagePromptOptions);
         
         const format = PLATFORM_FORMATS[platform as keyof typeof PLATFORM_FORMATS];
         if (!format) {
