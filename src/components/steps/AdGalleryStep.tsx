@@ -75,7 +75,6 @@ const AdGalleryStep = ({
       showPlatformWarning(selectedPlatform);
       
       try {
-        // Initialize platform state before generation
         setGeneratedPlatforms(prev => {
           const newSet = new Set(prev);
           newSet.delete(selectedPlatform);
@@ -246,6 +245,6 @@ const AdGalleryStep = ({
       />
     </div>
   );
-});
+};
 
 export default AdGalleryStep;
