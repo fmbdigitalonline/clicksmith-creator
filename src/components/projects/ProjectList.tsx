@@ -36,7 +36,7 @@ const ProjectList = ({ onStartAdWizard }: ProjectListProps) => {
         .from("free_tier_usage")
         .select("*")
         .eq("user_id", user.id)
-        .single();
+        .maybeSingle();
 
       if (error && error.code !== "PGRST116") {
         console.error('Error fetching free tier usage:', error);
@@ -59,7 +59,7 @@ const ProjectList = ({ onStartAdWizard }: ProjectListProps) => {
         .select("*")
         .eq("user_id", user.id)
         .eq("active", true)
-        .single();
+        .maybeSingle();
 
       if (error && error.code !== "PGRST116") {
         console.error('Error fetching subscription:', error);
@@ -78,6 +78,7 @@ const ProjectList = ({ onStartAdWizard }: ProjectListProps) => {
         throw new Error("User not authenticated");
       }
 
+      // Add distinct on title to prevent duplicates
       const { data, error } = await supabase
         .from("projects")
         .select("*")
@@ -93,7 +94,20 @@ const ProjectList = ({ onStartAdWizard }: ProjectListProps) => {
         throw error;
       }
 
-      return (data as DatabaseProject[]).map(project => ({
+      // Filter out potential duplicates based on title and creation time
+      const uniqueProjects = data.reduce((acc: DatabaseProject[], current) => {
+        const isDuplicate = acc.find(
+          (item) => 
+            item.title === current.title && 
+            Math.abs(new Date(item.created_at).getTime() - new Date(current.created_at).getTime()) < 1000
+        );
+        if (!isDuplicate) {
+          acc.push(current);
+        }
+        return acc;
+      }, []);
+
+      return uniqueProjects.map(project => ({
         ...project,
         business_idea: project.business_idea as Project['business_idea']
       }));
@@ -101,15 +115,6 @@ const ProjectList = ({ onStartAdWizard }: ProjectListProps) => {
   });
 
   const handleCreateProject = () => {
-    // Check if user has reached free tier limit and has no subscription
-    if (freeUsage?.generations_used >= 12 && !subscription?.active) {
-      toast({
-        title: "Free tier limit reached",
-        description: "You've used all your free generations. Please upgrade to continue creating projects.",
-        variant: "destructive",
-      });
-      return;
-    }
     setIsCreateOpen(true);
   };
 
