@@ -106,6 +106,8 @@ export type Database = {
           created_at: string
           id: string
           last_completed_step: number | null
+          last_save_attempt: string | null
+          save_count: number | null
           session_id: string
           used: boolean | null
           wizard_data: Json | null
@@ -115,6 +117,8 @@ export type Database = {
           created_at?: string
           id?: string
           last_completed_step?: number | null
+          last_save_attempt?: string | null
+          save_count?: number | null
           session_id: string
           used?: boolean | null
           wizard_data?: Json | null
@@ -124,6 +128,8 @@ export type Database = {
           created_at?: string
           id?: string
           last_completed_step?: number | null
+          last_save_attempt?: string | null
+          save_count?: number | null
           session_id?: string
           used?: boolean | null
           wizard_data?: Json | null
@@ -270,6 +276,33 @@ export type Database = {
           id?: string
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      migration_locks: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          lock_type: string
+          metadata: Json | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          id?: string
+          lock_type: string
+          metadata?: Json | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          lock_type?: string
+          metadata?: Json | null
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -583,10 +616,12 @@ export type Database = {
           current_step: number | null
           generated_ads: Json | null
           id: string
+          last_save_attempt: string | null
           selected_hooks: Json | null
           target_audience: Json | null
           updated_at: string
           user_id: string
+          version: number | null
           video_ad_preferences: Json | null
         }
         Insert: {
@@ -597,10 +632,12 @@ export type Database = {
           current_step?: number | null
           generated_ads?: Json | null
           id?: string
+          last_save_attempt?: string | null
           selected_hooks?: Json | null
           target_audience?: Json | null
           updated_at?: string
           user_id: string
+          version?: number | null
           video_ad_preferences?: Json | null
         }
         Update: {
@@ -611,10 +648,12 @@ export type Database = {
           current_step?: number | null
           generated_ads?: Json | null
           id?: string
+          last_save_attempt?: string | null
           selected_hooks?: Json | null
           target_audience?: Json | null
           updated_at?: string
           user_id?: string
+          version?: number | null
           video_ad_preferences?: Json | null
         }
         Relationships: []
@@ -656,6 +695,10 @@ export type Database = {
           has_credits: boolean
           error_message: string
         }[]
+      }
+      cleanup_stale_locks: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
       }
       deduct_user_credits: {
         Args: {
