@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { WizardData } from "@/types/wizardProgress";
 import logger from "@/utils/logger";
+import { PostgrestError } from "@supabase/supabase-js";
 
 const MAX_ANONYMOUS_SAVES = 3;
 const SAVE_COOLDOWN = 5000; // 5 seconds
@@ -18,12 +19,12 @@ export const saveWizardData = async (
     }
     return { success: false, error: "No user ID or session ID provided" };
   } catch (error) {
-    logger.error("Error in saveWizardData:", error);
+    logger.error("Error in saveWizardData:", { error });
     return { success: false, error: "Failed to save wizard data" };
   }
 };
 
-const createDataBackup = async (userId: string, data: WizardData) => {
+export const createDataBackup = async (userId: string, data: WizardData) => {
   try {
     const backupData = {
       user_id: userId,
@@ -49,10 +50,17 @@ const createDataBackup = async (userId: string, data: WizardData) => {
       .insert([backupData]);
 
     if (error) {
-      logger.error("Failed to create data backup:", error);
+      logger.error("Failed to create data backup:", { 
+        details: { 
+          error: error.message,
+          code: error.code 
+        }
+      });
     }
   } catch (error) {
-    logger.error("Error in createDataBackup:", error);
+    logger.error("Error in createDataBackup:", { 
+      details: { error: String(error) } 
+    });
   }
 };
 
@@ -61,7 +69,6 @@ const saveAuthenticatedData = async (
   data: WizardData
 ): Promise<{ success: boolean; error?: string }> => {
   try {
-    // Create backup first
     await createDataBackup(userId, data);
 
     const wizardData = {
@@ -83,13 +90,20 @@ const saveAuthenticatedData = async (
       });
 
     if (error) {
-      logger.error("Failed to save wizard progress:", error);
+      logger.error("Failed to save wizard progress:", { 
+        details: { 
+          error: error.message,
+          code: error.code 
+        }
+      });
       return { success: false, error: error.message };
     }
 
     return { success: true };
   } catch (error) {
-    logger.error("Error in saveAuthenticatedData:", error);
+    logger.error("Error in saveAuthenticatedData:", { 
+      details: { error: String(error) } 
+    });
     return { success: false, error: "Failed to save data" };
   }
 };
@@ -99,7 +113,6 @@ const saveAnonymousData = async (
   data: WizardData
 ): Promise<{ success: boolean; error?: string }> => {
   try {
-    // Check if this session exists and hasn't exceeded save limit
     const { data: usage, error: fetchError } = await supabase
       .from('anonymous_usage')
       .select('save_count, last_save_attempt')
@@ -107,7 +120,12 @@ const saveAnonymousData = async (
       .single();
 
     if (fetchError && fetchError.code !== 'PGRST116') {
-      logger.error("Error fetching anonymous usage:", fetchError);
+      logger.error("Error fetching anonymous usage:", { 
+        details: { 
+          error: fetchError.message,
+          code: fetchError.code 
+        }
+      });
       return { success: false, error: "Failed to check anonymous usage" };
     }
 
@@ -143,13 +161,20 @@ const saveAnonymousData = async (
       });
 
     if (upsertError) {
-      logger.error("Failed to save anonymous data:", upsertError);
+      logger.error("Failed to save anonymous data:", { 
+        details: { 
+          error: upsertError.message,
+          code: upsertError.code 
+        }
+      });
       return { success: false, error: upsertError.message };
     }
 
     return { success: true };
   } catch (error) {
-    logger.error("Error in saveAnonymousData:", error);
+    logger.error("Error in saveAnonymousData:", { 
+      details: { error: String(error) } 
+    });
     return { success: false, error: "Failed to save anonymous data" };
   }
 };
@@ -157,6 +182,11 @@ const saveAnonymousData = async (
 export const performMaintenance = async () => {
   const { error } = await supabase.rpc('cleanup_stale_locks');
   if (error) {
-    logger.error("Failed to cleanup stale locks:", error);
+    logger.error("Failed to cleanup stale locks:", { 
+      details: { 
+        error: error.message,
+        code: error.code 
+      }
+    });
   }
 };
