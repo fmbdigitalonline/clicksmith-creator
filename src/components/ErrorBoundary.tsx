@@ -23,10 +23,10 @@ class ErrorBoundary extends Component<Props, State> {
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    logger.error('Uncaught error:', {
+    logger.error('Uncaught error', {
       component: 'ErrorBoundary',
       error,
-      errorInfo
+      details: { errorInfo }
     });
   }
 

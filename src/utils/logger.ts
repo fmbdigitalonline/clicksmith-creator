@@ -1,11 +1,14 @@
 type LogLevel = 'info' | 'warn' | 'error' | 'debug' | 'performance';
-type LogContext = {
-  userId?: string;
+
+interface LogContext {
   component?: string;
   action?: string;
+  message?: string;
+  userId?: string;
   duration?: number;
   error?: any;
-};
+  details?: Record<string, any>;
+}
 
 class Logger {
   private static instance: Logger;
@@ -20,40 +23,41 @@ class Logger {
     return Logger.instance;
   }
 
-  private formatMessage(level: LogLevel, context: LogContext, message: string): string {
+  private formatMessage(level: LogLevel, context: LogContext, message?: string): string {
     const timestamp = new Date().toISOString();
     const component = context.component ? `[${context.component}]` : '';
     const action = context.action ? `(${context.action})` : '';
+    const details = context.details ? JSON.stringify(context.details) : '';
     const duration = context.duration ? `${context.duration}ms` : '';
-    return `${timestamp} - ${level}: ${component}${action} ${message} ${duration}`.trim();
+    const finalMessage = message || context.message || '';
+    return `${timestamp} - ${level}: ${component}${action} ${finalMessage} ${details} ${duration}`.trim();
   }
 
-  info(message: string, context: LogContext = {}) {
+  info(message: string, context: Partial<LogContext> = {}) {
     console.log(this.formatMessage('info', context, message));
   }
 
-  warn(message: string, context: LogContext = {}) {
+  warn(message: string, context: Partial<LogContext> = {}) {
     console.warn(this.formatMessage('warn', context, message));
   }
 
-  error(message: string, context: LogContext = {}) {
+  error(message: string, context: Partial<LogContext> = {}) {
     console.error(this.formatMessage('error', context, message));
     if (context.error) {
       console.error('Error details:', context.error);
     }
   }
 
-  debug(message: string, context: LogContext = {}) {
+  debug(message: string, context: Partial<LogContext> = {}) {
     if (!this.isProd) {
       console.debug(this.formatMessage('debug', context, message));
     }
   }
 
-  performance(message: string, context: LogContext = {}) {
+  performance(message: string, context: Partial<LogContext> = {}) {
     console.log(this.formatMessage('performance', context, message));
   }
 
-  // Utility method for measuring performance
   async measure<T>(
     component: string,
     action: string,

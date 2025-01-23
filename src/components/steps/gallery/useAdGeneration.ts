@@ -23,9 +23,9 @@ export const useAdGeneration = (
 
   const generateAds = async (selectedPlatform: string) => {
     const startTime = performance.now();
-    logger.info('AdGeneration', 'Starting ad generation', { 
-      platform: selectedPlatform,
-      projectId 
+    logger.info("Starting ad generation", { 
+      component: "AdGeneration",
+      details: { platform: selectedPlatform, projectId }
     });
     
     setIsGenerating(true);
@@ -34,18 +34,21 @@ export const useAdGeneration = (
     try {
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (userError) {
-        logger.error('AdGeneration', 'User authentication error', userError);
+        logger.error("User authentication error", {
+          component: "AdGeneration",
+          error: userError
+        });
         throw userError;
       }
       
       if (!user) {
-        logger.error('AdGeneration', 'No authenticated user found');
+        logger.error("No authenticated user found", { component: "AdGeneration" });
         throw new Error('User must be logged in to generate ads');
       }
 
-      logger.info('AdGeneration', 'Generating ads', {
-        userId: user.id,
-        platform: selectedPlatform
+      logger.info("Generating ads", {
+        component: "AdGeneration",
+        details: { userId: user.id, platform: selectedPlatform }
       });
       
       const { data, error } = await supabase.functions.invoke('generate-ad-content', {
@@ -61,7 +64,7 @@ export const useAdGeneration = (
       });
 
       if (error) {
-        logger.error('AdGeneration', 'Error generating ads', error);
+        logger.error("Error generating ads", error);
         if (error.message.includes('No credits available')) {
           toast({
             title: "No credits available",
@@ -75,12 +78,12 @@ export const useAdGeneration = (
       }
 
       const endTime = performance.now();
-      logger.info('AdGeneration', 'Generation completed', {
+      logger.info("Generation completed", {
+        component: "AdGeneration",
         duration: endTime - startTime,
         variantsCount: data?.variants?.length
       });
 
-      // Ensure we have exactly 10 variants with the correct platform and format
       const variants = data.variants.map(variant => ({
         ...variant,
         platform: selectedPlatform,
@@ -89,7 +92,6 @@ export const useAdGeneration = (
 
       setAdVariants(variants);
 
-      // Refresh credits display
       queryClient.invalidateQueries({ queryKey: ['subscription'] });
       queryClient.invalidateQueries({ queryKey: ['free_tier_usage'] });
 
@@ -100,7 +102,10 @@ export const useAdGeneration = (
 
       return true;
     } catch (error: any) {
-      logger.error('AdGeneration', 'Ad generation failed', error);
+      logger.error("Ad generation failed", {
+        component: "AdGeneration",
+        error
+      });
       toast({
         title: "Error generating ads",
         description: error.message || "Failed to generate ads. Please try again.",
