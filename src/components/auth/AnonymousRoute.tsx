@@ -32,7 +32,7 @@ export const AnonymousRoute = ({ children }: { children: React.ReactNode }) => {
           console.log('[AnonymousRoute] Created new anonymous session:', sessionId);
         }
 
-        // Check if session exists in database
+        // Check if session exists in database and create if it doesn't
         const { data: existingSession, error: checkError } = await supabase
           .from('anonymous_usage')
           .select('*')
@@ -44,7 +44,7 @@ export const AnonymousRoute = ({ children }: { children: React.ReactNode }) => {
           throw checkError;
         }
 
-        // If no session exists, create one
+        // If no session exists, create one with initial state
         if (!existingSession) {
           console.log('[AnonymousRoute] Creating new session record');
           const { error: insertError } = await supabase
@@ -54,7 +54,11 @@ export const AnonymousRoute = ({ children }: { children: React.ReactNode }) => {
               used: false,
               completed: false,
               last_completed_step: 1,
-              wizard_data: {}
+              wizard_data: {
+                business_idea: null,
+                target_audience: null,
+                generated_ads: []
+              }
             });
 
           if (insertError) {
