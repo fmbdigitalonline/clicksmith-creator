@@ -22,7 +22,7 @@ export const useAdGeneration = (
 
   const generateAds = async (selectedPlatform: string) => {
     logger.info('[useAdGeneration](generateAds) Starting ad generation', {
-      platform: selectedPlatform
+      details: { platform: selectedPlatform }
     });
 
     setIsGenerating(true);
@@ -31,7 +31,10 @@ export const useAdGeneration = (
     try {
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (userError) {
-        logger.error('[useAdGeneration](generateAds) User error:', userError);
+        logger.error('[useAdGeneration](generateAds) User error:', {
+          details: { error: userError.message },
+          status: userError.status?.toString()
+        });
         throw userError;
       }
 
@@ -52,7 +55,10 @@ export const useAdGeneration = (
       });
 
       if (error) {
-        logger.error('[useAdGeneration](generateAds) Generation error:', error);
+        logger.error('[useAdGeneration](generateAds) Generation error:', {
+          details: { error: error.message },
+          status: 'error'
+        });
         
         if (error.message?.includes('No credits available')) {
           toast({
@@ -64,7 +70,6 @@ export const useAdGeneration = (
           return false;
         }
 
-        // Add retry logic for generation errors
         throw error;
       }
 
@@ -73,7 +78,7 @@ export const useAdGeneration = (
       }
 
       logger.info('[useAdGeneration](generateAds) Generated variants:', {
-        count: data.variants.length
+        details: { count: data.variants.length }
       });
 
       const variants = data.variants.map(variant => ({
@@ -94,7 +99,10 @@ export const useAdGeneration = (
 
       return true;
     } catch (error: any) {
-      logger.error('[useAdGeneration](generateAds) Error in ad generation:', error);
+      logger.error('[useAdGeneration](generateAds) Error in ad generation:', {
+        details: { error: error.message },
+        status: 'error'
+      });
       
       toast({
         title: "Error generating ads",
