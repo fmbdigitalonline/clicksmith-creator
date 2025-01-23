@@ -48,21 +48,23 @@ export const AnonymousRoute = ({ children }: { children: React.ReactNode }) => {
           return;
         }
 
-        // Allow access if the user hasn't completed step 3 yet
-        if (!usage || usage.last_completed_step <= 3) {
-          setCanAccess(true);
+        // Check if user has completed step 3 and needs to register
+        if (usage?.last_completed_step > 3) {
+          console.log('[AnonymousRoute] User has completed step 3, redirecting to login');
+          toast({
+            title: "Registration Required",
+            description: "Please sign up to continue and see your generated ads.",
+            variant: "default",
+          });
+          setCanAccess(false);
           setIsLoading(false);
           return;
         }
 
-        // If they've completed step 3, redirect to login
-        console.log('[AnonymousRoute] User has completed step 3, redirecting to login');
-        toast({
-          title: "Registration Required",
-          description: "Please sign up to continue and see your generated ads.",
-          variant: "default",
-        });
-        setCanAccess(false);
+        // Allow access for steps 1-3 or new sessions
+        setCanAccess(true);
+        setIsLoading(false);
+
       } catch (error) {
         console.error('[AnonymousRoute] Error in anonymous access check:', error);
         setCanAccess(false);

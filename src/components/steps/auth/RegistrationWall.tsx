@@ -15,7 +15,7 @@ const RegistrationWall = ({ onBack }: RegistrationWallProps) => {
         <CardTitle>Create an Account to See Your Generated Ads</CardTitle>
         <CardDescription>
           You're just one step away from seeing your AI-generated ad campaigns.
-          Create a free account to continue and save your progress.
+          Create a free account to continue and get access to your 12 free generations.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -23,9 +23,9 @@ const RegistrationWall = ({ onBack }: RegistrationWallProps) => {
           <h3 className="text-lg font-medium">Why create an account?</h3>
           <ul className="list-disc pl-5 space-y-1">
             <li>See your AI-generated ad campaigns</li>
+            <li>Get 12 free ad generations</li>
             <li>Save and manage multiple projects</li>
             <li>Download and export your ads</li>
-            <li>Get access to advanced features</li>
           </ul>
         </div>
         <div className="flex gap-4 pt-4">
