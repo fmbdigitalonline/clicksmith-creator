@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Save } from "lucide-react";
+import { Save, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { AdHook, AdImage } from "@/types/adWizard";
 import { saveAd } from "@/utils/adSaving";
@@ -32,6 +32,11 @@ export const SaveAdButton = ({
   const { toast } = useToast();
 
   const handleSave = async () => {
+    if (isSaving) {
+      console.log('[SaveAdButton] Submission already in progress, preventing duplicate');
+      return;
+    }
+
     setSaving(true);
     try {
       const result = await saveAd({
@@ -81,7 +86,10 @@ export const SaveAdButton = ({
       disabled={isSaving}
     >
       {isSaving ? (
-        "Saving..."
+        <>
+          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+          Saving...
+        </>
       ) : (
         <>
           <Save className="w-4 h-4 mr-2" />
