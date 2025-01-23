@@ -21,6 +21,7 @@ type WizardData = {
   target_audience?: any;
   generated_ads?: any[];
   completed?: boolean;
+  current_step?: number;
 };
 
 const WizardContent = () => {
@@ -62,13 +63,17 @@ const WizardContent = () => {
               business_idea: anonymousData.business_idea,
               target_audience: anonymousData.target_audience,
               generated_ads: anonymousData.generated_ads,
-              current_step: 4
+              current_step: anonymousData.current_step || 4
             });
 
           if (wizardError) {
             console.error('[AdWizard] Error migrating anonymous data:', wizardError);
           } else {
             setGeneratedAds(anonymousData.generated_ads || []);
+            // Set the current step from anonymous data before clearing it
+            if (anonymousData.current_step) {
+              setCurrentStep(anonymousData.current_step);
+            }
             setAnonymousData(null);
           }
         }
@@ -89,9 +94,15 @@ const WizardContent = () => {
             });
           }
 
-          if (wizardData?.generated_ads && Array.isArray(wizardData.generated_ads)) {
-            console.log('[AdWizard] Loading saved ads from wizard progress:', wizardData.generated_ads);
-            setGeneratedAds(wizardData.generated_ads);
+          if (wizardData) {
+            if (wizardData.generated_ads && Array.isArray(wizardData.generated_ads)) {
+              console.log('[AdWizard] Loading saved ads from wizard progress:', wizardData.generated_ads);
+              setGeneratedAds(wizardData.generated_ads);
+            }
+            // Load and set the current step from wizard progress
+            if (wizardData.current_step) {
+              setCurrentStep(wizardData.current_step);
+            }
           }
         }
 
@@ -108,7 +119,7 @@ const WizardContent = () => {
     };
 
     loadProgress();
-  }, [projectId, navigate, toast, anonymousData, currentUser]);
+  }, [projectId, navigate, toast, anonymousData, currentUser, setCurrentStep]);
 
   const handleCreateProject = () => setShowCreateProject(true);
   const handleProjectCreated = (projectId: string) => {
