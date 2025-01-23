@@ -11,7 +11,6 @@ import { useEffect, useState, useCallback } from "react";
 import { AdSizeSelector, AD_FORMATS } from "./gallery/components/AdSizeSelector";
 import { useParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
 
 interface AdGalleryStepProps {
   businessIdea: BusinessIdea;
@@ -70,72 +69,25 @@ const AdGalleryStep = ({
   };
 
   const handleGenerateAds = useCallback(async (selectedPlatform: string) => {
-    console.log('[AdGalleryStep] Starting ad generation for platform:', selectedPlatform);
-    
     if (!isGenerating) {
+      console.log('[AdGalleryStep] Generating ads for platform:', selectedPlatform);
       showPlatformWarning(selectedPlatform);
       
       try {
-        // Check credits before generation
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
-          throw new Error('User must be logged in to generate ads');
-        }
-
-        console.log('[AdGalleryStep] Checking credits before generation');
-        const { data: creditCheck, error: creditError } = await supabase.rpc(
-          'check_user_credits',
-          { p_user_id: user.id, required_credits: 1 }
-        );
-
-        if (creditError) {
-          console.error('[AdGalleryStep] Credit check error:', creditError);
-          throw creditError;
-        }
-
-        const result = creditCheck[0];
-        if (!result.has_credits) {
-          toast({
-            title: "No credits available",
-            description: result.error_message,
-            variant: "destructive",
-          });
-          return;
-        }
-
-        const success = await generateAds(selectedPlatform);
-        console.log('[AdGalleryStep] Generation success:', success);
+        // Initialize platform state before generation
+        setGeneratedPlatforms(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(selectedPlatform);
+          return newSet;
+        });
         
+        const success = await generateAds(selectedPlatform);
         if (success) {
           console.log('[AdGalleryStep] Successfully generated ads for:', selectedPlatform);
           setGeneratedPlatforms(prev => new Set([...prev, selectedPlatform]));
-          
-          if (onAdsGenerated && adVariants.length > 0) {
-            const updatedAds = [...generatedAds];
-            // Remove existing ads for the current platform
-            const filteredAds = updatedAds.filter(ad => ad.platform !== selectedPlatform);
-            
-            // Add the newly generated ads
-            const newAds = adVariants.map(ad => ({
-              ...ad,
-              platform: selectedPlatform,
-              id: ad.id || crypto.randomUUID(),
-              size: ad.size || {
-                width: 1200,
-                height: 628,
-                label: `${selectedPlatform} Feed`
-              }
-            }));
-            
-            console.log('[AdGalleryStep] Updating ads:', {
-              existingCount: filteredAds.length,
-              newCount: newAds.length
-            });
-            
-            onAdsGenerated([...filteredAds, ...newAds]);
-          }
         } else {
           console.error('[AdGalleryStep] Failed to generate ads for:', selectedPlatform);
+          // Reset platform state on failure
           setGeneratedPlatforms(prev => {
             const newSet = new Set(prev);
             newSet.delete(selectedPlatform);
@@ -146,12 +98,19 @@ const AdGalleryStep = ({
         console.error('[AdGalleryStep] Error generating ads:', error);
         toast({
           title: "Error Generating Ads",
-          description: error instanceof Error ? error.message : "Failed to generate ads. Please try again.",
+          description: "There was an error generating your ads. Please try again.",
           variant: "destructive",
+        });
+        
+        // Reset platform state on error
+        setGeneratedPlatforms(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(selectedPlatform);
+          return newSet;
         });
       }
     }
-  }, [generateAds, isGenerating, onAdsGenerated, adVariants, generatedAds, toast]);
+  }, [generateAds, isGenerating, toast]);
 
   useEffect(() => {
     if (!hasLoadedInitialAds) return;
@@ -174,6 +133,41 @@ const AdGalleryStep = ({
       handleGenerateAds(platform);
     }
   }, [hasLoadedInitialAds, platform, projectId, generatedAds, handleGenerateAds, generatedPlatforms]);
+
+  useEffect(() => {
+    if (!onAdsGenerated || adVariants.length === 0) {
+      console.log('[AdGalleryStep] Skipping ad state update:', {
+        hasCallback: !!onAdsGenerated,
+        variantsCount: adVariants.length
+      });
+      return;
+    }
+
+    const isNewProject = projectId === 'new';
+    console.log('[AdGalleryStep] Updating ads state:', {
+      isNewProject,
+      platform,
+      adVariantsCount: adVariants.length,
+      currentAdsCount: generatedAds.length
+    });
+
+    let updatedAds;
+    if (isNewProject) {
+      updatedAds = adVariants;
+    } else {
+      updatedAds = [...generatedAds];
+      // Only filter out ads for the current platform
+      updatedAds = updatedAds.filter(ad => ad.platform !== platform);
+      updatedAds.push(...adVariants);
+    }
+
+    console.log('[AdGalleryStep] Final ads update:', {
+      updatedAdsCount: updatedAds.length,
+      platform
+    });
+
+    onAdsGenerated(updatedAds);
+  }, [adVariants, onAdsGenerated, projectId, generatedAds, platform]);
 
   const onPlatformChange = (newPlatform: "facebook" | "google" | "linkedin" | "tiktok") => {
     handlePlatformChange(newPlatform, adVariants.length > 0);
