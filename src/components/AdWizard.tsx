@@ -62,20 +62,25 @@ const AdWizard = () => {
             
             try {
               // First check if this anonymous data was already migrated
-              const { data: wizardData } = await supabase
+              const { data: wizardData, error: wizardCheckError } = await supabase
                 .from('wizard_progress')
                 .select('*')
                 .eq('user_id', user.id)
                 .maybeSingle();
 
-              if (wizardData) {
-                // Data already migrated, clear anonymous session
-                console.log('[AdWizard] User already has wizard progress, clearing anonymous session');
-                localStorage.removeItem('anonymous_session_id');
-                localStorage.removeItem('migration_in_progress');
+              if (wizardCheckError) {
+                console.error('[AdWizard] Error checking wizard progress:', wizardCheckError);
                 return;
               }
 
+              if (wizardData) {
+                console.log('[AdWizard] User already has wizard progress:', wizardData);
+                // Data already migrated, clear anonymous session
+                localStorage.removeItem('anonymous_session_id');
+                return;
+              }
+
+              console.log('[AdWizard] Fetching anonymous data for migration');
               const { data: anonData, error: anonError } = await supabase
                 .from('anonymous_usage')
                 .select('wizard_data, completed')
@@ -115,6 +120,7 @@ const AdWizard = () => {
                   return;
                 }
 
+                console.log('[AdWizard] Successfully migrated data, deleting anonymous data');
                 // Delete anonymous data after successful migration
                 const { error: deleteError } = await supabase
                   .from('anonymous_usage')
@@ -127,7 +133,6 @@ const AdWizard = () => {
 
                 // Clear anonymous session data
                 localStorage.removeItem('anonymous_session_id');
-                localStorage.removeItem('migration_in_progress');
                 console.log('[AdWizard] Successfully migrated and cleared anonymous session');
                 
                 // Set current step to 4 after successful migration
@@ -135,7 +140,6 @@ const AdWizard = () => {
               }
             } catch (error) {
               console.error('[AdWizard] Migration error:', error);
-              localStorage.removeItem('migration_in_progress');
             }
           }
         }
@@ -157,7 +161,6 @@ const AdWizard = () => {
         setCurrentUser(null);
         setAnonymousData(null);
         localStorage.removeItem('anonymous_session_id');
-        localStorage.removeItem('migration_in_progress');
       }
     });
 
