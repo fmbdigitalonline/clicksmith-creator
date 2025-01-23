@@ -1,40 +1,37 @@
 import { supabase } from "@/integrations/supabase/client";
-import { validateWizardData } from "./validation";
-import logger from "./logger";
-import type { LogContext } from "./logger";
-import { encryptData } from "./encryption";
-import type { WizardData } from "@/types/wizardProgress";
-import type { Json } from "@/integrations/supabase/types";
+import { WizardData } from "@/types/wizardProgress";
+import logger from "@/utils/logger";
 
-const MAX_RETRY_ATTEMPTS = 3;
-const RETRY_DELAY = 1000;
-const MAX_ANONYMOUS_SAVES = 10;
-const SAVE_RATE_LIMIT = 5000; // 5 seconds
+const MAX_ANONYMOUS_SAVES = 3;
+const SAVE_COOLDOWN = 5000; // 5 seconds
 
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-
-const retryOperation = async <T>(
-  operation: () => Promise<T>,
-  attempts: number = MAX_RETRY_ATTEMPTS
-): Promise<T> => {
-  for (let i = 0; i < attempts; i++) {
-    try {
-      return await operation();
-    } catch (error) {
-      if (i === attempts - 1) throw error;
-      await delay(RETRY_DELAY * (i + 1));
+export const saveWizardData = async (
+  data: WizardData,
+  userId?: string | null,
+  sessionId?: string | null
+): Promise<{ success: boolean; error?: string }> => {
+  try {
+    if (userId) {
+      return await saveAuthenticatedData(userId, data);
+    } else if (sessionId) {
+      return await saveAnonymousData(sessionId, data);
     }
+    return { success: false, error: "No user ID or session ID provided" };
+  } catch (error) {
+    logger.error("Error in saveWizardData:", error);
+    return { success: false, error: "Failed to save wizard data" };
   }
-  throw new Error('All retry attempts failed');
 };
 
-export const createDataBackup = async (userId: string, data: WizardData): Promise<boolean> => {
+const createDataBackup = async (userId: string, data: WizardData) => {
   try {
-    const encryptedData = await encryptData(JSON.stringify(data));
-    const metadata = {
-      timestamp: new Date().toISOString(),
-      version: data.version || 1,
-      type: 'auto'
+    const backupData = {
+      user_id: userId,
+      data: JSON.stringify(data),
+      metadata: {
+        timestamp: new Date().toISOString(),
+        type: 'auto'
+      }
     };
 
     const wizardData = {
@@ -47,42 +44,24 @@ export const createDataBackup = async (userId: string, data: WizardData): Promis
       version: data.version || 1
     };
 
-    await retryOperation(async () => {
-      const { error } = await supabase
-        .from('data_backups')
-        .insert({
-          user_id: userId,
-          data: encryptedData,
-          metadata,
-          backup_type: 'auto'
-        });
+    const { error } = await supabase
+      .from('data_backups')
+      .insert([backupData]);
 
-      if (error) throw error;
-    });
-
-    logger.info('Data backup created successfully', {
-      component: 'dataSync',
-      action: 'createDataBackup',
-      userId
-    });
-
-    return true;
+    if (error) {
+      logger.error("Failed to create data backup:", error);
+    }
   } catch (error) {
-    logger.error('Failed to create data backup', {
-      component: 'dataSync',
-      action: 'createDataBackup',
-      error
-    });
-    return false;
+    logger.error("Error in createDataBackup:", error);
   }
 };
 
-export const syncWizardProgress = async (userId: string, data: WizardData): Promise<{ success: boolean; error?: string }> => {
+const saveAuthenticatedData = async (
+  userId: string,
+  data: WizardData
+): Promise<{ success: boolean; error?: string }> => {
   try {
-    if (!validateWizardData(data)) {
-      throw new Error('Invalid wizard data format');
-    }
-
+    // Create backup first
     await createDataBackup(userId, data);
 
     const wizardData = {
@@ -93,56 +72,49 @@ export const syncWizardProgress = async (userId: string, data: WizardData): Prom
       selected_hooks: data.selected_hooks || null,
       generated_ads: data.generated_ads || null,
       current_step: data.current_step || 1,
-      version: (data.version || 0) + 1,
-      updated_at: new Date().toISOString()
+      version: data.version || 1,
+      last_save_attempt: new Date().toISOString()
     };
 
-    await retryOperation(async () => {
-      const { error } = await supabase
-        .from('wizard_progress')
-        .upsert(wizardData, {
-          onConflict: 'user_id'
-        });
+    const { error } = await supabase
+      .from('wizard_progress')
+      .upsert([wizardData], {
+        onConflict: 'user_id'
+      });
 
-      if (error) throw error;
-    });
-
-    logger.info('Wizard progress synced successfully', {
-      component: 'dataSync',
-      action: 'syncWizardProgress',
-      userId
-    } as LogContext);
+    if (error) {
+      logger.error("Failed to save wizard progress:", error);
+      return { success: false, error: error.message };
+    }
 
     return { success: true };
   } catch (error) {
-    logger.error('Failed to sync wizard progress', {
-      component: 'dataSync',
-      action: 'syncWizardProgress',
-      error,
-      userId
-    } as LogContext);
-
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Unknown error occurred'
-    };
+    logger.error("Error in saveAuthenticatedData:", error);
+    return { success: false, error: "Failed to save data" };
   }
 };
 
-export const handleAnonymousSave = async (sessionId: string, data: WizardData): Promise<{ success: boolean; error?: string }> => {
+const saveAnonymousData = async (
+  sessionId: string,
+  data: WizardData
+): Promise<{ success: boolean; error?: string }> => {
   try {
-    const { data: usage, error: usageError } = await supabase
+    // Check if this session exists and hasn't exceeded save limit
+    const { data: usage, error: fetchError } = await supabase
       .from('anonymous_usage')
       .select('save_count, last_save_attempt')
       .eq('session_id', sessionId)
       .single();
 
-    if (usageError) throw usageError;
+    if (fetchError && fetchError.code !== 'PGRST116') {
+      logger.error("Error fetching anonymous usage:", fetchError);
+      return { success: false, error: "Failed to check anonymous usage" };
+    }
 
+    const lastSaveAttempt = usage?.last_save_attempt ? new Date(usage.last_save_attempt) : null;
     const now = new Date();
-    const lastSave = usage?.last_save_attempt ? new Date(usage.last_save_attempt) : null;
     
-    if (lastSave && (now.getTime() - lastSave.getTime()) < SAVE_RATE_LIMIT) {
+    if (lastSaveAttempt && (now.getTime() - lastSaveAttempt.getTime()) < SAVE_COOLDOWN) {
       return { success: false, error: 'Please wait before saving again' };
     }
 
@@ -153,44 +125,38 @@ export const handleAnonymousSave = async (sessionId: string, data: WizardData): 
     const wizardData = {
       business_idea: data.business_idea || null,
       target_audience: data.target_audience || null,
+      audience_analysis: data.audience_analysis || null,
       selected_hooks: data.selected_hooks || null,
       generated_ads: data.generated_ads || null,
-      current_step: data.current_step || 1,
-      version: data.version || 1
+      current_step: data.current_step || 1
     };
 
-    const { error: saveError } = await supabase
+    const { error: upsertError } = await supabase
       .from('anonymous_usage')
-      .update({
+      .upsert([{
+        session_id: sessionId,
         wizard_data: wizardData,
         save_count: (usage?.save_count || 0) + 1,
         last_save_attempt: now.toISOString()
-      })
-      .eq('session_id', sessionId);
+      }], {
+        onConflict: 'session_id'
+      });
 
-    if (saveError) throw saveError;
+    if (upsertError) {
+      logger.error("Failed to save anonymous data:", upsertError);
+      return { success: false, error: upsertError.message };
+    }
 
     return { success: true };
   } catch (error) {
-    logger.error('Failed to handle anonymous save', {
-      component: 'dataSync',
-      action: 'handleAnonymousSave',
-      error
-    });
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Unknown error occurred'
-    };
+    logger.error("Error in saveAnonymousData:", error);
+    return { success: false, error: "Failed to save anonymous data" };
   }
 };
 
 export const performMaintenance = async () => {
   const { error } = await supabase.rpc('cleanup_stale_locks');
   if (error) {
-    logger.error('Failed to cleanup stale locks', {
-      component: 'dataSync',
-      action: 'performMaintenance',
-      error
-    });
+    logger.error("Failed to cleanup stale locks:", error);
   }
 };
