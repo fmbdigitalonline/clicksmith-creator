@@ -37,8 +37,8 @@ export const createDataBackup = async (userId: string, data: WizardData): Promis
       type: 'auto'
     };
 
-    // Convert WizardData to a plain object that matches Json type
-    const jsonData: Record<string, Json> = {
+    // Convert WizardData to match the expected database schema
+    const jsonData = {
       business_idea: data.business_idea || null,
       target_audience: data.target_audience || null,
       selected_hooks: data.selected_hooks || null,
@@ -85,11 +85,12 @@ export const syncWizardProgress = async (userId: string, data: WizardData): Prom
 
     await createDataBackup(userId, data);
 
-    // Convert WizardData to a plain object that matches Json type
-    const wizardData: Record<string, Json> = {
+    // Prepare data matching the wizard_progress table schema
+    const wizardData = {
       user_id: userId,
       business_idea: data.business_idea || null,
       target_audience: data.target_audience || null,
+      audience_analysis: data.audience_analysis || null,
       selected_hooks: data.selected_hooks || null,
       generated_ads: data.generated_ads || null,
       current_step: data.current_step || 1,
@@ -150,10 +151,20 @@ export const handleAnonymousSave = async (sessionId: string, data: WizardData): 
       return { success: false, error: 'Maximum saves reached for anonymous session' };
     }
 
+    // Convert WizardData to match the anonymous_usage table schema
+    const wizardData = {
+      business_idea: data.business_idea || null,
+      target_audience: data.target_audience || null,
+      selected_hooks: data.selected_hooks || null,
+      generated_ads: data.generated_ads || null,
+      current_step: data.current_step || 1,
+      version: data.version || 1
+    };
+
     const { error: saveError } = await supabase
       .from('anonymous_usage')
       .update({
-        wizard_data: data as Json,
+        wizard_data: wizardData,
         save_count: (usage?.save_count || 0) + 1,
         last_save_attempt: now.toISOString()
       })
