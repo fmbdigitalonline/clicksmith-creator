@@ -194,7 +194,6 @@ export const useAdWizardState = () => {
 
   const handleAnalysisComplete = useCallback(async (analysis: AudienceAnalysis) => {
     try {
-      console.log('[useAdWizardState] Starting analysis completion with:', analysis);
       setAudienceAnalysis(analysis);
       
       const { data: { user } } = await supabase.auth.getUser();
@@ -202,16 +201,12 @@ export const useAdWizardState = () => {
       
       // Save progress based on authentication status
       if (user) {
-        await saveWizardProgress({ 
-          audience_analysis: analysis,
-          current_step: 4  // Explicitly set current step
-        }, projectId);
+        await saveWizardProgress({ audience_analysis: analysis }, projectId);
       } else if (sessionId) {
         // For anonymous users, update the wizard_data and last_completed_step
         const { error: anonymousError } = await supabase
           .from('anonymous_usage')
-          .upsert({
-            session_id: sessionId,
+          .update({
             wizard_data: {
               business_idea: businessIdea,
               target_audience: targetAudience,
@@ -222,8 +217,7 @@ export const useAdWizardState = () => {
           .eq('session_id', sessionId);
 
         if (anonymousError) {
-          console.error('[useAdWizardState] Error saving anonymous progress:', anonymousError);
-          throw anonymousError;
+          console.error('Error saving anonymous progress:', anonymousError);
         }
       }
 
@@ -242,7 +236,6 @@ export const useAdWizardState = () => {
       });
 
       if (error) {
-        console.error('[useAdWizardState] Error generating hooks:', error);
         toast({
           title: "Error generating hooks",
           description: error.message,
@@ -252,15 +245,11 @@ export const useAdWizardState = () => {
       }
 
       if (data?.hooks && Array.isArray(data.hooks)) {
-        console.log('[useAdWizardState] Successfully generated hooks:', data.hooks);
         setSelectedHooks(data.hooks);
         
         // Save hooks based on authentication status
         if (user) {
-          await saveWizardProgress({ 
-            selected_hooks: data.hooks,
-            current_step: 4  // Ensure step is set to 4
-          }, projectId);
+          await saveWizardProgress({ selected_hooks: data.hooks }, projectId);
         } else if (sessionId) {
           const { error: updateError } = await supabase
             .from('anonymous_usage')
@@ -270,24 +259,21 @@ export const useAdWizardState = () => {
                 target_audience: targetAudience,
                 audience_analysis: analysis,
                 selected_hooks: data.hooks
-              },
-              last_completed_step: 4  // Update step for anonymous users
+              }
             })
             .eq('session_id', sessionId);
 
           if (updateError) {
-            console.error('[useAdWizardState] Error saving anonymous hooks:', updateError);
-            throw updateError;
+            console.error('Error saving anonymous hooks:', updateError);
           }
         }
         
-        // Explicitly set current step to 4 after successful hook generation
         setCurrentStep(4);
       } else {
         throw new Error('Invalid hooks data received');
       }
     } catch (error) {
-      console.error('[useAdWizardState] Error in handleAnalysisComplete:', error);
+      console.error('Error in handleAnalysisComplete:', error);
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Failed to generate hooks",
