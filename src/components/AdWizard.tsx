@@ -251,7 +251,16 @@ const AdWizard = () => {
               business_idea: businessIdea,
               target_audience: targetAudience,
               audience_analysis: audienceAnalysis,
-              generated_ads: newAds,
+              generated_ads: newAds.map(ad => ({
+                ...ad,
+                platform: ad.platform || 'facebook', // Ensure platform is set
+                id: ad.id || crypto.randomUUID(),
+                size: ad.size || {
+                  width: 1200,
+                  height: 628,
+                  label: `${ad.platform || 'facebook'} Feed`
+                }
+              })),
               status: 'draft'
             })
             .select()
@@ -270,7 +279,16 @@ const AdWizard = () => {
           const { error: updateError } = await supabase
             .from('projects')
             .update({ 
-              generated_ads: newAds,
+              generated_ads: newAds.map(ad => ({
+                ...ad,
+                platform: ad.platform || 'facebook', // Ensure platform is set
+                id: ad.id || crypto.randomUUID(),
+                size: ad.size || {
+                  width: 1200,
+                  height: 628,
+                  label: `${ad.platform || 'facebook'} Feed`
+                }
+              })),
               business_idea: businessIdea,
               target_audience: targetAudience,
               audience_analysis: audienceAnalysis,
@@ -289,7 +307,16 @@ const AdWizard = () => {
           .from('wizard_progress')
           .upsert({
             user_id: user.id,
-            generated_ads: newAds,
+            generated_ads: newAds.map(ad => ({
+              ...ad,
+              platform: ad.platform || 'facebook',
+              id: ad.id || crypto.randomUUID(),
+              size: ad.size || {
+                width: 1200,
+                height: 628,
+                label: `${ad.platform || 'facebook'} Feed`
+              }
+            })),
             business_idea: businessIdea,
             target_audience: targetAudience,
             audience_analysis: audienceAnalysis
@@ -310,8 +337,17 @@ const AdWizard = () => {
             wizard_data: {
               business_idea: businessIdea,
               target_audience: targetAudience,
-              generated_ads: newAds
-            } as WizardData,
+              generated_ads: newAds.map(ad => ({
+                ...ad,
+                platform: ad.platform || 'facebook',
+                id: ad.id || crypto.randomUUID(),
+                size: ad.size || {
+                  width: 1200,
+                  height: 628,
+                  label: `${ad.platform || 'facebook'} Feed`
+                }
+              }))
+            },
             completed: true
           }, {
             onConflict: 'session_id'
