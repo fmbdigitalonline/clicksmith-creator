@@ -239,10 +239,13 @@ const AdWizard = () => {
         
         // Create a new project if we don't have one
         if (!projectId || projectId === 'new') {
+          const timestamp = new Date().toISOString().slice(0, 19).replace('T', ' ');
+          const projectTitle = `${businessIdea?.description || 'New Ad Project'} - ${timestamp}`;
+          
           const { data: newProject, error: projectError } = await supabase
             .from('projects')
             .insert({
-              title: businessIdea?.description || 'New Ad Project',
+              title: projectTitle,
               description: 'Automatically created from Ad Wizard',
               user_id: user.id,
               business_idea: businessIdea,
