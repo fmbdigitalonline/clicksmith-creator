@@ -3,7 +3,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { useQuery } from "@tanstack/react-query";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -40,16 +39,6 @@ interface Project {
   marketing_campaign?: any;
 }
 
-interface SavedAd {
-  id: string;
-  saved_images: string[];
-  headline?: string;
-  primary_text?: string;
-  rating: number;
-  feedback: string;
-  project_data: any;
-}
-
 interface ProjectCardProps {
   project: Project;
   onUpdate: () => void;
@@ -61,24 +50,6 @@ const ProjectCard = ({ project, onUpdate, onStartAdWizard }: ProjectCardProps) =
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const { toast } = useToast();
-
-  // Query to fetch saved ads for this project
-  const { data: savedAds } = useQuery({
-    queryKey: ["savedAds", project.id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("ad_feedback")
-        .select("*")
-        .eq("project_id", project.id);
-
-      if (error) {
-        console.error("Error fetching saved ads:", error);
-        return [];
-      }
-
-      return data as SavedAd[];
-    },
-  });
 
   const handleDelete = async () => {
     const { error } = await supabase
@@ -131,13 +102,6 @@ const ProjectCard = ({ project, onUpdate, onStartAdWizard }: ProjectCardProps) =
               ))}
             </div>
           )}
-          
-          {/* Display saved ads count if any */}
-          {savedAds && savedAds.length > 0 && (
-            <div className="mt-4 text-sm text-muted-foreground">
-              {savedAds.length} saved ad{savedAds.length !== 1 ? 's' : ''}
-            </div>
-          )}
         </CardContent>
         <ProjectCardActions
           onEdit={() => setIsEditOpen(true)}
@@ -157,48 +121,6 @@ const ProjectCard = ({ project, onUpdate, onStartAdWizard }: ProjectCardProps) =
             targetAudience={project.target_audience}
             audienceAnalysis={project.audience_analysis}
           />
-          
-          {/* Display saved ads in detail view */}
-          {savedAds && savedAds.length > 0 && (
-            <div className="mt-6">
-              <h3 className="text-lg font-semibold mb-4">Saved Ads</h3>
-              <div className="grid gap-4">
-                {savedAds.map((ad) => (
-                  <div key={ad.id} className="border rounded-lg p-4">
-                    <div className="flex items-start gap-4">
-                      {ad.saved_images?.[0] && (
-                        <img 
-                          src={ad.saved_images[0]} 
-                          alt="Ad preview" 
-                          className="w-24 h-24 object-cover rounded"
-                        />
-                      )}
-                      <div>
-                        {ad.headline && (
-                          <h4 className="font-medium">{ad.headline}</h4>
-                        )}
-                        {ad.primary_text && (
-                          <p className="text-sm text-muted-foreground mt-1">
-                            {ad.primary_text}
-                          </p>
-                        )}
-                        <div className="mt-2 flex items-center gap-2">
-                          <Badge variant="secondary">
-                            Rating: {ad.rating}/5
-                          </Badge>
-                          {ad.feedback && (
-                            <span className="text-sm text-muted-foreground">
-                              "{ad.feedback}"
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </DialogContent>
       </Dialog>
 

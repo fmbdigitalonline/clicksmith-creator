@@ -17,7 +17,6 @@ export type Database = {
           headline: string | null
           id: string
           primary_text: string | null
-          project_data: Json | null
           project_id: string | null
           rating: number | null
           saved_images: Json | null
@@ -31,7 +30,6 @@ export type Database = {
           headline?: string | null
           id?: string
           primary_text?: string | null
-          project_data?: Json | null
           project_id?: string | null
           rating?: number | null
           saved_images?: Json | null
@@ -45,7 +43,6 @@ export type Database = {
           headline?: string | null
           id?: string
           primary_text?: string | null
-          project_data?: Json | null
           project_id?: string | null
           rating?: number | null
           saved_images?: Json | null

@@ -14,7 +14,6 @@ export const CreditDisplay = () => {
     queryFn: async () => {
       const { data: { user }, error } = await supabase.auth.getUser();
       if (error) throw error;
-      console.log("Current user:", user);
       return user;
     },
   });
@@ -25,7 +24,7 @@ export const CreditDisplay = () => {
       if (!user?.id) return null;
       const { data, error } = await supabase
         .from("subscriptions")
-        .select("*, plan:plans(*)")
+        .select("*")
         .eq("user_id", user.id)
         .eq("active", true)
         .maybeSingle();
@@ -39,7 +38,6 @@ export const CreditDisplay = () => {
         return null;
       }
 
-      console.log("Current subscription:", data);
       return data;
     },
     enabled: !!user?.id,
@@ -66,7 +64,6 @@ export const CreditDisplay = () => {
         return null;
       }
 
-      console.log("Current free tier usage:", data);
       return data || { generations_used: 0 };
     },
     enabled: !!user?.id,

@@ -39,7 +39,7 @@ Return ONLY a valid JSON array with exactly 10 items in this format:
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: 'gpt-4o',
         messages: [
           {
             role: 'system',

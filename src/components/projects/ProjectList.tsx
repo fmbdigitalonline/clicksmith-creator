@@ -25,64 +25,12 @@ const ProjectList = ({ onStartAdWizard }: ProjectListProps) => {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const { toast } = useToast();
 
-  // Query to check free tier usage
-  const { data: freeUsage } = useQuery({
-    queryKey: ["free_tier_usage"],
-    queryFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return null;
-
-      const { data, error } = await supabase
-        .from("free_tier_usage")
-        .select("*")
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-      if (error && error.code !== "PGRST116") {
-        console.error('Error fetching free tier usage:', error);
-        return null;
-      }
-
-      return data;
-    },
-  });
-
-  // Query to check if user has an active subscription
-  const { data: subscription } = useQuery({
-    queryKey: ["subscription"],
-    queryFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return null;
-
-      const { data, error } = await supabase
-        .from("subscriptions")
-        .select("*")
-        .eq("user_id", user.id)
-        .eq("active", true)
-        .maybeSingle();
-
-      if (error && error.code !== "PGRST116") {
-        console.error('Error fetching subscription:', error);
-        return null;
-      }
-
-      return data;
-    },
-  });
-
   const { data: projects, refetch, error, isLoading } = useQuery({
     queryKey: ["projects"],
     queryFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        throw new Error("User not authenticated");
-      }
-
-      // Add distinct on title to prevent duplicates
       const { data, error } = await supabase
         .from("projects")
         .select("*")
-        .eq('user_id', user.id)
         .order("created_at", { ascending: false });
 
       if (error) {
@@ -94,20 +42,8 @@ const ProjectList = ({ onStartAdWizard }: ProjectListProps) => {
         throw error;
       }
 
-      // Filter out potential duplicates based on title and creation time
-      const uniqueProjects = data.reduce((acc: DatabaseProject[], current) => {
-        const isDuplicate = acc.find(
-          (item) => 
-            item.title === current.title && 
-            Math.abs(new Date(item.created_at).getTime() - new Date(current.created_at).getTime()) < 1000
-        );
-        if (!isDuplicate) {
-          acc.push(current);
-        }
-        return acc;
-      }, []);
-
-      return uniqueProjects.map(project => ({
+      // Transform the data to ensure business_idea has the correct type
+      return (data as DatabaseProject[]).map(project => ({
         ...project,
         business_idea: project.business_idea as Project['business_idea']
       }));
