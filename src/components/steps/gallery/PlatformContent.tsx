@@ -1,5 +1,6 @@
 import { AdHook } from "@/types/adWizard";
 import AdPreviewCard from "./components/AdPreviewCard";
+import { useToast } from "@/hooks/use-toast";
 
 interface PlatformContentProps {
   platformName: string;
@@ -16,10 +17,23 @@ const PlatformContent = ({
   videoAdsEnabled = false,
   selectedFormat
 }: PlatformContentProps) => {
+  const { toast } = useToast();
+  
+  // Filter variants for the current platform
   const filteredVariants = Array.isArray(adVariants) 
     ? adVariants.filter(variant => variant.platform === platformName)
     : [];
 
+  // Show loading state while generating
+  if (adVariants.length === 0) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-gray-500">Generating {platformName} ads...</p>
+      </div>
+    );
+  }
+
+  // Show empty state if no variants for platform
   if (filteredVariants.length === 0) {
     return (
       <div className="text-center py-8">
