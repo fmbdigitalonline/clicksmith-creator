@@ -23,12 +23,14 @@ export const useAdWizardState = () => {
   useEffect(() => {
     const loadSavedProgress = async () => {
       try {
+        console.log('[useAdWizardState] Starting to load progress');
         const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
-
+        
         // For new projects, clear any existing progress and start from step 1
         if (projectId === 'new') {
-          await clearWizardProgress(projectId, user.id);
+          if (user) {
+            await clearWizardProgress(projectId, user.id);
+          }
           setBusinessIdea(null);
           setTargetAudience(null);
           setAudienceAnalysis(null);
@@ -39,14 +41,24 @@ export const useAdWizardState = () => {
 
         // Try to load from project if we have a project ID
         if (projectId) {
-          const { data: project } = await supabase
+          const { data: project, error: projectError } = await supabase
             .from('projects')
             .select('*')
             .eq('id', projectId)
-            .single();
+            .maybeSingle();
+
+          if (projectError) {
+            console.error('[useAdWizardState] Error loading project:', projectError);
+            toast({
+              title: "Couldn't load project",
+              description: "We had trouble loading your project. Starting fresh.",
+              variant: "destructive",
+            });
+            return;
+          }
 
           if (project) {
-            // Set project data
+            console.log('[useAdWizardState] Loaded project data:', project);
             setBusinessIdea(project.business_idea as BusinessIdea);
             setTargetAudience(project.target_audience as TargetAudience);
             setAudienceAnalysis(project.audience_analysis as AudienceAnalysis);
@@ -67,40 +79,106 @@ export const useAdWizardState = () => {
           }
         }
 
-        // If no project or it's invalid, load from wizard_progress
-        const { data: wizardData } = await supabase
-          .from('wizard_progress')
-          .select('*')
-          .eq('user_id', user.id)
-          .single();
+        // If user is authenticated, try to load from wizard_progress
+        if (user) {
+          console.log('[useAdWizardState] Loading progress for authenticated user:', user.id);
+          const { data: wizardData, error: wizardError } = await supabase
+            .from('wizard_progress')
+            .select('*')
+            .eq('user_id', user.id)
+            .maybeSingle();
 
-        if (wizardData) {
-          setBusinessIdea(wizardData.business_idea as BusinessIdea);
-          setTargetAudience(wizardData.target_audience as TargetAudience);
-          setAudienceAnalysis(wizardData.audience_analysis as AudienceAnalysis);
-          const hooks = Array.isArray(wizardData.selected_hooks) ? wizardData.selected_hooks : [];
-          setSelectedHooks(hooks as AdHook[]);
-          
-          // Set appropriate step based on wizard progress
-          if (hooks.length > 0) {
-            setCurrentStep(4);
-          } else if (wizardData.audience_analysis) {
-            setCurrentStep(3);
-          } else if (wizardData.target_audience) {
-            setCurrentStep(2);
+          if (wizardError && wizardError.code !== 'PGRST116') {
+            console.error('[useAdWizardState] Error loading wizard progress:', wizardError);
+            toast({
+              title: "Couldn't load your progress",
+              description: "We had trouble loading your previous work. Starting fresh.",
+              variant: "destructive",
+            });
+            return;
+          }
+
+          if (wizardData) {
+            console.log('[useAdWizardState] Loaded wizard progress:', wizardData);
+            setBusinessIdea(wizardData.business_idea as BusinessIdea);
+            setTargetAudience(wizardData.target_audience as TargetAudience);
+            setAudienceAnalysis(wizardData.audience_analysis as AudienceAnalysis);
+            const hooks = Array.isArray(wizardData.selected_hooks) ? wizardData.selected_hooks : [];
+            setSelectedHooks(hooks as AdHook[]);
+            
+            // Set appropriate step based on wizard progress
+            if (hooks.length > 0) {
+              setCurrentStep(4);
+            } else if (wizardData.audience_analysis) {
+              setCurrentStep(3);
+            } else if (wizardData.target_audience) {
+              setCurrentStep(2);
+            } else {
+              setCurrentStep(1);
+            }
           } else {
-            setCurrentStep(1);
+            // Create initial progress record for new users
+            console.log('[useAdWizardState] Creating initial progress for new user');
+            const { error: createError } = await supabase
+              .from('wizard_progress')
+              .insert({
+                user_id: user.id,
+                current_step: 1
+              });
+
+            if (createError) {
+              console.error('[useAdWizardState] Error creating initial progress:', createError);
+            }
+          }
+        } else {
+          // For anonymous users, check session
+          const sessionId = localStorage.getItem('anonymous_session_id');
+          if (sessionId) {
+            console.log('[useAdWizardState] Loading anonymous progress:', sessionId);
+            const { data: anonData, error: anonError } = await supabase
+              .from('anonymous_usage')
+              .select('wizard_data')
+              .eq('session_id', sessionId)
+              .maybeSingle();
+
+            if (anonError) {
+              console.error('[useAdWizardState] Error loading anonymous data:', anonError);
+              return;
+            }
+
+            if (anonData?.wizard_data) {
+              const wizardData = anonData.wizard_data;
+              setBusinessIdea(wizardData.business_idea as BusinessIdea);
+              setTargetAudience(wizardData.target_audience as TargetAudience);
+              setAudienceAnalysis(wizardData.audience_analysis as AudienceAnalysis);
+              const hooks = Array.isArray(wizardData.selected_hooks) ? wizardData.selected_hooks : [];
+              setSelectedHooks(hooks as AdHook[]);
+              
+              // Set appropriate step based on available data
+              if (hooks.length > 0) {
+                setCurrentStep(4);
+              } else if (wizardData.audience_analysis) {
+                setCurrentStep(3);
+              } else if (wizardData.target_audience) {
+                setCurrentStep(2);
+              } else {
+                setCurrentStep(1);
+              }
+            }
           }
         }
       } catch (error) {
-        console.error('Error loading saved progress:', error);
-        // On error, start fresh from step 1
-        setCurrentStep(1);
+        console.error('[useAdWizardState] Unexpected error in loadSavedProgress:', error);
+        toast({
+          title: "Something went wrong",
+          description: "We couldn't load your previous work. Please try refreshing the page.",
+          variant: "destructive",
+        });
       }
     };
 
     loadSavedProgress();
-  }, [projectId]);
+  }, [projectId, toast]);
 
   const handleIdeaSubmit = useCallback(async (idea: BusinessIdea) => {
     setBusinessIdea(idea);
