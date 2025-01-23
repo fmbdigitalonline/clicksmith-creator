@@ -39,6 +39,7 @@ const AdGalleryStep = ({
 }: AdGalleryStepProps) => {
   const [selectedFormat, setSelectedFormat] = useState(AD_FORMATS[0]);
   const [generatedPlatforms, setGeneratedPlatforms] = useState<Set<string>>(new Set());
+  const [isInitialGenerationDone, setIsInitialGenerationDone] = useState(false);
   const { projectId } = useParams();
   const { toast } = useToast();
 
@@ -87,7 +88,6 @@ const AdGalleryStep = ({
           setGeneratedPlatforms(prev => new Set([...prev, selectedPlatform]));
         } else {
           console.error('[AdGalleryStep] Failed to generate ads for:', selectedPlatform);
-          // Reset platform state on failure
           setGeneratedPlatforms(prev => {
             const newSet = new Set(prev);
             newSet.delete(selectedPlatform);
@@ -102,7 +102,6 @@ const AdGalleryStep = ({
           variant: "destructive",
         });
         
-        // Reset platform state on error
         setGeneratedPlatforms(prev => {
           const newSet = new Set(prev);
           newSet.delete(selectedPlatform);
@@ -113,7 +112,7 @@ const AdGalleryStep = ({
   }, [generateAds, isGenerating, toast]);
 
   useEffect(() => {
-    if (!hasLoadedInitialAds) return;
+    if (!hasLoadedInitialAds || isInitialGenerationDone) return;
 
     const isNewProject = projectId === 'new';
     const existingPlatformAds = generatedAds.filter(ad => ad.platform === platform);
@@ -125,14 +124,16 @@ const AdGalleryStep = ({
       isNewProject,
       platform,
       existingAdsCount: existingPlatformAds.length,
-      shouldGenerateAds
+      shouldGenerateAds,
+      isInitialGenerationDone
     });
 
     if (shouldGenerateAds && !generatedPlatforms.has(platform)) {
       console.log('[AdGalleryStep] Triggering initial ad generation for platform:', platform);
       handleGenerateAds(platform);
+      setIsInitialGenerationDone(true);
     }
-  }, [hasLoadedInitialAds, platform, projectId, generatedAds, handleGenerateAds, generatedPlatforms]);
+  }, [hasLoadedInitialAds, platform, projectId, generatedAds, handleGenerateAds, generatedPlatforms, isInitialGenerationDone]);
 
   useEffect(() => {
     if (!onAdsGenerated || adVariants.length === 0) {
@@ -156,7 +157,6 @@ const AdGalleryStep = ({
       updatedAds = adVariants;
     } else {
       updatedAds = [...generatedAds];
-      // Only filter out ads for the current platform
       updatedAds = updatedAds.filter(ad => ad.platform !== platform);
       updatedAds.push(...adVariants);
     }
@@ -246,6 +246,6 @@ const AdGalleryStep = ({
       />
     </div>
   );
-};
+});
 
 export default AdGalleryStep;
