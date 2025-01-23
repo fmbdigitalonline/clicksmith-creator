@@ -14,6 +14,7 @@ import { Video, Image } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Database } from "@/integrations/supabase/types";
 import { useToast } from "@/hooks/use-toast";
+import { v4 as uuidv4 } from 'uuid';
 
 type WizardProgress = Database['public']['Tables']['wizard_progress']['Row'];
 type WizardData = {
@@ -240,7 +241,8 @@ const AdWizard = () => {
         // Create a new project if we don't have one
         if (!projectId || projectId === 'new') {
           const timestamp = new Date().toISOString().slice(0, 19).replace('T', ' ');
-          const projectTitle = `${businessIdea?.description?.slice(0, 30) || 'New Ad Project'} - ${timestamp}`;
+          const shortUuid = uuidv4().split('-')[0]; // Use first segment of UUID
+          const projectTitle = `${businessIdea?.description?.slice(0, 30) || 'New Ad Project'} - ${timestamp} - ${shortUuid}`;
           
           const { data: newProject, error: projectError } = await supabase
             .from('projects')
