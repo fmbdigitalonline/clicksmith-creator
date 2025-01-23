@@ -60,16 +60,22 @@ const AdWizard = () => {
           if (sessionId) {
             console.log('[AdWizard] Found anonymous session data to migrate:', sessionId);
             
-            // Lock to prevent race condition
-            const migrationLock = localStorage.getItem('migration_in_progress');
-            if (migrationLock) {
-              console.log('[AdWizard] Migration already in progress');
-              return;
-            }
-            
-            localStorage.setItem('migration_in_progress', 'true');
-
             try {
+              // First check if this anonymous data was already migrated
+              const { data: wizardData } = await supabase
+                .from('wizard_progress')
+                .select('*')
+                .eq('user_id', user.id)
+                .maybeSingle();
+
+              if (wizardData) {
+                // Data already migrated, clear anonymous session
+                console.log('[AdWizard] User already has wizard progress, clearing anonymous session');
+                localStorage.removeItem('anonymous_session_id');
+                localStorage.removeItem('migration_in_progress');
+                return;
+              }
+
               const { data: anonData, error: anonError } = await supabase
                 .from('anonymous_usage')
                 .select('wizard_data, completed')
@@ -96,7 +102,7 @@ const AdWizard = () => {
                     business_idea: wizardData.business_idea,
                     target_audience: wizardData.target_audience,
                     generated_ads: wizardData.generated_ads,
-                    current_step: 4  // Ensure they land on step 4
+                    current_step: 4
                   });
 
                 if (wizardError) {
@@ -109,7 +115,17 @@ const AdWizard = () => {
                   return;
                 }
 
-                // Clear anonymous data only after successful migration
+                // Delete anonymous data after successful migration
+                const { error: deleteError } = await supabase
+                  .from('anonymous_usage')
+                  .delete()
+                  .eq('session_id', sessionId);
+
+                if (deleteError) {
+                  console.error('[AdWizard] Error deleting anonymous data:', deleteError);
+                }
+
+                // Clear anonymous session data
                 localStorage.removeItem('anonymous_session_id');
                 localStorage.removeItem('migration_in_progress');
                 console.log('[AdWizard] Successfully migrated and cleared anonymous session');
