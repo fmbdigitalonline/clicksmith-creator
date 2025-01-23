@@ -169,7 +169,7 @@ const AdWizard = () => {
             .from('wizard_progress')
             .select('*')
             .eq('user_id', user.id)
-            .maybeSingle();
+            .maybeSingle();  // Changed from single() to maybeSingle()
 
           if (wizardError) {
             console.error('[AdWizard] Error loading wizard progress:', wizardError);
