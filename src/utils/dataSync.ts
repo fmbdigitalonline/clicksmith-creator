@@ -7,19 +7,19 @@ const MAX_ANONYMOUS_SAVES = 3;
 const SAVE_COOLDOWN = 5000; // 5 seconds
 
 export const saveWizardData = async (
-  data: WizardData,
-  userId?: string | null,
-  sessionId?: string | null
+  userId?: string,
+  sessionId?: string,
+  data?: WizardData
 ): Promise<{ success: boolean; error?: string }> => {
   try {
     if (userId) {
-      return await saveAuthenticatedData(userId, data);
+      return saveAuthenticatedData(userId, data as WizardData);
     } else if (sessionId) {
-      return await saveAnonymousData(sessionId, data);
+      return saveAnonymousData(sessionId, data as WizardData);
     }
     return { success: false, error: "No user ID or session ID provided" };
   } catch (error) {
-    logger.error("Error in saveWizardData:", { error });
+    logger.error("Error in saveWizardData:", { error: String(error) });
     return { success: false, error: "Failed to save wizard data" };
   }
 };
@@ -31,18 +31,10 @@ export const createDataBackup = async (userId: string, data: WizardData) => {
       data: JSON.stringify(data),
       metadata: {
         timestamp: new Date().toISOString(),
-        type: 'auto'
-      }
-    };
-
-    const wizardData = {
-      business_idea: data.business_idea || null,
-      target_audience: data.target_audience || null,
-      audience_analysis: data.audience_analysis || null,
-      selected_hooks: data.selected_hooks || null,
-      generated_ads: data.generated_ads || null,
-      current_step: data.current_step || 1,
-      version: data.version || 1
+        type: 'wizard_progress',
+        version: '1.0'
+      },
+      backup_type: 'auto'
     };
 
     const { error } = await supabase
@@ -73,19 +65,18 @@ const saveAuthenticatedData = async (
 
     const wizardData = {
       user_id: userId,
-      business_idea: data.business_idea || null,
-      target_audience: data.target_audience || null,
-      audience_analysis: data.audience_analysis || null,
-      selected_hooks: data.selected_hooks || null,
-      generated_ads: data.generated_ads || null,
+      business_idea: data.business_idea,
+      target_audience: data.target_audience,
+      audience_analysis: data.audience_analysis,
+      selected_hooks: data.selected_hooks,
       current_step: data.current_step || 1,
-      version: data.version || 1,
+      version: (data.version || 0) + 1,
       last_save_attempt: new Date().toISOString()
     };
 
     const { error } = await supabase
       .from('wizard_progress')
-      .upsert([wizardData], {
+      .upsert(wizardData, {
         onConflict: 'user_id'
       });
 
@@ -117,9 +108,9 @@ const saveAnonymousData = async (
       .from('anonymous_usage')
       .select('save_count, last_save_attempt')
       .eq('session_id', sessionId)
-      .single();
+      .maybeSingle();
 
-    if (fetchError && fetchError.code !== 'PGRST116') {
+    if (fetchError) {
       logger.error("Error fetching anonymous usage:", { 
         details: { 
           error: fetchError.message,
@@ -129,35 +120,28 @@ const saveAnonymousData = async (
       return { success: false, error: "Failed to check anonymous usage" };
     }
 
-    const lastSaveAttempt = usage?.last_save_attempt ? new Date(usage.last_save_attempt) : null;
     const now = new Date();
-    
+    const lastSaveAttempt = usage?.last_save_attempt ? new Date(usage.last_save_attempt) : null;
+    const saveCount = usage?.save_count || 0;
+
     if (lastSaveAttempt && (now.getTime() - lastSaveAttempt.getTime()) < SAVE_COOLDOWN) {
-      return { success: false, error: 'Please wait before saving again' };
+      return { success: false, error: "Please wait before saving again" };
     }
 
-    if (usage?.save_count >= MAX_ANONYMOUS_SAVES) {
-      return { success: false, error: 'Maximum saves reached for anonymous session' };
+    if (saveCount >= MAX_ANONYMOUS_SAVES) {
+      return { success: false, error: "Maximum saves reached for anonymous session" };
     }
-
-    const wizardData = {
-      business_idea: data.business_idea || null,
-      target_audience: data.target_audience || null,
-      audience_analysis: data.audience_analysis || null,
-      selected_hooks: data.selected_hooks || null,
-      generated_ads: data.generated_ads || null,
-      current_step: data.current_step || 1
-    };
 
     const { error: upsertError } = await supabase
       .from('anonymous_usage')
-      .upsert([{
+      .upsert({
         session_id: sessionId,
-        wizard_data: wizardData,
-        save_count: (usage?.save_count || 0) + 1,
+        wizard_data: {
+          ...data,
+          last_updated: now.toISOString()
+        },
+        save_count: saveCount + 1,
         last_save_attempt: now.toISOString()
-      }], {
-        onConflict: 'session_id'
       });
 
     if (upsertError) {
