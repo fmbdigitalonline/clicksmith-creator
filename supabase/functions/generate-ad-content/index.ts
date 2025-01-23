@@ -11,7 +11,7 @@ const PLATFORM_FORMATS = {
   facebook: { width: 1200, height: 628, label: "Facebook Feed" },
   google: { width: 1200, height: 628, label: "Google Display" },
   linkedin: { width: 1200, height: 627, label: "LinkedIn Feed" },
-  tiktok: { width: 1080, height: 1920, label: "TikTok Feed", aspectRatio: "9:16" }
+  tiktok: { width: 1080, height: 1920, label: "TikTok Feed" }
 };
 
 serve(async (req) => {
@@ -53,6 +53,13 @@ serve(async (req) => {
           persistSession: false,
           detectSessionInUrl: false,
           flowType: 'pkce'
+        },
+        global: {
+          headers: { 
+            'X-Client-Info': 'generate-ad-content-edge-function',
+            'X-Initial-Auth': 'service_role'
+          },
+          fetch: fetch
         }
       }
     );
@@ -161,25 +168,16 @@ serve(async (req) => {
           throw new Error(`Unsupported platform: ${platform}`);
         }
 
-        // Special handling for TikTok ads
-        const adContent = platform === 'tiktok' 
-          ? campaignData.campaign.adCopies.map(copy => ({
-              ...copy,
-              content: copy.content.slice(0, 150) // TikTok has shorter text limits
-            }))
-          : campaignData.campaign.adCopies;
-
         const variants = Array.from({ length: numVariants }, (_, index) => ({
           id: crypto.randomUUID(),
           platform,
           headline: campaignData.campaign.headlines[index % campaignData.campaign.headlines.length],
-          description: adContent[index % adContent.length].content,
+          description: campaignData.campaign.adCopies[index % campaignData.campaign.adCopies.length].content,
           imageUrl: imageData.images[0]?.url,
-          size: format,
-          aspectRatio: format.aspectRatio || "16:9"
+          size: format
         }));
 
-        console.log(`[generate-ad-content] Generated ${variants.length} variants for ${platform} with format:`, format);
+        console.log(`[generate-ad-content] Generated ${variants.length} variants for ${platform}`);
 
         if (isAnonymous && sessionId) {
           const { error: updateError } = await supabaseAdmin
