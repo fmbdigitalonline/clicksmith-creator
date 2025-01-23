@@ -3,7 +3,8 @@ import { validateWizardData } from "./validation";
 import logger from "./logger";
 import type { LogContext } from "./logger";
 import { encryptData } from "./encryption";
-import { acquireMigrationLock, releaseMigrationLock, cleanupStaleLocks } from "./migrationUtils";
+import { WizardData } from "@/types/wizardProgress";
+import { Json } from "@/integrations/supabase/types";
 
 const MAX_RETRY_ATTEMPTS = 3;
 const RETRY_DELAY = 1000;
@@ -44,6 +45,16 @@ export const createDataBackup = async (userId: string, data: WizardData): Promis
       timestamp: new Date().toISOString(),
       version: data.version || 1,
       type: 'auto'
+    };
+
+    const jsonData: Json = {
+      ...data,
+      business_idea: data.business_idea || null,
+      target_audience: data.target_audience || null,
+      selected_hooks: data.selected_hooks || null,
+      generated_ads: data.generated_ads || null,
+      current_step: data.current_step || 1,
+      version: data.version || 1
     };
 
     await retryOperation(async () => {

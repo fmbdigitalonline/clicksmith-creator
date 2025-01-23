@@ -47,13 +47,12 @@ export const useAdGeneration = (
         throw new Error('User must be logged in to generate ads');
       }
 
-      // Create a backup before generation
       if (projectId && projectId !== 'new') {
         await createDataBackup(user.id, {
-          businessIdea,
-          targetAudience,
-          adHooks,
-          platform: selectedPlatform
+          business_idea: businessIdea,
+          target_audience: targetAudience,
+          selected_hooks: adHooks,
+          current_step: 4
         });
       }
 
@@ -63,9 +62,9 @@ export const useAdGeneration = (
         body: {
           type: 'complete_ads',
           platform: selectedPlatform,
-          businessIdea,
-          targetAudience,
-          adHooks,
+          business_idea: businessIdea,
+          target_audience: targetAudience,
+          ad_hooks: adHooks,
           userId: user.id,
           numVariants: 10
         },
