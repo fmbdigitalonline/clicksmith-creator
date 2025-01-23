@@ -30,6 +30,7 @@ const AdWizard = () => {
   const [generatedAds, setGeneratedAds] = useState<any[]>([]);
   const [hasLoadedInitialAds, setHasLoadedInitialAds] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [isLoadingAuth, setIsLoadingAuth] = useState(true);
   const [anonymousData, setAnonymousData] = useState<WizardData | null>(null);
   const navigate = useNavigate();
   const { projectId } = useParams();
@@ -40,10 +41,17 @@ const AdWizard = () => {
     
     const checkUser = async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
+        setIsLoadingAuth(true);
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        
+        if (userError) {
+          console.error('[AdWizard] Error getting user:', userError);
+          return;
+        }
+
         if (!isMounted) return;
         setCurrentUser(user);
-
+        
         // Only attempt migration if user just registered
         if (user) {
           const sessionId = localStorage.getItem('anonymous_session_id');
@@ -103,9 +111,6 @@ const AdWizard = () => {
                 localStorage.removeItem('anonymous_session_id');
                 localStorage.removeItem('migration_in_progress');
                 console.log('[AdWizard] Successfully migrated and cleared anonymous session');
-                
-                // Set current step to 4 after successful migration
-                setCurrentStep(4);
               }
             } catch (error) {
               console.error('[AdWizard] Migration error:', error);
@@ -115,12 +120,26 @@ const AdWizard = () => {
         }
       } catch (error) {
         console.error('[AdWizard] Error in checkUser:', error);
+      } finally {
+        if (isMounted) {
+          setIsLoadingAuth(false);
+        }
       }
     };
+
+    // Set up auth state listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('[AdWizard] Auth state changed:', event, session?.user?.id);
+      if (isMounted) {
+        setCurrentUser(session?.user || null);
+        setIsLoadingAuth(false);
+      }
+    });
 
     checkUser();
     return () => {
       isMounted = false;
+      subscription.unsubscribe();
     };
   }, [toast]);
 
@@ -374,6 +393,14 @@ const AdWizard = () => {
   };
 
   const currentStepComponent = useMemo(() => {
+    if (isLoadingAuth) {
+      return (
+        <div className="flex items-center justify-center p-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900" />
+        </div>
+      );
+    }
+
     switch (currentStep) {
       case 1:
         return <IdeaStep onNext={handleIdeaSubmit} />;
@@ -415,7 +442,7 @@ const AdWizard = () => {
       default:
         return null;
     }
-  }, [currentStep, businessIdea, targetAudience, audienceAnalysis, selectedHooks, videoAdsEnabled, generatedAds, hasLoadedInitialAds, currentUser]);
+  }, [currentStep, businessIdea, targetAudience, audienceAnalysis, selectedHooks, videoAdsEnabled, generatedAds, hasLoadedInitialAds, currentUser, isLoadingAuth, handleBack, handleIdeaSubmit, handleAudienceSelect, handleAnalysisComplete, handleStartOver, handleCreateProject, handleAdsGenerated]);
 
   return (
     <div className="container max-w-6xl mx-auto px-4 py-8">
