@@ -241,7 +241,7 @@ const AdWizard = () => {
         // Create a new project if we don't have one
         if (!projectId || projectId === 'new') {
           const timestamp = new Date().toISOString().slice(0, 19).replace('T', ' ');
-          const shortUuid = uuidv4().split('-')[0]; // Use first segment of UUID
+          const shortUuid = uuidv4().split('-')[0];
           const projectTitle = `${businessIdea?.description?.slice(0, 30) || 'New Ad Project'} - ${timestamp} - ${shortUuid}`;
           
           const { data: newProject, error: projectError } = await supabase
@@ -371,8 +371,33 @@ const AdWizard = () => {
   };
 
   const handleStartOverWithReset = async () => {
+    console.log('[AdWizard] Starting over with full reset');
     setGeneratedAds([]); // Clear generated ads
     setHasLoadedInitialAds(false); // Reset loading state
+    
+    // Clear wizard progress in database
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { error } = await supabase
+          .from('wizard_progress')
+          .update({
+            business_idea: null,
+            target_audience: null,
+            audience_analysis: null,
+            generated_ads: null,
+            current_step: 1
+          })
+          .eq('user_id', user.id);
+
+        if (error) {
+          console.error('[AdWizard] Error clearing wizard progress:', error);
+        }
+      }
+    } catch (error) {
+      console.error('[AdWizard] Error in handleStartOverWithReset:', error);
+    }
+
     handleStartOver(); // Call original handleStartOver from useAdWizardState
   };
 
