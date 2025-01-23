@@ -11,6 +11,7 @@ import { useEffect, useState, useCallback } from "react";
 import { AdSizeSelector, AD_FORMATS } from "./gallery/components/AdSizeSelector";
 import { useParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 interface AdGalleryStepProps {
   businessIdea: BusinessIdea;
@@ -69,12 +70,42 @@ const AdGalleryStep = ({
   };
 
   const handleGenerateAds = useCallback(async (selectedPlatform: string) => {
+    console.log('[AdGalleryStep] Starting ad generation for platform:', selectedPlatform);
+    
     if (!isGenerating) {
-      console.log('[AdGalleryStep] Generating ads for platform:', selectedPlatform);
       showPlatformWarning(selectedPlatform);
       
       try {
+        // Check credits before generation
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          throw new Error('User must be logged in to generate ads');
+        }
+
+        console.log('[AdGalleryStep] Checking credits before generation');
+        const { data: creditCheck, error: creditError } = await supabase.rpc(
+          'check_user_credits',
+          { p_user_id: user.id, required_credits: 1 }
+        );
+
+        if (creditError) {
+          console.error('[AdGalleryStep] Credit check error:', creditError);
+          throw creditError;
+        }
+
+        const result = creditCheck[0];
+        if (!result.has_credits) {
+          toast({
+            title: "No credits available",
+            description: result.error_message,
+            variant: "destructive",
+          });
+          return;
+        }
+
         const success = await generateAds(selectedPlatform);
+        console.log('[AdGalleryStep] Generation success:', success);
+        
         if (success) {
           console.log('[AdGalleryStep] Successfully generated ads for:', selectedPlatform);
           setGeneratedPlatforms(prev => new Set([...prev, selectedPlatform]));
@@ -96,6 +127,11 @@ const AdGalleryStep = ({
               }
             }));
             
+            console.log('[AdGalleryStep] Updating ads:', {
+              existingCount: filteredAds.length,
+              newCount: newAds.length
+            });
+            
             onAdsGenerated([...filteredAds, ...newAds]);
           }
         } else {
@@ -110,7 +146,7 @@ const AdGalleryStep = ({
         console.error('[AdGalleryStep] Error generating ads:', error);
         toast({
           title: "Error Generating Ads",
-          description: "There was an error generating your ads. Please try again.",
+          description: error instanceof Error ? error.message : "Failed to generate ads. Please try again.",
           variant: "destructive",
         });
       }

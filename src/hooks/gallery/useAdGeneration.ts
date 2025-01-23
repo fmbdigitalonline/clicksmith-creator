@@ -3,7 +3,7 @@ import { VideoAdVariant } from "@/types/videoAdTypes";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 
 export const useAdGeneration = (
@@ -17,10 +17,10 @@ export const useAdGeneration = (
   const [generationStatus, setGenerationStatus] = useState<string>("");
   const { toast } = useToast();
   const navigate = useNavigate();
-  const { projectId } = useParams();
   const queryClient = useQueryClient();
 
   const generateAds = async (selectedPlatform: string) => {
+    console.log('[useAdGeneration] Starting generation for platform:', selectedPlatform);
     setIsGenerating(true);
     setGenerationStatus(`Initializing ${selectedPlatform} ad generation...`);
     
@@ -34,6 +34,7 @@ export const useAdGeneration = (
 
       setGenerationStatus(`Generating ${selectedPlatform} ads...`);
       
+      console.log('[useAdGeneration] Invoking generate-ad-content function');
       const { data, error } = await supabase.functions.invoke('generate-ad-content', {
         body: {
           type: 'complete_ads',
@@ -47,7 +48,7 @@ export const useAdGeneration = (
       });
 
       if (error) {
-        console.error('Error generating ads:', error);
+        console.error('[useAdGeneration] Error generating ads:', error);
         if (error.message.includes('No credits available')) {
           toast({
             title: "No credits available",
@@ -55,7 +56,7 @@ export const useAdGeneration = (
             variant: "destructive",
           });
           navigate('/pricing');
-          return;
+          return false;
         }
         throw error;
       }
@@ -64,7 +65,7 @@ export const useAdGeneration = (
         throw new Error('Invalid response format from server');
       }
 
-      console.log(`Generated ${selectedPlatform} variants:`, data.variants);
+      console.log(`[useAdGeneration] Generated ${data.variants.length} variants for ${selectedPlatform}`);
 
       // Ensure we have exactly 10 variants with the correct platform and format
       const variants = data.variants.map(variant => ({
@@ -83,13 +84,16 @@ export const useAdGeneration = (
         title: "Ads generated successfully",
         description: `Your new ${selectedPlatform} ad variants are ready!`,
       });
+
+      return true;
     } catch (error: any) {
-      console.error('Ad generation error:', error);
+      console.error('[useAdGeneration] Error:', error);
       toast({
         title: "Error generating ads",
         description: error.message || "Failed to generate ads. Please try again.",
         variant: "destructive",
       });
+      return false;
     } finally {
       setIsGenerating(false);
       setGenerationStatus("");
