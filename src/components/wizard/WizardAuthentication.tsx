@@ -123,6 +123,17 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
               if (typedAnonData?.wizard_data) {
                 console.log('[WizardAuthentication] Attempting to migrate data');
 
+                // Double-check right before insert to prevent race conditions
+                const { count } = await supabase
+                  .from('wizard_progress')
+                  .select('*', { count: 'exact', head: true })
+                  .eq('user_id', user.id);
+
+                if (count > 0) {
+                  console.log('[WizardAuthentication] Skipping insert - user already has progress');
+                  return;
+                }
+
                 // Insert new record (not upsert since we already checked for existence)
                 const { error: insertError } = await supabase
                   .from('wizard_progress')
