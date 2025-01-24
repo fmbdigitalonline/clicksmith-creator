@@ -54,7 +54,14 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
             console.log('[WizardAuthentication] Found anonymous session to migrate:', sessionId);
             
             try {
-              // First, get the anonymous data
+              // First, check if user already has wizard progress
+              const { data: existingProgress } = await supabase
+                .from('wizard_progress')
+                .select('*')
+                .eq('user_id', user.id)
+                .single();
+
+              // Get the anonymous data
               const { data: anonData, error: anonError } = await supabase
                 .from('anonymous_usage')
                 .select('wizard_data, completed')
@@ -71,17 +78,20 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
               if (typedAnonData?.wizard_data) {
                 console.log('[WizardAuthentication] Migrating data:', typedAnonData.wizard_data);
                 
-                // Insert into wizard_progress
+                // If existing progress exists, update it. Otherwise, insert new progress
+                const operation = existingProgress ? 'update' : 'insert';
+                
                 const { error: wizardError } = await supabase
                   .from('wizard_progress')
-                  .upsert({
+                  [operation]({
                     user_id: user.id,
                     business_idea: typedAnonData.wizard_data.business_idea,
                     target_audience: typedAnonData.wizard_data.target_audience,
                     generated_ads: typedAnonData.wizard_data.generated_ads || [],
                     current_step: typedAnonData.wizard_data.current_step || 4,
                     version: 1
-                  });
+                  })
+                  .eq(operation === 'update' ? 'user_id' : '', user.id);
 
                 if (wizardError) {
                   console.error('[WizardAuthentication] Error migrating to wizard_progress:', wizardError);
