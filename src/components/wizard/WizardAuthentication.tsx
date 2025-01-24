@@ -5,6 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 interface WizardData {
   business_idea?: any;
   target_audience?: any;
+  audience_analysis?: any;
   generated_ads?: any[];
   current_step?: number;
 }
@@ -78,17 +79,20 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
               if (typedAnonData?.wizard_data) {
                 console.log('[WizardAuthentication] Migrating data:', typedAnonData.wizard_data);
                 
-                // Handle the migration based on whether progress exists
+                const wizardData = {
+                  user_id: user.id,
+                  business_idea: typedAnonData.wizard_data.business_idea || null,
+                  target_audience: typedAnonData.wizard_data.target_audience || null,
+                  audience_analysis: typedAnonData.wizard_data.audience_analysis || null,
+                  generated_ads: typedAnonData.wizard_data.generated_ads || [],
+                  current_step: typedAnonData.wizard_data.current_step || 1,
+                  version: 1
+                };
+
                 if (existingProgress) {
                   const { error: updateError } = await supabase
                     .from('wizard_progress')
-                    .update({
-                      business_idea: typedAnonData.wizard_data.business_idea,
-                      target_audience: typedAnonData.wizard_data.target_audience,
-                      generated_ads: typedAnonData.wizard_data.generated_ads || [],
-                      current_step: typedAnonData.wizard_data.current_step || 4,
-                      version: 1
-                    })
+                    .update(wizardData)
                     .eq('user_id', user.id);
 
                   if (updateError) {
@@ -98,14 +102,7 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
                 } else {
                   const { error: insertError } = await supabase
                     .from('wizard_progress')
-                    .insert({
-                      user_id: user.id,
-                      business_idea: typedAnonData.wizard_data.business_idea,
-                      target_audience: typedAnonData.wizard_data.target_audience,
-                      generated_ads: typedAnonData.wizard_data.generated_ads || [],
-                      current_step: typedAnonData.wizard_data.current_step || 4,
-                      version: 1
-                    });
+                    .insert(wizardData);
 
                   if (insertError) {
                     console.error('[WizardAuthentication] Error inserting wizard_progress:', insertError);
