@@ -53,15 +53,19 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
           const sessionId = localStorage.getItem('anonymous_session_id');
           
           // First, check for existing wizard progress
-          const { data: existingProgress } = await supabase
+          const { data: existingProgress, error: progressError } = await supabase
             .from('wizard_progress')
             .select('*')
             .eq('user_id', user.id)
             .maybeSingle();
 
+          if (progressError && progressError.code !== "PGRST116") {
+            console.error('[WizardAuthentication] Error fetching wizard progress:', progressError);
+            return;
+          }
+
           if (existingProgress) {
             console.log('[WizardAuthentication] Found existing wizard progress:', existingProgress);
-            // Update wizard state with existing progress
             onAnonymousDataChange({
               business_idea: existingProgress.business_idea,
               target_audience: existingProgress.target_audience,
@@ -76,14 +80,13 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
             console.log('[WizardAuthentication] Found anonymous session to migrate:', sessionId);
             
             try {
-              // Get the anonymous data
               const { data: anonData, error: anonError } = await supabase
                 .from('anonymous_usage')
                 .select('wizard_data, completed')
                 .eq('session_id', sessionId)
                 .maybeSingle();
 
-              if (anonError) {
+              if (anonError && anonError.code !== "PGRST116") {
                 console.error('[WizardAuthentication] Error fetching anonymous data:', anonError);
                 return;
               }
@@ -117,10 +120,8 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
                   throw upsertError;
                 }
 
-                // Update wizard state with migrated data
                 onAnonymousDataChange(typedAnonData.wizard_data);
 
-                // Mark anonymous session as used
                 const { error: updateError } = await supabase
                   .from('anonymous_usage')
                   .update({ used: true })
