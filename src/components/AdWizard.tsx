@@ -17,14 +17,6 @@ import RegistrationWall from "./steps/auth/RegistrationWall";
 import { Button } from "./ui/button";
 import { Save } from "lucide-react";
 
-type WizardProgress = Database['public']['Tables']['wizard_progress']['Row'];
-type WizardData = {
-  business_idea?: any;
-  target_audience?: any;
-  generated_ads?: any[];
-  completed?: boolean;
-};
-
 const WizardContent = () => {
   const [showCreateProject, setShowCreateProject] = useState(false);
   const [videoAdsEnabled, setVideoAdsEnabled] = useState(false);
@@ -61,9 +53,9 @@ const WizardContent = () => {
             .from('wizard_progress')
             .upsert({
               user_id: currentUser.id,
-              business_idea: anonymousData.business_idea,
-              target_audience: anonymousData.target_audience,
-              generated_ads: anonymousData.generated_ads,
+              business_idea: anonymousData.business_idea || null,
+              target_audience: anonymousData.target_audience || null,
+              generated_ads: anonymousData.generated_ads || [],
               current_step: 4
             });
 
