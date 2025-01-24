@@ -73,6 +73,8 @@ const AdGalleryStep = ({
   const handleGenerateAds = useCallback(async (selectedPlatform: string) => {
     if (!isGenerating) {
       logger.info('[AdGalleryStep] Generating ads for platform:', {
+        component: 'AdGalleryStep',
+        action: 'generateAds',
         details: { selectedPlatform, businessIdea, targetAudience }
       });
       
@@ -88,11 +90,15 @@ const AdGalleryStep = ({
         const success = await generateAds(selectedPlatform);
         if (success) {
           logger.info('[AdGalleryStep] Successfully generated ads:', {
+            component: 'AdGalleryStep',
+            action: 'generateAds',
             details: { selectedPlatform, count: adVariants.length }
           });
           setGeneratedPlatforms(prev => new Set([...prev, selectedPlatform]));
         } else {
           logger.error('[AdGalleryStep] Failed to generate ads:', {
+            component: 'AdGalleryStep',
+            action: 'generateAds',
             details: { selectedPlatform }
           });
           setGeneratedPlatforms(prev => {
@@ -103,6 +109,8 @@ const AdGalleryStep = ({
         }
       } catch (error) {
         logger.error('[AdGalleryStep] Error generating ads:', {
+          component: 'AdGalleryStep',
+          action: 'generateAds',
           error,
           details: { selectedPlatform }
         });
@@ -129,6 +137,8 @@ const AdGalleryStep = ({
     const shouldGenerateAds = isNewProject || existingPlatformAds.length === 0;
 
     logger.info('[AdGalleryStep] Initial ad generation check:', {
+      component: 'AdGalleryStep',
+      action: 'checkInitialGeneration',
       details: {
         hasLoadedInitialAds,
         generatedPlatforms: Array.from(generatedPlatforms),
@@ -142,6 +152,8 @@ const AdGalleryStep = ({
 
     if (shouldGenerateAds && !generatedPlatforms.has(platform)) {
       logger.info('[AdGalleryStep] Triggering initial generation:', {
+        component: 'AdGalleryStep',
+        action: 'initialGeneration',
         details: { platform }
       });
       handleGenerateAds(platform);
@@ -152,6 +164,8 @@ const AdGalleryStep = ({
   useEffect(() => {
     if (!onAdsGenerated || adVariants.length === 0) {
       logger.info('[AdGalleryStep] Skipping ad state update:', {
+        component: 'AdGalleryStep',
+        action: 'updateAdState',
         details: {
           hasCallback: !!onAdsGenerated,
           variantsCount: adVariants.length
@@ -162,6 +176,8 @@ const AdGalleryStep = ({
 
     const isNewProject = projectId === 'new';
     logger.info('[AdGalleryStep] Updating ads state:', {
+      component: 'AdGalleryStep',
+      action: 'updateAdState',
       details: {
         isNewProject,
         platform,
@@ -180,6 +196,8 @@ const AdGalleryStep = ({
     }
 
     logger.info('[AdGalleryStep] Final ads update:', {
+      component: 'AdGalleryStep',
+      action: 'updateAdState',
       details: {
         updatedAdsCount: updatedAds.length,
         platform
