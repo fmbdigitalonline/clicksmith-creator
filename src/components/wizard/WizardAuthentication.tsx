@@ -2,6 +2,18 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
+interface WizardData {
+  business_idea?: any;
+  target_audience?: any;
+  generated_ads?: any[];
+  current_step?: number;
+}
+
+interface AnonymousData {
+  wizard_data: WizardData;
+  completed: boolean;
+}
+
 interface WizardAuthenticationProps {
   onUserChange: (user: any) => void;
   onAnonymousDataChange: (data: any) => void;
@@ -54,18 +66,20 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
                 return;
               }
 
-              if (anonData?.wizard_data) {
-                console.log('[WizardAuthentication] Migrating data:', anonData.wizard_data);
+              const typedAnonData = anonData as AnonymousData;
+
+              if (typedAnonData?.wizard_data) {
+                console.log('[WizardAuthentication] Migrating data:', typedAnonData.wizard_data);
                 
                 // Insert into wizard_progress
                 const { error: wizardError } = await supabase
                   .from('wizard_progress')
                   .upsert({
                     user_id: user.id,
-                    business_idea: anonData.wizard_data.business_idea,
-                    target_audience: anonData.wizard_data.target_audience,
-                    generated_ads: anonData.wizard_data.generated_ads || [],
-                    current_step: anonData.wizard_data.current_step || 4,
+                    business_idea: typedAnonData.wizard_data.business_idea,
+                    target_audience: typedAnonData.wizard_data.target_audience,
+                    generated_ads: typedAnonData.wizard_data.generated_ads || [],
+                    current_step: typedAnonData.wizard_data.current_step || 4,
                     version: 1
                   });
 
@@ -89,7 +103,7 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
                   console.error('[WizardAuthentication] Error marking session as used:', updateError);
                 }
 
-                onAnonymousDataChange(anonData.wizard_data);
+                onAnonymousDataChange(typedAnonData.wizard_data);
                 localStorage.removeItem('anonymous_session_id');
                 
                 toast({
