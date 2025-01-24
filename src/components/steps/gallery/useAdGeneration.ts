@@ -1,11 +1,10 @@
-import { useState } from "react";
 import { BusinessIdea, TargetAudience, AdHook } from "@/types/adWizard";
 import { VideoAdVariant } from "@/types/videoAdTypes";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
-import logger from "@/utils/logger";
+import { useNavigate, useParams } from "react-router-dom";
+import { useState } from "react";
 
 export const useAdGeneration = (
   businessIdea: BusinessIdea,
@@ -18,24 +17,19 @@ export const useAdGeneration = (
   const [generationStatus, setGenerationStatus] = useState<string>("");
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { projectId } = useParams();
   const queryClient = useQueryClient();
 
   const generateAds = async (selectedPlatform: string) => {
-    logger.info('[useAdGeneration](generateAds) Starting ad generation', {
-      details: { platform: selectedPlatform }
-    });
-
     setIsGenerating(true);
     setGenerationStatus(`Initializing ${selectedPlatform} ad generation...`);
     
     try {
       const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError) {
-        logger.error('[useAdGeneration](generateAds) User error:', {
-          details: { error: userError.message },
-          status: userError.status?.toString()
-        });
-        throw userError;
+      if (userError) throw userError;
+      
+      if (!user) {
+        throw new Error('User must be logged in to generate ads');
       }
 
       setGenerationStatus(`Generating ${selectedPlatform} ads...`);
@@ -44,23 +38,17 @@ export const useAdGeneration = (
         body: {
           type: 'complete_ads',
           platform: selectedPlatform,
-          business_idea: businessIdea,
-          target_audience: targetAudience,
-          selected_hooks: adHooks,
-          userId: user?.id,
-          sessionId: localStorage.getItem('anonymous_session_id'),
-          isAnonymous: !user,
+          businessIdea,
+          targetAudience,
+          adHooks,
+          userId: user.id,
           numVariants: 10
         },
       });
 
       if (error) {
-        logger.error('[useAdGeneration](generateAds) Generation error:', {
-          details: { error: error.message },
-          status: 'error'
-        });
-        
-        if (error.message?.includes('No credits available')) {
+        console.error('Error generating ads:', error);
+        if (error.message.includes('No credits available')) {
           toast({
             title: "No credits available",
             description: "Please upgrade your plan to continue generating ads.",
@@ -69,7 +57,6 @@ export const useAdGeneration = (
           navigate('/pricing');
           return false;
         }
-
         throw error;
       }
 
@@ -77,10 +64,9 @@ export const useAdGeneration = (
         throw new Error('Invalid response format from server');
       }
 
-      logger.info('[useAdGeneration](generateAds) Generated variants:', {
-        details: { count: data.variants.length }
-      });
+      console.log(`Generated ${selectedPlatform} variants:`, data.variants);
 
+      // Ensure we have exactly 10 variants with the correct platform and format
       const variants = data.variants.map(variant => ({
         ...variant,
         platform: selectedPlatform,
@@ -89,6 +75,7 @@ export const useAdGeneration = (
 
       setAdVariants(variants);
 
+      // Refresh credits display
       queryClient.invalidateQueries({ queryKey: ['subscription'] });
       queryClient.invalidateQueries({ queryKey: ['free_tier_usage'] });
 
@@ -99,11 +86,7 @@ export const useAdGeneration = (
 
       return true;
     } catch (error: any) {
-      logger.error('[useAdGeneration](generateAds) Error in ad generation:', {
-        details: { error: error.message },
-        status: 'error'
-      });
-      
+      console.error('Ad generation error:', error);
       toast({
         title: "Error generating ads",
         description: error.message || "Failed to generate ads. Please try again.",

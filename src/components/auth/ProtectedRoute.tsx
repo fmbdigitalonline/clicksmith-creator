@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import logger from "@/utils/logger";
 
 type AuthEvent = 'SIGNED_IN' | 'SIGNED_OUT' | 'TOKEN_REFRESHED' | 'USER_UPDATED';
 
@@ -15,14 +14,10 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     const checkSession = async () => {
       try {
-        logger.info("Checking session", { component: "ProtectedRoute" });
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
         
         if (sessionError) {
-          logger.error("Session error", { 
-            component: "ProtectedRoute", 
-            error: sessionError 
-          });
+          console.error("Session error:", sessionError);
           setIsAuthenticated(false);
           navigate('/login', { replace: true });
           return;
@@ -31,10 +26,6 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
         // Check for anonymous session
         const anonymousSessionId = localStorage.getItem('anonymous_session_id');
         if (!session && anonymousSessionId) {
-          logger.info("Checking anonymous session", { 
-            component: "ProtectedRoute",
-            details: { anonymousSessionId }
-          });
           const { data: usage } = await supabase
             .from('anonymous_usage')
             .select('used')
@@ -42,19 +33,18 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
             .single();
 
           if (usage && !usage.used) {
-            logger.info("Valid anonymous session found", { component: "ProtectedRoute" });
             navigate('/ad-wizard/new', { replace: true });
             return;
           }
         }
 
         if (!session) {
-          logger.info("No valid session found", { component: "ProtectedRoute" });
           setIsAuthenticated(false);
           navigate('/login', { replace: true });
           return;
         }
 
+        // Only attempt to refresh if we have a valid session
         if (session) {
           try {
             const { data: { user }, error: refreshError } = await supabase.auth.refreshSession();
@@ -102,12 +92,8 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
             });
           }
         }
-
       } catch (error) {
-        logger.error("Authentication check failed", { 
-          component: "ProtectedRoute", 
-          error 
-        });
+        console.error("Auth error:", error);
         setIsAuthenticated(false);
         navigate('/login', { replace: true });
       } finally {
@@ -120,15 +106,11 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      logger.info("Auth state changed", { 
-        component: "ProtectedRoute",
-        details: { event, userId: session?.user?.id }
-      });
+      console.log("Auth state changed:", event);
       
       const handleAuthEvent = (event: AuthEvent) => {
         switch (event) {
           case 'SIGNED_OUT':
-            logger.info("User signed out", { component: "ProtectedRoute" });
             setIsAuthenticated(false);
             navigate('/login', { replace: true });
             toast({
@@ -138,14 +120,9 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
             break;
           case 'SIGNED_IN':
           case 'TOKEN_REFRESHED':
-            logger.info("User authenticated", { 
-              component: "ProtectedRoute",
-              details: { event }
-            });
             setIsAuthenticated(true);
             break;
           case 'USER_UPDATED':
-            logger.info("User profile updated", { component: "ProtectedRoute" });
             setIsAuthenticated(!!session);
             break;
         }

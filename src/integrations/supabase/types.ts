@@ -106,8 +106,6 @@ export type Database = {
           created_at: string
           id: string
           last_completed_step: number | null
-          last_save_attempt: string | null
-          save_count: number | null
           session_id: string
           used: boolean | null
           wizard_data: Json | null
@@ -117,8 +115,6 @@ export type Database = {
           created_at?: string
           id?: string
           last_completed_step?: number | null
-          last_save_attempt?: string | null
-          save_count?: number | null
           session_id: string
           used?: boolean | null
           wizard_data?: Json | null
@@ -128,8 +124,6 @@ export type Database = {
           created_at?: string
           id?: string
           last_completed_step?: number | null
-          last_save_attempt?: string | null
-          save_count?: number | null
           session_id?: string
           used?: boolean | null
           wizard_data?: Json | null
@@ -162,33 +156,6 @@ export type Database = {
           id?: string
           operation_type?: Database["public"]["Enums"]["credit_operation_type"]
           status?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
-      data_backups: {
-        Row: {
-          backup_type: Database["public"]["Enums"]["backup_type"]
-          created_at: string
-          data: string
-          id: string
-          metadata: Json
-          user_id: string
-        }
-        Insert: {
-          backup_type?: Database["public"]["Enums"]["backup_type"]
-          created_at?: string
-          data: string
-          id?: string
-          metadata?: Json
-          user_id: string
-        }
-        Update: {
-          backup_type?: Database["public"]["Enums"]["backup_type"]
-          created_at?: string
-          data?: string
-          id?: string
-          metadata?: Json
           user_id?: string
         }
         Relationships: []
@@ -276,33 +243,6 @@ export type Database = {
           id?: string
           updated_at?: string
           user_id?: string
-        }
-        Relationships: []
-      }
-      migration_locks: {
-        Row: {
-          created_at: string
-          expires_at: string
-          id: string
-          lock_type: string
-          metadata: Json | null
-          user_id: string | null
-        }
-        Insert: {
-          created_at?: string
-          expires_at: string
-          id?: string
-          lock_type: string
-          metadata?: Json | null
-          user_id?: string | null
-        }
-        Update: {
-          created_at?: string
-          expires_at?: string
-          id?: string
-          lock_type?: string
-          metadata?: Json | null
-          user_id?: string | null
         }
         Relationships: []
       }
@@ -616,12 +556,10 @@ export type Database = {
           current_step: number | null
           generated_ads: Json | null
           id: string
-          last_save_attempt: string | null
           selected_hooks: Json | null
           target_audience: Json | null
           updated_at: string
           user_id: string
-          version: number | null
           video_ad_preferences: Json | null
         }
         Insert: {
@@ -632,12 +570,10 @@ export type Database = {
           current_step?: number | null
           generated_ads?: Json | null
           id?: string
-          last_save_attempt?: string | null
           selected_hooks?: Json | null
           target_audience?: Json | null
           updated_at?: string
           user_id: string
-          version?: number | null
           video_ad_preferences?: Json | null
         }
         Update: {
@@ -648,12 +584,10 @@ export type Database = {
           current_step?: number | null
           generated_ads?: Json | null
           id?: string
-          last_save_attempt?: string | null
           selected_hooks?: Json | null
           target_audience?: Json | null
           updated_at?: string
           user_id?: string
-          version?: number | null
           video_ad_preferences?: Json | null
         }
         Relationships: []
@@ -696,10 +630,6 @@ export type Database = {
           error_message: string
         }[]
       }
-      cleanup_stale_locks: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
       deduct_user_credits: {
         Args: {
           input_user_id: string
@@ -723,7 +653,6 @@ export type Database = {
       }
     }
     Enums: {
-      backup_type: "auto" | "manual"
       credit_operation_type: "credit_add" | "credit_deduct" | "credit_refund"
     }
     CompositeTypes: {
