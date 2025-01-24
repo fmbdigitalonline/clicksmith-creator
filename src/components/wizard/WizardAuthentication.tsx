@@ -78,29 +78,39 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
               if (typedAnonData?.wizard_data) {
                 console.log('[WizardAuthentication] Migrating data:', typedAnonData.wizard_data);
                 
-                // If existing progress exists, update it. Otherwise, insert new progress
-                const operation = existingProgress ? 'update' : 'insert';
-                
-                const { error: wizardError } = await supabase
-                  .from('wizard_progress')
-                  [operation]({
-                    user_id: user.id,
-                    business_idea: typedAnonData.wizard_data.business_idea,
-                    target_audience: typedAnonData.wizard_data.target_audience,
-                    generated_ads: typedAnonData.wizard_data.generated_ads || [],
-                    current_step: typedAnonData.wizard_data.current_step || 4,
-                    version: 1
-                  })
-                  .eq(operation === 'update' ? 'user_id' : '', user.id);
+                // Handle the migration based on whether progress exists
+                if (existingProgress) {
+                  const { error: updateError } = await supabase
+                    .from('wizard_progress')
+                    .update({
+                      business_idea: typedAnonData.wizard_data.business_idea,
+                      target_audience: typedAnonData.wizard_data.target_audience,
+                      generated_ads: typedAnonData.wizard_data.generated_ads || [],
+                      current_step: typedAnonData.wizard_data.current_step || 4,
+                      version: 1
+                    })
+                    .eq('user_id', user.id);
 
-                if (wizardError) {
-                  console.error('[WizardAuthentication] Error migrating to wizard_progress:', wizardError);
-                  toast({
-                    title: "Migration Error",
-                    description: "There was an error saving your progress. Please try again.",
-                    variant: "destructive",
-                  });
-                  return;
+                  if (updateError) {
+                    console.error('[WizardAuthentication] Error updating wizard_progress:', updateError);
+                    throw updateError;
+                  }
+                } else {
+                  const { error: insertError } = await supabase
+                    .from('wizard_progress')
+                    .insert({
+                      user_id: user.id,
+                      business_idea: typedAnonData.wizard_data.business_idea,
+                      target_audience: typedAnonData.wizard_data.target_audience,
+                      generated_ads: typedAnonData.wizard_data.generated_ads || [],
+                      current_step: typedAnonData.wizard_data.current_step || 4,
+                      version: 1
+                    });
+
+                  if (insertError) {
+                    console.error('[WizardAuthentication] Error inserting wizard_progress:', insertError);
+                    throw insertError;
+                  }
                 }
 
                 // Mark anonymous session as used
