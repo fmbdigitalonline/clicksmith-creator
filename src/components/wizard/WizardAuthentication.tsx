@@ -18,6 +18,7 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
     
     const checkUser = async () => {
       try {
+        console.log('[WizardAuthentication] Starting user check...');
         const { data: { user }, error: sessionError } = await supabase.auth.getUser();
         
         if (sessionError) {
@@ -38,22 +39,15 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
         if (user) {
           const sessionId = localStorage.getItem('anonymous_session_id');
           if (sessionId) {
-            console.log('[WizardAuthentication] Found anonymous session data to migrate:', sessionId);
+            console.log('[WizardAuthentication] Found anonymous session to migrate:', sessionId);
             
-            const migrationLock = localStorage.getItem('migration_in_progress');
-            if (migrationLock) {
-              console.log('[WizardAuthentication] Migration already in progress');
-              return;
-            }
-            
-            localStorage.setItem('migration_in_progress', 'true');
-
             try {
+              // First, get the anonymous data
               const { data: anonData, error: anonError } = await supabase
                 .from('anonymous_usage')
                 .select('wizard_data, completed')
                 .eq('session_id', sessionId)
-                .maybeSingle();
+                .single();
 
               if (anonError) {
                 console.error('[WizardAuthentication] Error fetching anonymous data:', anonError);
@@ -61,15 +55,55 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
               }
 
               if (anonData?.wizard_data) {
-                console.log('[WizardAuthentication] Migrating anonymous data:', anonData.wizard_data);
-                onAnonymousDataChange(anonData.wizard_data);
-              }
+                console.log('[WizardAuthentication] Migrating data:', anonData.wizard_data);
+                
+                // Insert into wizard_progress
+                const { error: wizardError } = await supabase
+                  .from('wizard_progress')
+                  .upsert({
+                    user_id: user.id,
+                    business_idea: anonData.wizard_data.business_idea,
+                    target_audience: anonData.wizard_data.target_audience,
+                    generated_ads: anonData.wizard_data.generated_ads || [],
+                    current_step: anonData.wizard_data.current_step || 4,
+                    version: 1
+                  });
 
-              localStorage.removeItem('anonymous_session_id');
-              localStorage.removeItem('migration_in_progress');
+                if (wizardError) {
+                  console.error('[WizardAuthentication] Error migrating to wizard_progress:', wizardError);
+                  toast({
+                    title: "Migration Error",
+                    description: "There was an error saving your progress. Please try again.",
+                    variant: "destructive",
+                  });
+                  return;
+                }
+
+                // Mark anonymous session as used
+                const { error: updateError } = await supabase
+                  .from('anonymous_usage')
+                  .update({ used: true })
+                  .eq('session_id', sessionId);
+
+                if (updateError) {
+                  console.error('[WizardAuthentication] Error marking session as used:', updateError);
+                }
+
+                onAnonymousDataChange(anonData.wizard_data);
+                localStorage.removeItem('anonymous_session_id');
+                
+                toast({
+                  title: "Progress Migrated",
+                  description: "Your previous work has been saved to your account.",
+                });
+              }
             } catch (error) {
               console.error('[WizardAuthentication] Migration error:', error);
-              localStorage.removeItem('migration_in_progress');
+              toast({
+                title: "Migration Error",
+                description: "Failed to migrate your previous work. Please try again.",
+                variant: "destructive",
+              });
             }
           }
         }
