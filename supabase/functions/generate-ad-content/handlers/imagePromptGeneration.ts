@@ -3,14 +3,12 @@ import { generateWithReplicate } from './utils/replicateUtils.ts';
 
 const safeJSONParse = (str: string) => {
   try {
-    // First clean any markdown formatting
-    let cleaned = str.replace(/```json\s*/g, '')  // Remove ```json
-                    .replace(/```\s*/g, '')       // Remove closing ```
+    let cleaned = str.replace(/```json\s*/g, '')
+                    .replace(/```\s*/g, '')
                     .replace(/[\u0000-\u001F\u007F-\u009F]/g, '')
                     .replace(/\n/g, ' ')
                     .trim();
     
-    // If the string starts with a markdown block, extract just the JSON
     const jsonMatch = cleaned.match(/\[.*\]/s);
     if (jsonMatch) {
       cleaned = jsonMatch[0];
@@ -35,17 +33,29 @@ export async function generateImagePrompts(
   targetAudience: TargetAudience,
   campaign?: MarketingCampaign
 ) {
-  const audiencePainPoints = targetAudience.painPoints || [];
-  const deepPainPoints = targetAudience.audienceAnalysis?.deepPainPoints || [];
+  // Safely extract pain points with null checks
+  const audiencePainPoints = targetAudience?.painPoints || [];
+  const deepPainPoints = targetAudience?.audienceAnalysis?.deepPainPoints || [];
   const allPainPoints = [...new Set([...audiencePainPoints, ...deepPainPoints])];
+
+  // Add default pain points if none are available
+  if (allPainPoints.length === 0) {
+    allPainPoints.push("general business challenges");
+  }
+
+  console.log('Generating image prompts with context:', {
+    businessDescription: businessIdea?.description || 'No description provided',
+    painPointsCount: allPainPoints.length,
+    hasCampaign: !!campaign
+  });
 
   const prompt = `Generate creative image prompt for marketing visual based on this business and target audience:
 
 Business:
-${JSON.stringify(businessIdea, null, 2)}
+${JSON.stringify(businessIdea || {}, null, 2)}
 
 Target Audience:
-${JSON.stringify({ ...targetAudience, painPoints: allPainPoints }, null, 2)}
+${JSON.stringify({ ...targetAudience, painPoints: allPainPoints } || {}, null, 2)}
 
 ${campaign ? `Campaign Details:
 ${JSON.stringify(campaign, null, 2)}` : ''}
@@ -79,10 +89,10 @@ Return ONLY a valid JSON array with exactly 1 item in this format:
 
   try {
     console.log('Generating image prompts with:', { 
-      businessIdea, 
-      targetAudience, 
-      campaign,
-      combinedPainPoints: allPainPoints 
+      hasBusinessIdea: !!businessIdea, 
+      hasTargetAudience: !!targetAudience, 
+      hasCampaign: !!campaign,
+      painPointsCount: allPainPoints.length 
     });
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -121,7 +131,6 @@ Return ONLY a valid JSON array with exactly 1 item in this format:
       throw new Error('Invalid prompts format: Expected non-empty array');
     }
 
-    // Generate images for each format
     const imagePromises = AD_FORMATS.map(async (format) => {
       if (!generatedPrompts[0].prompt || typeof generatedPrompts[0].prompt !== 'string') {
         throw new Error('Invalid prompt format: Expected string prompt');
