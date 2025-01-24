@@ -14,6 +14,8 @@ import AudienceStep from "./steps/AudienceStep";
 import AudienceAnalysisStep from "./steps/AudienceAnalysisStep";
 import AdGalleryStep from "./steps/AdGalleryStep";
 import RegistrationWall from "./steps/auth/RegistrationWall";
+import { Button } from "./ui/button";
+import { Save } from "lucide-react";
 
 type WizardProgress = Database['public']['Tables']['wizard_progress']['Row'];
 type WizardData = {
@@ -177,26 +179,100 @@ const WizardContent = () => {
     }
   };
 
+  const handleSaveToProject = async () => {
+    if (!currentUser) {
+      toast({
+        title: "Authentication Required",
+        description: "Please sign in to save your progress to a project.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const projectData = {
+        title: businessIdea?.description?.substring(0, 50) || "New Project",
+        description: businessIdea?.description,
+        user_id: currentUser.id,
+        business_idea: businessIdea,
+        target_audience: targetAudience,
+        audience_analysis: audienceAnalysis,
+        status: "in_progress",
+      };
+
+      const { data, error } = await supabase
+        .from("projects")
+        .insert(projectData)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      toast({
+        title: "Project Saved",
+        description: "Your progress has been saved to a new project.",
+      });
+
+      if (data) {
+        navigate(`/ad-wizard/${data.id}`);
+      }
+    } catch (error) {
+      console.error('[AdWizard] Error saving project:', error);
+      toast({
+        title: "Error Saving Project",
+        description: "There was an error saving your progress. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const renderSaveButton = () => {
+    if (currentStep >= 1 && currentStep <= 3 && businessIdea) {
+      return (
+        <Button 
+          onClick={handleSaveToProject}
+          className="ml-4"
+          variant="outline"
+        >
+          <Save className="w-4 h-4 mr-2" />
+          Save to Project
+        </Button>
+      );
+    }
+    return null;
+  };
+
   const currentStepComponent = useMemo(() => {
     switch (currentStep) {
       case 1:
-        return <IdeaStep onNext={handleIdeaSubmit} />;
+        return (
+          <>
+            <IdeaStep onNext={handleIdeaSubmit} />
+            {renderSaveButton()}
+          </>
+        );
       case 2:
         return businessIdea ? (
-          <AudienceStep
-            businessIdea={businessIdea}
-            onNext={handleAudienceSelect}
-            onBack={handleBack}
-          />
+          <>
+            <AudienceStep
+              businessIdea={businessIdea}
+              onNext={handleAudienceSelect}
+              onBack={handleBack}
+            />
+            {renderSaveButton()}
+          </>
         ) : null;
       case 3:
         return businessIdea && targetAudience ? (
-          <AudienceAnalysisStep
-            businessIdea={businessIdea}
-            targetAudience={targetAudience}
-            onNext={handleAnalysisComplete}
-            onBack={handleBack}
-          />
+          <>
+            <AudienceAnalysisStep
+              businessIdea={businessIdea}
+              targetAudience={targetAudience}
+              onNext={handleAnalysisComplete}
+              onBack={handleBack}
+            />
+            {renderSaveButton()}
+          </>
         ) : null;
       case 4:
         if (!currentUser) {
