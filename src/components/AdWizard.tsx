@@ -14,6 +14,7 @@ import AudienceStep from "./steps/AudienceStep";
 import AudienceAnalysisStep from "./steps/AudienceAnalysisStep";
 import AdGalleryStep from "./steps/AdGalleryStep";
 import RegistrationWall from "./steps/auth/RegistrationWall";
+import logger from "@/utils/logger";
 
 type WizardProgress = Database['public']['Tables']['wizard_progress']['Row'];
 type WizardData = {
@@ -53,9 +54,17 @@ const WizardContent = () => {
   useEffect(() => {
     const loadProgress = async () => {
       try {
-        console.log('[AdWizard] Starting to load progress');
+        logger.info('[AdWizard] Starting to load progress', {
+          component: 'AdWizard',
+          details: { projectId, hasAnonymousData: !!anonymousData }
+        });
+
         if (anonymousData && currentUser) {
-          console.log('[AdWizard] Migrating anonymous data to user account');
+          logger.info('[AdWizard] Migrating anonymous data to user account', {
+            component: 'AdWizard',
+            details: { userId: currentUser.id }
+          });
+
           const { error: wizardError } = await supabase
             .from('wizard_progress')
             .upsert({
@@ -67,10 +76,12 @@ const WizardContent = () => {
             });
 
           if (wizardError) {
-            console.error('[AdWizard] Error migrating anonymous data:', wizardError);
+            logger.error('[AdWizard] Error migrating anonymous data:', {
+              component: 'AdWizard',
+              details: { error: wizardError }
+            });
           } else {
             setGeneratedAds(anonymousData.generated_ads || []);
-            // Set the current step from anonymous data before clearing it
             if (anonymousData.current_step) {
               setCurrentStep(anonymousData.current_step);
             }
@@ -79,6 +90,11 @@ const WizardContent = () => {
         }
 
         if (currentUser) {
+          logger.info('[AdWizard] Loading user progress', {
+            component: 'AdWizard',
+            details: { userId: currentUser.id }
+          });
+
           const { data: wizardData, error: wizardError } = await supabase
             .from('wizard_progress')
             .select('*')
@@ -86,7 +102,10 @@ const WizardContent = () => {
             .maybeSingle();
 
           if (wizardError) {
-            console.error('[AdWizard] Error loading wizard progress:', wizardError);
+            logger.error('[AdWizard] Error loading wizard progress:', {
+              component: 'AdWizard',
+              details: { error: wizardError }
+            });
             toast({
               title: "Couldn't load your progress",
               description: "We had trouble loading your previous work. Starting fresh.",
@@ -96,10 +115,12 @@ const WizardContent = () => {
 
           if (wizardData) {
             if (wizardData.generated_ads && Array.isArray(wizardData.generated_ads)) {
-              console.log('[AdWizard] Loading saved ads from wizard progress:', wizardData.generated_ads);
+              logger.info('[AdWizard] Loading saved ads', {
+                component: 'AdWizard',
+                details: { adsCount: wizardData.generated_ads.length }
+              });
               setGeneratedAds(wizardData.generated_ads);
             }
-            // Load and set the current step from wizard progress
             if (wizardData.current_step) {
               setCurrentStep(wizardData.current_step);
             }
@@ -108,7 +129,10 @@ const WizardContent = () => {
 
         setHasLoadedInitialAds(true);
       } catch (error) {
-        console.error('[AdWizard] Unexpected error in loadProgress:', error);
+        logger.error('[AdWizard] Unexpected error in loadProgress:', {
+          component: 'AdWizard',
+          details: { error }
+        });
         toast({
           title: "Something went wrong",
           description: "We couldn't load your previous work. Please try refreshing the page.",
@@ -121,13 +145,27 @@ const WizardContent = () => {
     loadProgress();
   }, [projectId, navigate, toast, anonymousData, currentUser, setCurrentStep]);
 
-  const handleCreateProject = () => setShowCreateProject(true);
+  const handleCreateProject = () => {
+    logger.info('[AdWizard] Creating new project', {
+      component: 'AdWizard'
+    });
+    setShowCreateProject(true);
+  };
+
   const handleProjectCreated = (projectId: string) => {
+    logger.info('[AdWizard] Project created successfully', {
+      component: 'AdWizard',
+      details: { projectId }
+    });
     setShowCreateProject(false);
     navigate(`/ad-wizard/${projectId}`);
   };
 
   const handleVideoAdsToggle = async (enabled: boolean) => {
+    logger.info('[AdWizard] Toggling video ads', {
+      component: 'AdWizard',
+      details: { enabled }
+    });
     setVideoAdsEnabled(enabled);
     if (projectId && projectId !== 'new') {
       await supabase
@@ -144,14 +182,21 @@ const WizardContent = () => {
   };
 
   const handleAdsGenerated = async (newAds: any[]) => {
-    console.log('[AdWizard] Handling newly generated ads:', newAds);
+    logger.info('[AdWizard] Handling newly generated ads', {
+      component: 'AdWizard',
+      details: { adsCount: newAds.length }
+    });
     setGeneratedAds(newAds);
     
     try {
       const sessionId = localStorage.getItem('anonymous_session_id');
 
       if (!currentUser && sessionId) {
-        console.log('[AdWizard] Saving ads for anonymous user');
+        logger.info('[AdWizard] Saving ads for anonymous user', {
+          component: 'AdWizard',
+          details: { sessionId }
+        });
+
         const { error: anonymousError } = await supabase
           .from('anonymous_usage')
           .update({
@@ -174,12 +219,18 @@ const WizardContent = () => {
           .eq('session_id', sessionId);
 
         if (anonymousError) {
-          console.error('[AdWizard] Error saving anonymous ads:', anonymousError);
+          logger.error('[AdWizard] Error saving anonymous ads:', {
+            component: 'AdWizard',
+            details: { error: anonymousError }
+          });
           throw anonymousError;
         }
       }
     } catch (error: any) {
-      console.error('[AdWizard] Error in handleAdsGenerated:', error);
+      logger.error('[AdWizard] Error in handleAdsGenerated:', {
+        component: 'AdWizard',
+        details: { error }
+      });
       toast({
         title: "Couldn't save your ads",
         description: "Your ads were generated but we couldn't save them. Please try again.",
