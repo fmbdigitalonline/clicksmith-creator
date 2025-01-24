@@ -82,6 +82,25 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
             console.log('[WizardAuthentication] Checking anonymous session:', sessionId);
             
             try {
+              // First check if we already have a record for this user
+              const { data: existingRecord, error: existingError } = await supabase
+                .from('wizard_progress')
+                .select('*')
+                .eq('user_id', user.id)
+                .single();
+
+              if (existingError && existingError.code !== 'PGRST116') {
+                console.error('[WizardAuthentication] Error checking existing record:', existingError);
+                return;
+              }
+
+              // If we already have a record, skip migration
+              if (existingRecord) {
+                console.log('[WizardAuthentication] User already has wizard progress, skipping migration');
+                localStorage.removeItem('anonymous_session_id');
+                return;
+              }
+
               const { data: anonData, error: anonError } = await supabase
                 .from('anonymous_usage')
                 .select('wizard_data, completed, used')
@@ -95,6 +114,7 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
 
               if (!anonData || anonData.used) {
                 console.log('[WizardAuthentication] No unused anonymous data found for session:', sessionId);
+                localStorage.removeItem('anonymous_session_id');
                 return;
               }
 
@@ -102,39 +122,33 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
 
               if (typedAnonData?.wizard_data) {
                 console.log('[WizardAuthentication] Attempting to migrate data');
-                
-                // First, mark the anonymous session as used to prevent duplicate migrations
-                const { error: markUsedError } = await supabase
-                  .from('anonymous_usage')
-                  .update({ used: true })
-                  .eq('session_id', sessionId)
-                  .select();
 
-                if (markUsedError) {
-                  console.error('[WizardAuthentication] Error marking session as used:', markUsedError);
+                // Insert new record (not upsert since we already checked for existence)
+                const { error: insertError } = await supabase
+                  .from('wizard_progress')
+                  .insert({
+                    user_id: user.id,
+                    business_idea: typedAnonData.wizard_data.business_idea || null,
+                    target_audience: typedAnonData.wizard_data.target_audience || null,
+                    audience_analysis: typedAnonData.wizard_data.audience_analysis || null,
+                    generated_ads: typedAnonData.wizard_data.generated_ads || [],
+                    current_step: typedAnonData.wizard_data.current_step || 1,
+                    version: 1
+                  });
+
+                if (insertError) {
+                  console.error('[WizardAuthentication] Error inserting wizard_progress:', insertError);
                   return;
                 }
 
-                const wizardData = {
-                  user_id: user.id,
-                  business_idea: typedAnonData.wizard_data.business_idea || null,
-                  target_audience: typedAnonData.wizard_data.target_audience || null,
-                  audience_analysis: typedAnonData.wizard_data.audience_analysis || null,
-                  generated_ads: typedAnonData.wizard_data.generated_ads || [],
-                  current_step: typedAnonData.wizard_data.current_step || 1,
-                  version: 1
-                };
+                // Only mark anonymous data as used after successful insertion
+                const { error: markUsedError } = await supabase
+                  .from('anonymous_usage')
+                  .update({ used: true })
+                  .eq('session_id', sessionId);
 
-                const { error: upsertError } = await supabase
-                  .from('wizard_progress')
-                  .upsert(wizardData, {
-                    onConflict: 'user_id',
-                    ignoreDuplicates: false
-                  });
-
-                if (upsertError) {
-                  console.error('[WizardAuthentication] Error upserting wizard_progress:', upsertError);
-                  return;
+                if (markUsedError) {
+                  console.error('[WizardAuthentication] Error marking session as used:', markUsedError);
                 }
 
                 onAnonymousDataChange(typedAnonData.wizard_data);
