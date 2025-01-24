@@ -60,11 +60,11 @@ const AdGalleryStep = ({
     generateAds,
   } = useAdGeneration(businessIdea, targetAudience, adHooks);
 
-  const showPlatformWarning = (platform: string) => {
-    if (platform === 'linkedin' || platform === 'tiktok') {
+  const showPlatformWarning = (platformName: string) => {
+    if (platformName === 'linkedin' || platformName === 'tiktok') {
       toast({
-        title: `${platform === 'linkedin' ? 'LinkedIn' : 'TikTok'} Ad Generation`,
-        description: `Please note that ${platform === 'linkedin' ? 'LinkedIn' : 'TikTok'} ad generation is currently in beta. Some features may be limited.`,
+        title: `${platformName === 'linkedin' ? 'LinkedIn' : 'TikTok'} Ad Generation`,
+        description: `Please note that ${platformName === 'linkedin' ? 'LinkedIn' : 'TikTok'} ad generation is currently in beta. Some features may be limited.`,
         variant: "warning",
       });
     }
@@ -73,9 +73,7 @@ const AdGalleryStep = ({
   const handleGenerateAds = useCallback(async (selectedPlatform: string) => {
     if (!isGenerating) {
       logger.info('[AdGalleryStep] Generating ads for platform:', {
-        platform: selectedPlatform,
-        businessIdea,
-        targetAudience
+        details: { selectedPlatform, businessIdea, targetAudience }
       });
       
       showPlatformWarning(selectedPlatform);
@@ -89,13 +87,14 @@ const AdGalleryStep = ({
         
         const success = await generateAds(selectedPlatform);
         if (success) {
-          logger.info('[AdGalleryStep] Successfully generated ads for:', {
-            platform: selectedPlatform,
-            count: adVariants.length
+          logger.info('[AdGalleryStep] Successfully generated ads:', {
+            details: { selectedPlatform, count: adVariants.length }
           });
           setGeneratedPlatforms(prev => new Set([...prev, selectedPlatform]));
         } else {
-          logger.error('[AdGalleryStep] Failed to generate ads for:', selectedPlatform);
+          logger.error('[AdGalleryStep] Failed to generate ads:', {
+            details: { selectedPlatform }
+          });
           setGeneratedPlatforms(prev => {
             const newSet = new Set(prev);
             newSet.delete(selectedPlatform);
@@ -103,7 +102,10 @@ const AdGalleryStep = ({
           });
         }
       } catch (error) {
-        logger.error('[AdGalleryStep] Error generating ads:', error);
+        logger.error('[AdGalleryStep] Error generating ads:', {
+          error,
+          details: { selectedPlatform }
+        });
         toast({
           title: "Error Generating Ads",
           description: "There was an error generating your ads. Please try again.",
@@ -127,17 +129,21 @@ const AdGalleryStep = ({
     const shouldGenerateAds = isNewProject || existingPlatformAds.length === 0;
 
     logger.info('[AdGalleryStep] Initial ad generation check:', {
-      hasLoadedInitialAds,
-      generatedPlatforms: Array.from(generatedPlatforms),
-      isNewProject,
-      platform,
-      existingAdsCount: existingPlatformAds.length,
-      shouldGenerateAds,
-      isInitialGenerationDone
+      details: {
+        hasLoadedInitialAds,
+        generatedPlatforms: Array.from(generatedPlatforms),
+        isNewProject,
+        platform,
+        existingAdsCount: existingPlatformAds.length,
+        shouldGenerateAds,
+        isInitialGenerationDone
+      }
     });
 
     if (shouldGenerateAds && !generatedPlatforms.has(platform)) {
-      logger.info('[AdGalleryStep] Triggering initial ad generation for platform:', platform);
+      logger.info('[AdGalleryStep] Triggering initial generation:', {
+        details: { platform }
+      });
       handleGenerateAds(platform);
       setIsInitialGenerationDone(true);
     }
@@ -146,18 +152,22 @@ const AdGalleryStep = ({
   useEffect(() => {
     if (!onAdsGenerated || adVariants.length === 0) {
       logger.info('[AdGalleryStep] Skipping ad state update:', {
-        hasCallback: !!onAdsGenerated,
-        variantsCount: adVariants.length
+        details: {
+          hasCallback: !!onAdsGenerated,
+          variantsCount: adVariants.length
+        }
       });
       return;
     }
 
     const isNewProject = projectId === 'new';
     logger.info('[AdGalleryStep] Updating ads state:', {
-      isNewProject,
-      platform,
-      adVariantsCount: adVariants.length,
-      currentAdsCount: generatedAds.length
+      details: {
+        isNewProject,
+        platform,
+        adVariantsCount: adVariants.length,
+        currentAdsCount: generatedAds.length
+      }
     });
 
     let updatedAds;
@@ -170,8 +180,10 @@ const AdGalleryStep = ({
     }
 
     logger.info('[AdGalleryStep] Final ads update:', {
-      updatedAdsCount: updatedAds.length,
-      platform
+      details: {
+        updatedAdsCount: updatedAds.length,
+        platform
+      }
     });
 
     onAdsGenerated(updatedAds);
