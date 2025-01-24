@@ -72,7 +72,8 @@ const WizardContent = () => {
               business_idea: anonymousData.business_idea,
               target_audience: anonymousData.target_audience,
               generated_ads: anonymousData.generated_ads,
-              current_step: anonymousData.current_step || 4
+              current_step: anonymousData.current_step || 4,
+              version: 1
             });
 
           if (wizardError) {
@@ -80,6 +81,7 @@ const WizardContent = () => {
               component: 'AdWizard',
               details: { error: wizardError }
             });
+            throw wizardError;
           } else {
             setGeneratedAds(anonymousData.generated_ads || []);
             if (anonymousData.current_step) {
@@ -106,11 +108,7 @@ const WizardContent = () => {
               component: 'AdWizard',
               details: { error: wizardError }
             });
-            toast({
-              title: "Couldn't load your progress",
-              description: "We had trouble loading your previous work. Starting fresh.",
-              variant: "destructive",
-            });
+            throw wizardError;
           }
 
           if (wizardData) {
@@ -186,9 +184,21 @@ const WizardContent = () => {
       component: 'AdWizard',
       details: { adsCount: newAds.length }
     });
-    setGeneratedAds(newAds);
     
     try {
+      const updatedAds = newAds.map(ad => ({
+        ...ad,
+        platform: ad.platform || 'facebook',
+        id: ad.id || crypto.randomUUID(),
+        size: ad.size || {
+          width: 1200,
+          height: 628,
+          label: `${ad.platform || 'facebook'} Feed`
+        }
+      }));
+
+      setGeneratedAds(updatedAds);
+      
       const sessionId = localStorage.getItem('anonymous_session_id');
 
       if (!currentUser && sessionId) {
@@ -203,16 +213,7 @@ const WizardContent = () => {
             wizard_data: {
               business_idea: businessIdea,
               target_audience: targetAudience,
-              generated_ads: newAds.map(ad => ({
-                ...ad,
-                platform: ad.platform || 'facebook',
-                id: ad.id || crypto.randomUUID(),
-                size: ad.size || {
-                  width: 1200,
-                  height: 628,
-                  label: `${ad.platform || 'facebook'} Feed`
-                }
-              }))
+              generated_ads: updatedAds
             },
             completed: true
           })
@@ -224,6 +225,28 @@ const WizardContent = () => {
             details: { error: anonymousError }
           });
           throw anonymousError;
+        }
+      } else if (currentUser) {
+        logger.info('[AdWizard] Saving ads for authenticated user', {
+          component: 'AdWizard',
+          details: { userId: currentUser.id }
+        });
+
+        const { error: wizardError } = await supabase
+          .from('wizard_progress')
+          .upsert({
+            user_id: currentUser.id,
+            generated_ads: updatedAds,
+            version: 1
+          })
+          .eq('user_id', currentUser.id);
+
+        if (wizardError) {
+          logger.error('[AdWizard] Error saving authenticated ads:', {
+            component: 'AdWizard',
+            details: { error: wizardError }
+          });
+          throw wizardError;
         }
       }
     } catch (error: any) {

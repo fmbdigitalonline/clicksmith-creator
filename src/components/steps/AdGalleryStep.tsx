@@ -11,6 +11,7 @@ import { useEffect, useState, useCallback } from "react";
 import { AdSizeSelector, AD_FORMATS } from "./gallery/components/AdSizeSelector";
 import { useParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
+import logger from "@/utils/logger";
 
 interface AdGalleryStepProps {
   businessIdea: BusinessIdea;
@@ -71,7 +72,12 @@ const AdGalleryStep = ({
 
   const handleGenerateAds = useCallback(async (selectedPlatform: string) => {
     if (!isGenerating) {
-      console.log('[AdGalleryStep] Generating ads for platform:', selectedPlatform);
+      logger.info('[AdGalleryStep] Generating ads for platform:', {
+        platform: selectedPlatform,
+        businessIdea,
+        targetAudience
+      });
+      
       showPlatformWarning(selectedPlatform);
       
       try {
@@ -83,10 +89,13 @@ const AdGalleryStep = ({
         
         const success = await generateAds(selectedPlatform);
         if (success) {
-          console.log('[AdGalleryStep] Successfully generated ads for:', selectedPlatform);
+          logger.info('[AdGalleryStep] Successfully generated ads for:', {
+            platform: selectedPlatform,
+            count: adVariants.length
+          });
           setGeneratedPlatforms(prev => new Set([...prev, selectedPlatform]));
         } else {
-          console.error('[AdGalleryStep] Failed to generate ads for:', selectedPlatform);
+          logger.error('[AdGalleryStep] Failed to generate ads for:', selectedPlatform);
           setGeneratedPlatforms(prev => {
             const newSet = new Set(prev);
             newSet.delete(selectedPlatform);
@@ -94,7 +103,7 @@ const AdGalleryStep = ({
           });
         }
       } catch (error) {
-        console.error('[AdGalleryStep] Error generating ads:', error);
+        logger.error('[AdGalleryStep] Error generating ads:', error);
         toast({
           title: "Error Generating Ads",
           description: "There was an error generating your ads. Please try again.",
@@ -108,7 +117,7 @@ const AdGalleryStep = ({
         });
       }
     }
-  }, [generateAds, isGenerating, toast]);
+  }, [generateAds, isGenerating, toast, businessIdea, targetAudience, adVariants.length]);
 
   useEffect(() => {
     if (!hasLoadedInitialAds || isInitialGenerationDone) return;
@@ -117,7 +126,7 @@ const AdGalleryStep = ({
     const existingPlatformAds = generatedAds.filter(ad => ad.platform === platform);
     const shouldGenerateAds = isNewProject || existingPlatformAds.length === 0;
 
-    console.log('[AdGalleryStep] Initial ad generation check:', {
+    logger.info('[AdGalleryStep] Initial ad generation check:', {
       hasLoadedInitialAds,
       generatedPlatforms: Array.from(generatedPlatforms),
       isNewProject,
@@ -128,7 +137,7 @@ const AdGalleryStep = ({
     });
 
     if (shouldGenerateAds && !generatedPlatforms.has(platform)) {
-      console.log('[AdGalleryStep] Triggering initial ad generation for platform:', platform);
+      logger.info('[AdGalleryStep] Triggering initial ad generation for platform:', platform);
       handleGenerateAds(platform);
       setIsInitialGenerationDone(true);
     }
@@ -136,7 +145,7 @@ const AdGalleryStep = ({
 
   useEffect(() => {
     if (!onAdsGenerated || adVariants.length === 0) {
-      console.log('[AdGalleryStep] Skipping ad state update:', {
+      logger.info('[AdGalleryStep] Skipping ad state update:', {
         hasCallback: !!onAdsGenerated,
         variantsCount: adVariants.length
       });
@@ -144,7 +153,7 @@ const AdGalleryStep = ({
     }
 
     const isNewProject = projectId === 'new';
-    console.log('[AdGalleryStep] Updating ads state:', {
+    logger.info('[AdGalleryStep] Updating ads state:', {
       isNewProject,
       platform,
       adVariantsCount: adVariants.length,
@@ -160,7 +169,7 @@ const AdGalleryStep = ({
       updatedAds.push(...adVariants);
     }
 
-    console.log('[AdGalleryStep] Final ads update:', {
+    logger.info('[AdGalleryStep] Final ads update:', {
       updatedAdsCount: updatedAds.length,
       platform
     });
