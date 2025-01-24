@@ -57,7 +57,7 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
             .from('wizard_progress')
             .select('*')
             .eq('user_id', user.id)
-            .single();
+            .maybeSingle();
 
           if (existingProgress) {
             console.log('[WizardAuthentication] Found existing wizard progress:', existingProgress);
@@ -66,7 +66,7 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
               business_idea: existingProgress.business_idea,
               target_audience: existingProgress.target_audience,
               audience_analysis: existingProgress.audience_analysis,
-              generated_ads: existingProgress.generated_ads,
+              generated_ads: existingProgress.generated_ads || [],
               current_step: existingProgress.current_step || 1
             });
             return;
@@ -81,10 +81,15 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
                 .from('anonymous_usage')
                 .select('wizard_data, completed')
                 .eq('session_id', sessionId)
-                .single();
+                .maybeSingle();
 
               if (anonError) {
                 console.error('[WizardAuthentication] Error fetching anonymous data:', anonError);
+                return;
+              }
+
+              if (!anonData) {
+                console.log('[WizardAuthentication] No anonymous data found for session:', sessionId);
                 return;
               }
 
