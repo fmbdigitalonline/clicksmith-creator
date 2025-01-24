@@ -201,54 +201,62 @@ const WizardContent = () => {
       
       const sessionId = localStorage.getItem('anonymous_session_id');
 
-      if (!currentUser && sessionId) {
-        logger.info('[AdWizard] Saving ads for anonymous user', {
+      // Only save for anonymous users or when not in step 4
+      if ((!currentUser && sessionId) || currentStep < 4) {
+        logger.info('[AdWizard] Saving ads for anonymous user or non-step-4', {
           component: 'AdWizard',
-          details: { sessionId }
+          details: { sessionId, currentStep }
         });
 
-        const { error: anonymousError } = await supabase
-          .from('anonymous_usage')
-          .update({
-            wizard_data: {
-              business_idea: businessIdea,
-              target_audience: targetAudience,
-              generated_ads: updatedAds
-            },
-            completed: true
-          })
-          .eq('session_id', sessionId);
+        if (!currentUser && sessionId) {
+          const { error: anonymousError } = await supabase
+            .from('anonymous_usage')
+            .update({
+              wizard_data: {
+                business_idea: businessIdea,
+                target_audience: targetAudience,
+                generated_ads: updatedAds
+              },
+              completed: true
+            })
+            .eq('session_id', sessionId);
 
-        if (anonymousError) {
-          logger.error('[AdWizard] Error saving anonymous ads:', {
+          if (anonymousError) {
+            logger.error('[AdWizard] Error saving anonymous ads:', {
+              component: 'AdWizard',
+              details: { error: anonymousError }
+            });
+            throw anonymousError;
+          }
+        } else if (currentUser && currentStep < 4) {
+          logger.info('[AdWizard] Saving ads for authenticated user in step < 4', {
             component: 'AdWizard',
-            details: { error: anonymousError }
+            details: { userId: currentUser.id, currentStep }
           });
-          throw anonymousError;
+
+          const { error: wizardError } = await supabase
+            .from('wizard_progress')
+            .upsert({
+              user_id: currentUser.id,
+              generated_ads: updatedAds,
+              version: 1
+            }, {
+              onConflict: 'user_id'
+            });
+
+          if (wizardError) {
+            logger.error('[AdWizard] Error saving authenticated ads:', {
+              component: 'AdWizard',
+              details: { error: wizardError }
+            });
+            throw wizardError;
+          }
         }
-      } else if (currentUser) {
-        logger.info('[AdWizard] Saving ads for authenticated user', {
+      } else {
+        logger.info('[AdWizard] Skipping auto-save for step 4', {
           component: 'AdWizard',
-          details: { userId: currentUser.id }
+          details: { currentStep }
         });
-
-        const { error: wizardError } = await supabase
-          .from('wizard_progress')
-          .upsert({
-            user_id: currentUser.id,
-            generated_ads: updatedAds,
-            version: 1
-          }, {
-            onConflict: 'user_id'
-          });
-
-        if (wizardError) {
-          logger.error('[AdWizard] Error saving authenticated ads:', {
-            component: 'AdWizard',
-            details: { error: wizardError }
-          });
-          throw wizardError;
-        }
       }
     } catch (error: any) {
       logger.error('[AdWizard] Error in handleAdsGenerated:', {
