@@ -121,45 +121,41 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
               const typedAnonData = anonData as AnonymousData;
 
               if (typedAnonData?.wizard_data) {
-                console.log('[WizardAuthentication] Attempting to migrate data');
+                console.log('[WizardAuthentication] Attempting to migrate data for user:', user.id);
 
-                // Double-check right before insert to prevent race conditions
-                const { count } = await supabase
-                  .from('wizard_progress')
-                  .select('*', { count: 'exact', head: true })
-                  .eq('user_id', user.id);
+                // Start a transaction for atomic operations
+                const { error: transactionError } = await supabase.rpc('migrate_wizard_progress', {
+                  p_user_id: user.id,
+                  p_session_id: sessionId,
+                  p_business_idea: typedAnonData.wizard_data.business_idea,
+                  p_target_audience: typedAnonData.wizard_data.target_audience,
+                  p_audience_analysis: typedAnonData.wizard_data.audience_analysis,
+                  p_generated_ads: typedAnonData.wizard_data.generated_ads || [],
+                  p_current_step: typedAnonData.wizard_data.current_step || 1
+                });
 
-                if (count > 0) {
-                  console.log('[WizardAuthentication] Skipping insert - user already has progress');
+                if (transactionError) {
+                  console.error('[WizardAuthentication] Transaction error:', transactionError);
+                  // If it's a duplicate key error, try to fetch the existing data
+                  if (transactionError.code === '23505') {
+                    const { data: existingData } = await supabase
+                      .from('wizard_progress')
+                      .select('*')
+                      .eq('user_id', user.id)
+                      .single();
+                    
+                    if (existingData) {
+                      console.log('[WizardAuthentication] Found existing data, using that instead');
+                      onAnonymousDataChange({
+                        business_idea: existingData.business_idea,
+                        target_audience: existingData.target_audience,
+                        audience_analysis: existingData.audience_analysis,
+                        generated_ads: existingData.generated_ads || [],
+                        current_step: existingData.current_step || 1
+                      });
+                    }
+                  }
                   return;
-                }
-
-                // Insert new record (not upsert since we already checked for existence)
-                const { error: insertError } = await supabase
-                  .from('wizard_progress')
-                  .insert({
-                    user_id: user.id,
-                    business_idea: typedAnonData.wizard_data.business_idea || null,
-                    target_audience: typedAnonData.wizard_data.target_audience || null,
-                    audience_analysis: typedAnonData.wizard_data.audience_analysis || null,
-                    generated_ads: typedAnonData.wizard_data.generated_ads || [],
-                    current_step: typedAnonData.wizard_data.current_step || 1,
-                    version: 1
-                  });
-
-                if (insertError) {
-                  console.error('[WizardAuthentication] Error inserting wizard_progress:', insertError);
-                  return;
-                }
-
-                // Only mark anonymous data as used after successful insertion
-                const { error: markUsedError } = await supabase
-                  .from('anonymous_usage')
-                  .update({ used: true })
-                  .eq('session_id', sessionId);
-
-                if (markUsedError) {
-                  console.error('[WizardAuthentication] Error marking session as used:', markUsedError);
                 }
 
                 onAnonymousDataChange(typedAnonData.wizard_data);
