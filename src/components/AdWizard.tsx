@@ -17,6 +17,15 @@ import RegistrationWall from "./steps/auth/RegistrationWall";
 import { Button } from "./ui/button";
 import { Save } from "lucide-react";
 
+interface WizardData {
+  business_idea?: any;
+  target_audience?: any;
+  audience_analysis?: any;
+  generated_ads?: any[];
+  current_step?: number;
+  completed?: boolean;
+}
+
 const WizardContent = () => {
   const [showCreateProject, setShowCreateProject] = useState(false);
   const [videoAdsEnabled, setVideoAdsEnabled] = useState(false);
@@ -48,15 +57,17 @@ const WizardContent = () => {
       try {
         console.log('[AdWizard] Starting to load progress');
         if (anonymousData && currentUser) {
-          console.log('[AdWizard] Migrating anonymous data to user account');
+          console.log('[AdWizard] Migrating anonymous data to user account:', anonymousData);
           const { error: wizardError } = await supabase
             .from('wizard_progress')
             .upsert({
               user_id: currentUser.id,
               business_idea: anonymousData.business_idea || null,
               target_audience: anonymousData.target_audience || null,
+              audience_analysis: anonymousData.audience_analysis || null,
               generated_ads: anonymousData.generated_ads || [],
-              current_step: 4
+              current_step: anonymousData.current_step || 4,
+              version: 1
             });
 
           if (wizardError) {
@@ -64,6 +75,7 @@ const WizardContent = () => {
           } else {
             setGeneratedAds(anonymousData.generated_ads || []);
             setAnonymousData(null);
+            console.log('[AdWizard] Successfully migrated anonymous data');
           }
         }
 
