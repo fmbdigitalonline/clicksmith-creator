@@ -115,7 +115,10 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
 
                 const { error: upsertError } = await supabase
                   .from('wizard_progress')
-                  .upsert(wizardData);
+                  .upsert(wizardData, {
+                    onConflict: 'user_id',
+                    ignoreDuplicates: false
+                  });
 
                 if (upsertError) {
                   console.error('[WizardAuthentication] Error upserting wizard_progress:', upsertError);
