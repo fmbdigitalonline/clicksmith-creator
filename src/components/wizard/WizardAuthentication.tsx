@@ -51,17 +51,31 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
 
         if (user) {
           const sessionId = localStorage.getItem('anonymous_session_id');
+          
+          // First, check for existing wizard progress
+          const { data: existingProgress } = await supabase
+            .from('wizard_progress')
+            .select('*')
+            .eq('user_id', user.id)
+            .single();
+
+          if (existingProgress) {
+            console.log('[WizardAuthentication] Found existing wizard progress:', existingProgress);
+            // Update wizard state with existing progress
+            onAnonymousDataChange({
+              business_idea: existingProgress.business_idea,
+              target_audience: existingProgress.target_audience,
+              audience_analysis: existingProgress.audience_analysis,
+              generated_ads: existingProgress.generated_ads,
+              current_step: existingProgress.current_step || 1
+            });
+            return;
+          }
+
           if (sessionId) {
             console.log('[WizardAuthentication] Found anonymous session to migrate:', sessionId);
             
             try {
-              // First, check if user already has wizard progress
-              const { data: existingProgress } = await supabase
-                .from('wizard_progress')
-                .select('*')
-                .eq('user_id', user.id)
-                .single();
-
               // Get the anonymous data
               const { data: anonData, error: anonError } = await supabase
                 .from('anonymous_usage')
@@ -89,26 +103,17 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
                   version: 1
                 };
 
-                if (existingProgress) {
-                  const { error: updateError } = await supabase
-                    .from('wizard_progress')
-                    .update(wizardData)
-                    .eq('user_id', user.id);
+                const { error: upsertError } = await supabase
+                  .from('wizard_progress')
+                  .upsert(wizardData);
 
-                  if (updateError) {
-                    console.error('[WizardAuthentication] Error updating wizard_progress:', updateError);
-                    throw updateError;
-                  }
-                } else {
-                  const { error: insertError } = await supabase
-                    .from('wizard_progress')
-                    .insert(wizardData);
-
-                  if (insertError) {
-                    console.error('[WizardAuthentication] Error inserting wizard_progress:', insertError);
-                    throw insertError;
-                  }
+                if (upsertError) {
+                  console.error('[WizardAuthentication] Error upserting wizard_progress:', upsertError);
+                  throw upsertError;
                 }
+
+                // Update wizard state with migrated data
+                onAnonymousDataChange(typedAnonData.wizard_data);
 
                 // Mark anonymous session as used
                 const { error: updateError } = await supabase
@@ -120,7 +125,6 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
                   console.error('[WizardAuthentication] Error marking session as used:', updateError);
                 }
 
-                onAnonymousDataChange(typedAnonData.wizard_data);
                 localStorage.removeItem('anonymous_session_id');
                 
                 toast({
