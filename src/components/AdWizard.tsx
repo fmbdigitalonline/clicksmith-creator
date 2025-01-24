@@ -238,8 +238,9 @@ const WizardContent = () => {
             user_id: currentUser.id,
             generated_ads: updatedAds,
             version: 1
-          })
-          .eq('user_id', currentUser.id);
+          }, {
+            onConflict: 'user_id'
+          });
 
         if (wizardError) {
           logger.error('[AdWizard] Error saving authenticated ads:', {
