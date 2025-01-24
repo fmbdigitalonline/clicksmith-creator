@@ -64,6 +64,7 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
             return;
           }
 
+          // If there's existing progress, use that
           if (existingProgress) {
             console.log('[WizardAuthentication] Found existing wizard progress:', existingProgress);
             onAnonymousDataChange({
@@ -76,8 +77,9 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
             return;
           }
 
+          // No existing progress, check for anonymous session data regardless of whether this is a new user
           if (sessionId) {
-            console.log('[WizardAuthentication] Found anonymous session to migrate:', sessionId);
+            console.log('[WizardAuthentication] Checking anonymous session:', sessionId);
             
             try {
               const { data: anonData, error: anonError } = await supabase
