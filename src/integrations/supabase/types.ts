@@ -721,6 +721,18 @@ export type Database = {
         }
         Returns: undefined
       }
+      migrate_wizard_progress: {
+        Args: {
+          p_user_id: string
+          p_session_id: string
+          p_business_idea: Json
+          p_target_audience: Json
+          p_audience_analysis: Json
+          p_generated_ads: Json
+          p_current_step: number
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       backup_type: "auto" | "manual"
