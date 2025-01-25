@@ -105,25 +105,52 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
                 console.log('[WizardAuthentication] Attempting to migrate data for user:', user.id);
 
                 try {
-                  // Using v2 upsert syntax
-                  const { error: insertError } = await supabase
+                  // First check if a record already exists
+                  const { data: existingRecord, error: checkError } = await supabase
                     .from('wizard_progress')
-                    .upsert({
-                      user_id: user.id,
-                      business_idea: typedAnonData.wizard_data.business_idea,
-                      target_audience: typedAnonData.wizard_data.target_audience,
-                      audience_analysis: typedAnonData.wizard_data.audience_analysis,
-                      generated_ads: typedAnonData.wizard_data.generated_ads || [],
-                      current_step: typedAnonData.wizard_data.current_step || 1,
-                      version: 1
-                    });
+                    .select('*')
+                    .eq('user_id', user.id)
+                    .single();
 
-                  if (insertError) {
-                    console.error('[WizardAuthentication] Insert error:', insertError);
+                  if (checkError && checkError.code !== 'PGRST116') {
+                    console.error('[WizardAuthentication] Check error:', checkError);
                     return;
                   }
 
-                  // Get the final record (whether it was just inserted or already existed)
+                  // Only proceed with migration if there's no existing record
+                  if (!existingRecord) {
+                    const { error: insertError } = await supabase
+                      .from('wizard_progress')
+                      .insert({
+                        user_id: user.id,
+                        business_idea: typedAnonData.wizard_data.business_idea,
+                        target_audience: typedAnonData.wizard_data.target_audience,
+                        audience_analysis: typedAnonData.wizard_data.audience_analysis,
+                        generated_ads: typedAnonData.wizard_data.generated_ads || [],
+                        current_step: typedAnonData.wizard_data.current_step || 1,
+                        version: 1
+                      });
+
+                    if (insertError) {
+                      console.error('[WizardAuthentication] Insert error:', insertError);
+                      return;
+                    }
+
+                    toast({
+                      title: "Progress Migrated",
+                      description: "Your previous work has been saved to your account.",
+                    });
+                  }
+
+                  // Mark anonymous data as used regardless of whether we migrated it
+                  await supabase
+                    .from('anonymous_usage')
+                    .update({ used: true })
+                    .eq('session_id', sessionId);
+
+                  localStorage.removeItem('anonymous_session_id');
+
+                  // Get the final record to update the UI
                   const { data: finalRecord } = await supabase
                     .from('wizard_progress')
                     .select('*')
@@ -137,19 +164,6 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
                       audience_analysis: finalRecord.audience_analysis,
                       generated_ads: finalRecord.generated_ads || [],
                       current_step: finalRecord.current_step || 1
-                    });
-
-                    // Mark anonymous data as used
-                    await supabase
-                      .from('anonymous_usage')
-                      .update({ used: true })
-                      .eq('session_id', sessionId);
-
-                    localStorage.removeItem('anonymous_session_id');
-                    
-                    toast({
-                      title: "Progress Migrated",
-                      description: "Your previous work has been saved to your account.",
                     });
                   }
                 } catch (error) {
