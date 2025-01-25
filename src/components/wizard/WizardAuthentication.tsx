@@ -113,59 +113,66 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
 
         if (!isMounted) return;
 
-        if (error) throw error;
+        if (error) {
+          console.error('[Auth] Error:', error);
+          throw error;
+        }
+
+        // Handle anonymous users
+        if (!user) {
+          console.log('[Auth] No authenticated user found (anonymous session)');
+          return;
+        }
 
         onUserChange(user);
         
-        if (user) {
-          const sessionId = localStorage.getItem('anonymous_session_id');
-          if (sessionId) {
-            console.log('[Migration] Starting atomic migration');
-            try {
-              const migratedData = await migrateUserProgress(user.id, sessionId);
+        const sessionId = localStorage.getItem('anonymous_session_id');
+        if (sessionId) {
+          console.log('[Migration] Starting atomic migration');
+          try {
+            const migratedData = await migrateUserProgress(user.id, sessionId);
 
-              if (migratedData) {
-                onAnonymousDataChange(migratedData);
-                localStorage.removeItem('anonymous_session_id');
-                toast({
-                  title: "Progress Migrated",
-                  description: "Your previous work has been saved to your account.",
-                });
-              }
-            } catch (error) {
-              console.error('[Migration] Error:', error);
-              const { data: existing } = await supabase
-                .from('wizard_progress')
-                .select('*')
-                .eq('user_id', user.id)
-                .maybeSingle();
+            if (migratedData) {
+              onAnonymousDataChange(migratedData);
+              localStorage.removeItem('anonymous_session_id');
+              toast({
+                title: "Progress Migrated",
+                description: "Your previous work has been saved to your account.",
+              });
+            }
+          } catch (error) {
+            console.error('[Migration] Error:', error);
+            const { data: existing } = await supabase
+              .from('wizard_progress')
+              .select('*')
+              .eq('user_id', user.id)
+              .maybeSingle();
 
-              if (existing) {
-                const result = existing as MigrationResult;
-                const processedExisting: WizardData = {
-                  id: result.id,
-                  user_id: result.user_id,
-                  business_idea: result.business_idea,
-                  target_audience: result.target_audience,
-                  audience_analysis: result.audience_analysis,
-                  generated_ads: Array.isArray(result.generated_ads)
-                    ? result.generated_ads
-                    : typeof result.generated_ads === 'string'
-                    ? JSON.parse(result.generated_ads)
-                    : [],
-                  current_step: result.current_step,
-                  version: result.version,
-                  created_at: result.created_at,
-                  updated_at: result.updated_at,
-                  last_save_attempt: result.last_save_attempt,
-                  selected_hooks: Array.isArray(result.selected_hooks) 
-                    ? result.selected_hooks 
-                    : [],
-                  ad_format: result.ad_format,
-                  video_ad_preferences: result.video_ad_preferences
-                };
-                onAnonymousDataChange(processedExisting);
-              }
+            if (existing) {
+              const result = existing as MigrationResult;
+              const processedExisting: WizardData = {
+                id: result.id,
+                user_id: result.user_id,
+                business_idea: result.business_idea,
+                target_audience: result.target_audience,
+                audience_analysis: result.audience_analysis,
+                generated_ads: Array.isArray(result.generated_ads)
+                  ? result.generated_ads
+                  : typeof result.generated_ads === 'string'
+                  ? JSON.parse(result.generated_ads)
+                  : [],
+                current_step: result.current_step,
+                version: result.version,
+                created_at: result.created_at,
+                updated_at: result.updated_at,
+                last_save_attempt: result.last_save_attempt,
+                selected_hooks: Array.isArray(result.selected_hooks) 
+                  ? result.selected_hooks 
+                  : [],
+                ad_format: result.ad_format,
+                video_ad_preferences: result.video_ad_preferences
+              };
+              onAnonymousDataChange(processedExisting);
             }
           }
         }
