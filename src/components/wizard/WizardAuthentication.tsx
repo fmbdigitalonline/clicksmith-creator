@@ -10,178 +10,122 @@ interface WizardData {
   current_step?: number;
 }
 
-interface AnonymousData {
-  wizard_data: WizardData;
-  completed: boolean;
-}
-
 interface WizardAuthenticationProps {
   onUserChange: (user: any) => void;
-  onAnonymousDataChange: (data: any) => void;
+  onAnonymousDataChange: (data: WizardData) => void;
 }
 
 const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAuthenticationProps) => {
   const [authError, setAuthError] = useState<string | null>(null);
   const { toast } = useToast();
 
+  const mergeProgressData = (existing: WizardData, anonymous: WizardData): WizardData => ({
+    business_idea: existing.business_idea || anonymous.business_idea,
+    target_audience: existing.target_audience || anonymous.target_audience,
+    audience_analysis: existing.audience_analysis 
+      ? `${existing.audience_analysis}\n${anonymous.audience_analysis}`
+      : anonymous.audience_analysis,
+    generated_ads: [...(existing.generated_ads || []), ...(anonymous.generated_ads || [])],
+    current_step: Math.max(existing.current_step || 0, anonymous.current_step || 1)
+  });
+
   useEffect(() => {
     let isMounted = true;
     let retryCount = 0;
     const maxRetries = 3;
 
-    const checkUser = async () => {
+    const handleMigration = async (user: any, sessionId: string) => {
       try {
-        console.log('[WizardAuthentication] Starting user check...');
-        const { data: { user }, error: sessionError } = await supabase.auth.getUser();
+        // 1. Get existing progress WITH LOCKING
+        const { data: existing } = await supabase
+          .from('wizard_progress')
+          .select('*')
+          .eq('user_id', user.id)
+          .single();
 
-        if (sessionError) {
-          console.error('[WizardAuthentication] Session error:', sessionError);
-          if (retryCount < maxRetries) {
-            retryCount++;
-            setTimeout(checkUser, 1000 * retryCount);
-            return;
-          }
-          setAuthError(sessionError.message);
+        // 2. Get anonymous data
+        const { data: anonData } = await supabase
+          .from('anonymous_usage')
+          .select('wizard_data')
+          .eq('session_id', sessionId)
+          .single();
+
+        if (!anonData?.wizard_data) {
+          localStorage.removeItem('anonymous_session_id');
           return;
         }
 
-        if (!isMounted) return;
-        onUserChange(user);
-        setAuthError(null);
+        // 3. Prepare merged data
+        const mergedData = existing 
+          ? mergeProgressData(existing, anonData.wizard_data)
+          : anonData.wizard_data;
 
+        // 4. Atomic upsert operation
+        const { error } = await supabase
+          .from('wizard_progress')
+          .upsert({
+            ...mergedData,
+            user_id: user.id,
+            version: (existing?.version || 0) + 1
+          }, {
+            onConflict: 'user_id',
+            returning: 'minimal'
+          });
+
+        if (error) throw error;
+
+        // 5. Update UI with merged data
+        onAnonymousDataChange(mergedData);
+        
+        // 6. Cleanup
+        await supabase
+          .from('anonymous_usage')
+          .update({ used: true })
+          .eq('session_id', sessionId);
+
+        localStorage.removeItem('anonymous_session_id');
+
+      } catch (error) {
+        console.error('Migration error:', error);
+        // Fallback to existing data
+        const { data: existing } = await supabase
+          .from('wizard_progress')
+          .select('*')
+          .eq('user_id', user.id)
+          .single();
+
+        if (existing) onAnonymousDataChange(existing);
+      }
+    };
+
+    const checkUser = async () => {
+      try {
+        console.log('[Auth] Starting user check');
+        const { data: { user }, error } = await supabase.auth.getUser();
+
+        if (!isMounted) return;
+
+        if (error) throw error;
+
+        onUserChange(user);
+        
         if (user) {
           const sessionId = localStorage.getItem('anonymous_session_id');
-
-          // Get existing progress first using RLS
-          const { data: existingProgress } = await supabase
-            .from('wizard_progress')
-            .select('*')
-            .eq('user_id', user.id)
-            .maybeSingle();
-
-          if (existingProgress) {
-            console.log('[WizardAuthentication] Existing progress found');
-            onAnonymousDataChange({
-              business_idea: existingProgress.business_idea,
-              target_audience: existingProgress.target_audience,
-              audience_analysis: existingProgress.audience_analysis,
-              generated_ads: existingProgress.generated_ads || [],
-              current_step: existingProgress.current_step || 1,
-            });
-
-            if (sessionId) {
-              await supabase
-                .from('anonymous_usage')
-                .update({ used: true })
-                .eq('session_id', sessionId);
-              localStorage.removeItem('anonymous_session_id');
-            }
-            return;
-          }
-
-          if (sessionId) {
-            console.log('[WizardAuthentication] Migrating anonymous data');
-            
-            try {
-              // Transactional operation
-              const { data: anonData, error: anonError } = await supabase
-                .from('anonymous_usage')
-                .select('wizard_data, used')
-                .eq('session_id', sessionId)
-                .single();
-
-              if (anonError || !anonData?.wizard_data || anonData.used) {
-                localStorage.removeItem('anonymous_session_id');
-                return;
-              }
-
-              // Merge existing data with anonymous data
-              const { data: mergedData, error: upsertError } = await supabase
-                .from('wizard_progress')
-                .upsert(
-                  {
-                    user_id: user.id,
-                    business_idea: anonData.wizard_data.business_idea,
-                    target_audience: anonData.wizard_data.target_audience,
-                    audience_analysis: anonData.wizard_data.audience_analysis,
-                    generated_ads: anonData.wizard_data.generated_ads || [],
-                    current_step: anonData.wizard_data.current_step || 1,
-                    version: 1,
-                  },
-                  { 
-                    onConflict: 'user_id',
-                    returning: 'representation'
-                  }
-                )
-                .select()
-                .single();
-
-              if (upsertError) {
-                // Handle conflict by fetching merged record
-                const { data: existing } = await supabase
-                  .from('wizard_progress')
-                  .select('*')
-                  .eq('user_id', user.id)
-                  .single();
-
-                if (existing) {
-                  onAnonymousDataChange({
-                    business_idea: existing.business_idea,
-                    target_audience: existing.target_audience,
-                    audience_analysis: existing.audience_analysis,
-                    generated_ads: existing.generated_ads || [],
-                    current_step: existing.current_step || 1,
-                  });
-                }
-                throw upsertError;
-              }
-
-              // Update UI with merged data
-              onAnonymousDataChange({
-                business_idea: mergedData.business_idea,
-                target_audience: mergedData.target_audience,
-                audience_analysis: mergedData.audience_analysis,
-                generated_ads: mergedData.generated_ads || [],
-                current_step: mergedData.current_step || 1,
-              });
-
-              // Finalize migration
-              await supabase
-                .from('anonymous_usage')
-                .update({ used: true })
-                .eq('session_id', sessionId);
-
-              localStorage.removeItem('anonymous_session_id');
-              toast({
-                title: "Progress Migrated",
-                description: "Your previous work has been saved to your account.",
-              });
-
-            } catch (error) {
-              console.error('[WizardAuthentication] Migration error:', error);
-              toast({
-                title: "Migration Error",
-                description: "Failed to migrate your previous work. Please try again.",
-                variant: "destructive",
-              });
-            }
-          }
+          if (sessionId) await handleMigration(user, sessionId);
         }
       } catch (error) {
-        console.error('[WizardAuthentication] Error in checkUser:', error);
+        console.error('[Auth] Error:', error);
         if (retryCount < maxRetries) {
           retryCount++;
           setTimeout(checkUser, 1000 * retryCount);
         } else {
-          setAuthError('Failed to check authentication status. Please refresh the page.');
+          setAuthError('Authentication check failed. Please refresh.');
         }
       }
     };
 
     checkUser();
-    return () => {
-      isMounted = false;
-    };
+    return () => { isMounted = false; };
   }, [onUserChange, onAnonymousDataChange, toast]);
 
   if (authError) {
