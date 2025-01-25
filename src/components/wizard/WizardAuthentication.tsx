@@ -124,32 +124,7 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
                 console.log('[WizardAuthentication] Attempting to migrate data for user:', user.id);
 
                 try {
-                  // Begin transaction with a check
-                  const { data: existingRecord, error: checkError } = await supabase
-                    .from('wizard_progress')
-                    .select('*')
-                    .eq('user_id', user.id)
-                    .single();
-
-                  if (checkError && checkError.code !== 'PGRST116') {
-                    console.error('[WizardAuthentication] Error checking existing record:', checkError);
-                    return;
-                  }
-
-                  // If record exists, use it
-                  if (existingRecord) {
-                    console.log('[WizardAuthentication] Found existing record, using that');
-                    onAnonymousDataChange({
-                      business_idea: existingRecord.business_idea,
-                      target_audience: existingRecord.target_audience,
-                      audience_analysis: existingRecord.audience_analysis,
-                      generated_ads: existingRecord.generated_ads || [],
-                      current_step: existingRecord.current_step || 1
-                    });
-                    return;
-                  }
-
-                  // No existing record, insert new one
+                  // Try to insert with onConflict ignore
                   const { error: insertError } = await supabase
                     .from('wizard_progress')
                     .insert({
@@ -160,30 +135,44 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
                       generated_ads: typedAnonData.wizard_data.generated_ads || [],
                       current_step: typedAnonData.wizard_data.current_step || 1,
                       version: 1
-                    });
+                    })
+                    .onConflict('user_id')
+                    .ignore();
 
                   if (insertError) {
-                    console.error('[WizardAuthentication] Error inserting record:', insertError);
+                    console.error('[WizardAuthentication] Insert error:', insertError);
                     return;
                   }
 
-                  // Mark anonymous data as used
-                  const { error: updateError } = await supabase
-                    .from('anonymous_usage')
-                    .update({ used: true })
-                    .eq('session_id', sessionId);
+                  // Get the final record (whether it was just inserted or already existed)
+                  const { data: finalRecord } = await supabase
+                    .from('wizard_progress')
+                    .select('*')
+                    .eq('user_id', user.id)
+                    .single();
 
-                  if (updateError) {
-                    console.error('[WizardAuthentication] Error marking anonymous data as used:', updateError);
+                  if (finalRecord) {
+                    onAnonymousDataChange({
+                      business_idea: finalRecord.business_idea,
+                      target_audience: finalRecord.target_audience,
+                      audience_analysis: finalRecord.audience_analysis,
+                      generated_ads: finalRecord.generated_ads || [],
+                      current_step: finalRecord.current_step || 1
+                    });
+
+                    // Mark anonymous data as used
+                    await supabase
+                      .from('anonymous_usage')
+                      .update({ used: true })
+                      .eq('session_id', sessionId);
+
+                    localStorage.removeItem('anonymous_session_id');
+                    
+                    toast({
+                      title: "Progress Migrated",
+                      description: "Your previous work has been saved to your account.",
+                    });
                   }
-
-                  onAnonymousDataChange(typedAnonData.wizard_data);
-                  localStorage.removeItem('anonymous_session_id');
-                
-                  toast({
-                    title: "Progress Migrated",
-                    description: "Your previous work has been saved to your account.",
-                  });
                 } catch (error) {
                   console.error('[WizardAuthentication] Migration error:', error);
                   toast({
