@@ -124,7 +124,7 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
                 console.log('[WizardAuthentication] Attempting to migrate data for user:', user.id);
 
                 try {
-                  // Try to insert with onConflict ignore
+                  // Using v2 syntax for insert
                   const { error: insertError } = await supabase
                     .from('wizard_progress')
                     .insert({
@@ -135,9 +135,7 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
                       generated_ads: typedAnonData.wizard_data.generated_ads || [],
                       current_step: typedAnonData.wizard_data.current_step || 1,
                       version: 1
-                    })
-                    .onConflict('user_id')
-                    .ignore();
+                    });
 
                   if (insertError) {
                     console.error('[WizardAuthentication] Insert error:', insertError);
