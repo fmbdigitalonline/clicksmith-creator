@@ -28,20 +28,48 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
   const [authError, setAuthError] = useState<string | null>(null);
   const { toast } = useToast();
 
-  // Atomic migration function
+  // Atomic migration function with improved error handling
   const migrateUserProgress = async (user_id: string, session_id: string): Promise<WizardData | null> => {
-    const { data, error } = await supabase
-      .rpc('atomic_migration', { user_id, session_id })
-      .single();
+    try {
+      console.log('[Migration] Starting atomic migration for user:', user_id);
+      
+      const { data, error } = await supabase
+        .rpc('atomic_migration', { user_id, session_id })
+        .single();
 
-    if (error) throw error;
+      if (error) {
+        console.error('[Migration] Database error:', error);
+        toast({
+          title: "Migration Error",
+          description: "Failed to migrate your progress. Please try again.",
+          variant: "destructive",
+        });
+        throw error;
+      }
 
-    // Ensure generated_ads is an array
-    if (data && data.generated_ads && typeof data.generated_ads === 'string') {
-      data.generated_ads = JSON.parse(data.generated_ads);
+      if (!data) {
+        console.log('[Migration] No data to migrate');
+        return null;
+      }
+
+      // Ensure generated_ads is an array
+      if (data.generated_ads) {
+        try {
+          data.generated_ads = typeof data.generated_ads === 'string' 
+            ? JSON.parse(data.generated_ads) 
+            : data.generated_ads;
+        } catch (parseError) {
+          console.error('[Migration] Error parsing generated_ads:', parseError);
+          data.generated_ads = [];
+        }
+      }
+
+      console.log('[Migration] Successfully migrated data:', data);
+      return data;
+    } catch (error) {
+      console.error('[Migration] Error:', error);
+      throw error;
     }
-
-    return data;
   };
 
   useEffect(() => {
@@ -68,12 +96,7 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
               const migratedData = await migrateUserProgress(user.id, sessionId);
 
               if (migratedData) {
-                onAnonymousDataChange({
-                  ...migratedData,
-                  generated_ads: Array.isArray(migratedData.generated_ads) 
-                    ? migratedData.generated_ads 
-                    : [],
-                });
+                onAnonymousDataChange(migratedData);
                 localStorage.removeItem('anonymous_session_id');
                 toast({
                   title: "Progress Migrated",
@@ -87,7 +110,7 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
                 .from('wizard_progress')
                 .select('*')
                 .eq('user_id', user.id)
-                .single();
+                .maybeSingle();
 
               if (existing) onAnonymousDataChange(existing);
             }
@@ -100,6 +123,11 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
           setTimeout(checkUser, 1000 * retryCount);
         } else {
           setAuthError('Authentication check failed. Please refresh.');
+          toast({
+            title: "Authentication Error",
+            description: "Failed to check authentication status. Please refresh the page.",
+            variant: "destructive",
+          });
         }
       }
     };
