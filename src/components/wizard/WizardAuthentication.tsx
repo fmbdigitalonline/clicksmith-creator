@@ -19,6 +19,23 @@ interface WizardData {
   video_ad_preferences?: any;
 }
 
+interface MigrationResult {
+  id: string;
+  user_id: string;
+  business_idea: any;
+  target_audience: any;
+  audience_analysis: any;
+  generated_ads: any[] | string | null;
+  current_step: number;
+  version: number;
+  created_at: string;
+  updated_at: string;
+  last_save_attempt: string | null;
+  selected_hooks: any[] | null;
+  ad_format: any;
+  video_ad_preferences: any;
+}
+
 interface WizardAuthenticationProps {
   onUserChange: (user: any) => void;
   onAnonymousDataChange: (data: WizardData) => void;
@@ -28,7 +45,6 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
   const [authError, setAuthError] = useState<string | null>(null);
   const { toast } = useToast();
 
-  // Atomic migration function with improved error handling and transaction locking
   const migrateUserProgress = async (user_id: string, session_id: string): Promise<WizardData | null> => {
     try {
       console.log('[Migration] Starting atomic migration for user:', user_id);
@@ -52,27 +68,29 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
         return null;
       }
 
+      const result = migrationResult as MigrationResult;
+
       const processedData: WizardData = {
-        id: migrationResult.id as string,
-        user_id: migrationResult.user_id as string,
-        business_idea: migrationResult.business_idea,
-        target_audience: migrationResult.target_audience,
-        audience_analysis: migrationResult.audience_analysis,
-        generated_ads: Array.isArray(migrationResult.generated_ads) 
-          ? migrationResult.generated_ads 
-          : typeof migrationResult.generated_ads === 'string'
-          ? JSON.parse(migrationResult.generated_ads)
+        id: result.id,
+        user_id: result.user_id,
+        business_idea: result.business_idea,
+        target_audience: result.target_audience,
+        audience_analysis: result.audience_analysis,
+        generated_ads: Array.isArray(result.generated_ads) 
+          ? result.generated_ads 
+          : typeof result.generated_ads === 'string'
+          ? JSON.parse(result.generated_ads)
           : [],
-        current_step: migrationResult.current_step as number,
-        version: migrationResult.version as number,
-        created_at: migrationResult.created_at as string,
-        updated_at: migrationResult.updated_at as string,
-        last_save_attempt: migrationResult.last_save_attempt as string | null,
-        selected_hooks: Array.isArray(migrationResult.selected_hooks) 
-          ? migrationResult.selected_hooks 
+        current_step: result.current_step,
+        version: result.version,
+        created_at: result.created_at,
+        updated_at: result.updated_at,
+        last_save_attempt: result.last_save_attempt,
+        selected_hooks: Array.isArray(result.selected_hooks) 
+          ? result.selected_hooks 
           : [],
-        ad_format: migrationResult.ad_format,
-        video_ad_preferences: migrationResult.video_ad_preferences
+        ad_format: result.ad_format,
+        video_ad_preferences: result.video_ad_preferences
       };
 
       console.log('[Migration] Successfully migrated data:', processedData);
@@ -116,7 +134,6 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
               }
             } catch (error) {
               console.error('[Migration] Error:', error);
-              // Fallback to existing data
               const { data: existing } = await supabase
                 .from('wizard_progress')
                 .select('*')
@@ -124,27 +141,28 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
                 .maybeSingle();
 
               if (existing) {
+                const result = existing as MigrationResult;
                 const processedExisting: WizardData = {
-                  id: existing.id as string,
-                  user_id: existing.user_id as string,
-                  business_idea: existing.business_idea,
-                  target_audience: existing.target_audience,
-                  audience_analysis: existing.audience_analysis,
-                  generated_ads: Array.isArray(existing.generated_ads)
-                    ? existing.generated_ads
-                    : typeof existing.generated_ads === 'string'
-                    ? JSON.parse(existing.generated_ads)
+                  id: result.id,
+                  user_id: result.user_id,
+                  business_idea: result.business_idea,
+                  target_audience: result.target_audience,
+                  audience_analysis: result.audience_analysis,
+                  generated_ads: Array.isArray(result.generated_ads)
+                    ? result.generated_ads
+                    : typeof result.generated_ads === 'string'
+                    ? JSON.parse(result.generated_ads)
                     : [],
-                  current_step: existing.current_step as number,
-                  version: existing.version as number,
-                  created_at: existing.created_at as string,
-                  updated_at: existing.updated_at as string,
-                  last_save_attempt: existing.last_save_attempt as string | null,
-                  selected_hooks: Array.isArray(existing.selected_hooks) 
-                    ? existing.selected_hooks 
+                  current_step: result.current_step,
+                  version: result.version,
+                  created_at: result.created_at,
+                  updated_at: result.updated_at,
+                  last_save_attempt: result.last_save_attempt,
+                  selected_hooks: Array.isArray(result.selected_hooks) 
+                    ? result.selected_hooks 
                     : [],
-                  ad_format: existing.ad_format,
-                  video_ad_preferences: existing.video_ad_preferences
+                  ad_format: result.ad_format,
+                  video_ad_preferences: result.video_ad_preferences
                 };
                 onAnonymousDataChange(processedExisting);
               }
