@@ -686,6 +686,28 @@ export type Database = {
           message: string
         }[]
       }
+      atomic_migration: {
+        Args: {
+          user_id: string
+          session_id: string
+        }
+        Returns: {
+          ad_format: Json | null
+          audience_analysis: Json | null
+          business_idea: Json | null
+          created_at: string
+          current_step: number | null
+          generated_ads: Json | null
+          id: string
+          last_save_attempt: string | null
+          selected_hooks: Json | null
+          target_audience: Json | null
+          updated_at: string
+          user_id: string
+          version: number | null
+          video_ad_preferences: Json | null
+        }
+      }
       check_user_credits: {
         Args: {
           p_user_id: string
