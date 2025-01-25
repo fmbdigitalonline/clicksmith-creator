@@ -28,44 +28,41 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
   const [authError, setAuthError] = useState<string | null>(null);
   const { toast } = useToast();
 
-  // Atomic migration function with improved error handling
+  // Atomic migration function with improved error handling and transaction locking
   const migrateUserProgress = async (user_id: string, session_id: string): Promise<WizardData | null> => {
     try {
       console.log('[Migration] Starting atomic migration for user:', user_id);
       
-      const { data, error } = await supabase
+      const { data: migrationResult, error: migrationError } = await supabase
         .rpc('atomic_migration', { user_id, session_id })
-        .single();
+        .maybeSingle();
 
-      if (error) {
-        console.error('[Migration] Database error:', error);
+      if (migrationError) {
+        console.error('[Migration] Database error:', migrationError);
         toast({
           title: "Migration Error",
           description: "Failed to migrate your progress. Please try again.",
           variant: "destructive",
         });
-        throw error;
+        throw migrationError;
       }
 
-      if (!data) {
+      if (!migrationResult) {
         console.log('[Migration] No data to migrate');
         return null;
       }
 
-      // Ensure generated_ads is an array
-      if (data.generated_ads) {
-        try {
-          data.generated_ads = typeof data.generated_ads === 'string' 
-            ? JSON.parse(data.generated_ads) 
-            : data.generated_ads;
-        } catch (parseError) {
-          console.error('[Migration] Error parsing generated_ads:', parseError);
-          data.generated_ads = [];
-        }
-      }
+      const processedData: WizardData = {
+        ...migrationResult,
+        generated_ads: Array.isArray(migrationResult.generated_ads) 
+          ? migrationResult.generated_ads 
+          : typeof migrationResult.generated_ads === 'string'
+          ? JSON.parse(migrationResult.generated_ads)
+          : []
+      };
 
-      console.log('[Migration] Successfully migrated data:', data);
-      return data;
+      console.log('[Migration] Successfully migrated data:', processedData);
+      return processedData;
     } catch (error) {
       console.error('[Migration] Error:', error);
       throw error;
@@ -112,7 +109,17 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
                 .eq('user_id', user.id)
                 .maybeSingle();
 
-              if (existing) onAnonymousDataChange(existing);
+              if (existing) {
+                const processedExisting: WizardData = {
+                  ...existing,
+                  generated_ads: Array.isArray(existing.generated_ads)
+                    ? existing.generated_ads
+                    : typeof existing.generated_ads === 'string'
+                    ? JSON.parse(existing.generated_ads)
+                    : []
+                };
+                onAnonymousDataChange(processedExisting);
+              }
             }
           }
         }
