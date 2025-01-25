@@ -74,10 +74,19 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
               generated_ads: existingProgress.generated_ads || [],
               current_step: existingProgress.current_step || 1
             });
+            
+            // If we have a session ID, mark it as used since we're using existing progress
+            if (sessionId) {
+              await supabase
+                .from('anonymous_usage')
+                .update({ used: true })
+                .eq('session_id', sessionId);
+              localStorage.removeItem('anonymous_session_id');
+            }
             return;
           }
 
-          // No existing progress, check for anonymous session data regardless of whether this is a new user
+          // No existing progress, check for anonymous session data
           if (sessionId) {
             console.log('[WizardAuthentication] Checking anonymous session:', sessionId);
             
@@ -105,44 +114,32 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
                 console.log('[WizardAuthentication] Attempting to migrate data for user:', user.id);
 
                 try {
-                  // First check if a record already exists
-                  const { data: existingRecord, error: checkError } = await supabase
+                  // Using upsert with ignoreDuplicates to handle existing records
+                  const { error: insertError } = await supabase
                     .from('wizard_progress')
-                    .select('*')
-                    .eq('user_id', user.id)
+                    .insert({
+                      user_id: user.id,
+                      business_idea: typedAnonData.wizard_data.business_idea,
+                      target_audience: typedAnonData.wizard_data.target_audience,
+                      audience_analysis: typedAnonData.wizard_data.audience_analysis,
+                      generated_ads: typedAnonData.wizard_data.generated_ads || [],
+                      current_step: typedAnonData.wizard_data.current_step || 1,
+                      version: 1
+                    })
+                    .select()
                     .single();
 
-                  if (checkError && checkError.code !== 'PGRST116') {
-                    console.error('[WizardAuthentication] Check error:', checkError);
+                  if (insertError) {
+                    console.error('[WizardAuthentication] Insert error:', insertError);
                     return;
                   }
 
-                  // Only proceed with migration if there's no existing record
-                  if (!existingRecord) {
-                    const { error: insertError } = await supabase
-                      .from('wizard_progress')
-                      .insert({
-                        user_id: user.id,
-                        business_idea: typedAnonData.wizard_data.business_idea,
-                        target_audience: typedAnonData.wizard_data.target_audience,
-                        audience_analysis: typedAnonData.wizard_data.audience_analysis,
-                        generated_ads: typedAnonData.wizard_data.generated_ads || [],
-                        current_step: typedAnonData.wizard_data.current_step || 1,
-                        version: 1
-                      });
+                  toast({
+                    title: "Progress Migrated",
+                    description: "Your previous work has been saved to your account.",
+                  });
 
-                    if (insertError) {
-                      console.error('[WizardAuthentication] Insert error:', insertError);
-                      return;
-                    }
-
-                    toast({
-                      title: "Progress Migrated",
-                      description: "Your previous work has been saved to your account.",
-                    });
-                  }
-
-                  // Mark anonymous data as used regardless of whether we migrated it
+                  // Mark anonymous data as used
                   await supabase
                     .from('anonymous_usage')
                     .update({ used: true })
