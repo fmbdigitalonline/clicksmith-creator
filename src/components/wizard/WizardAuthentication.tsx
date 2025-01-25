@@ -115,19 +115,22 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
 
                 try {
                   // Using upsert with ignoreDuplicates to handle existing records
-                  const { error: insertError } = await supabase
-                    .from('wizard_progress')
-                    .insert({
-                      user_id: user.id,
-                      business_idea: typedAnonData.wizard_data.business_idea,
-                      target_audience: typedAnonData.wizard_data.target_audience,
-                      audience_analysis: typedAnonData.wizard_data.audience_analysis,
-                      generated_ads: typedAnonData.wizard_data.generated_ads || [],
-                      current_step: typedAnonData.wizard_data.current_step || 1,
-                      version: 1
-                    })
-                    .select()
-                    .single();
+                 const { error: insertError } = await supabase
+                  .from('wizard_progress')
+                 .upsert({
+                 user_id: user.id,
+                 business_idea: typedAnonData.wizard_data.business_idea,
+                 target_audience: typedAnonData.wizard_data.target_audience,
+                 audience_analysis: typedAnonData.wizard_data.audience_analysis,
+                 generated_ads: typedAnonData.wizard_data.generated_ads || [],
+                 current_step: typedAnonData.wizard_data.current_step || 1,
+                 version: 1
+                }, {
+                onConflict: 'user_id',
+                 ignoreDuplicates: true
+                 })
+                .select()
+               .single();
 
                   if (insertError) {
                     console.error('[WizardAuthentication] Insert error:', insertError);
