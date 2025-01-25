@@ -92,11 +92,11 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
             
             try {
               const { data: anonData, error: anonError } = await supabase
-  .from('anonymous_usage')
-  .select('wizard_data, completed, used')
-  .eq('session_id', sessionId)
-  .limit(1)
-  .single();
+              .from('anonymous_usage')
+              .select('wizard_data, completed, used')
+              .eq('session_id', sessionId)
+              .limit(1)
+              .single();
 
               if (anonError && anonError.code !== "PGRST116") {
                 console.error('[WizardAuthentication] Error fetching anonymous data:', anonError);
