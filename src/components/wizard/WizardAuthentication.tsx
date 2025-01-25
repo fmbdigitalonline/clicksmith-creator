@@ -123,8 +123,8 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
               if (typedAnonData?.wizard_data) {
                 console.log('[WizardAuthentication] Attempting to migrate data for user:', user.id);
 
-                // Match the existing function signature in the database
-                const { error: transactionError } = await supabase.rpc('migrate_wizard_progress', {
+                // Ensure parameters match exactly with the database function signature
+                const params = {
                   p_audience_analysis: typedAnonData.wizard_data.audience_analysis,
                   p_business_idea: typedAnonData.wizard_data.business_idea,
                   p_current_step: typedAnonData.wizard_data.current_step || 1,
@@ -132,7 +132,14 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
                   p_session_id: sessionId,
                   p_target_audience: typedAnonData.wizard_data.target_audience,
                   p_user_id: user.id
-                });
+                };
+
+                console.log('[WizardAuthentication] Migration params:', params);
+
+                const { error: transactionError } = await supabase.rpc(
+                  'migrate_wizard_progress',
+                  params
+                );
 
                 if (transactionError) {
                   console.error('[WizardAuthentication] Transaction error:', transactionError);
