@@ -72,7 +72,7 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
               target_audience: existingProgress.target_audience,
               audience_analysis: existingProgress.audience_analysis,
               generated_ads: existingProgress.generated_ads || [],
-              current_step: existingProgress.current_step || 1
+              current_step: existingProgress.current_step || 1,
             });
 
             // If we have a session ID, mark it as used since we're using existing progress
@@ -114,54 +114,25 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
               if (typedAnonData?.wizard_data) {
                 console.log('[WizardAuthentication] Attempting to migrate data for user:', user.id);
 
-                // Check if a record with the same user_id already exists
-                const { data: existingRecord, error: fetchError } = await supabase
+                // Use upsert with onConflict to handle duplicate user_id
+                const { error: upsertError } = await supabase
                   .from('wizard_progress')
-                  .select('*')
-                  .eq('user_id', user.id)
-                  .maybeSingle();
-
-                if (fetchError && fetchError.code !== "PGRST116") {
-                  console.error('[WizardAuthentication] Error fetching existing record:', fetchError);
-                  return;
-                }
-
-                if (existingRecord) {
-                  // If the record exists, update it
-                  const { error: updateError } = await supabase
-                    .from('wizard_progress')
-                    .update({
-                      business_idea: typedAnonData.wizard_data.business_idea,
-                      target_audience: typedAnonData.wizard_data.target_audience,
-                      audience_analysis: typedAnonData.wizard_data.audience_analysis,
-                      generated_ads: typedAnonData.wizard_data.generated_ads || [],
-                      current_step: typedAnonData.wizard_data.current_step || 1,
-                      version: 1
-                    })
-                    .eq('user_id', user.id);
-
-                  if (updateError) {
-                    console.error('[WizardAuthentication] Update error:', updateError);
-                    return;
-                  }
-                } else {
-                  // If the record does not exist, insert a new one
-                  const { error: insertError } = await supabase
-                    .from('wizard_progress')
-                    .insert({
+                  .upsert(
+                    {
                       user_id: user.id,
                       business_idea: typedAnonData.wizard_data.business_idea,
                       target_audience: typedAnonData.wizard_data.target_audience,
                       audience_analysis: typedAnonData.wizard_data.audience_analysis,
                       generated_ads: typedAnonData.wizard_data.generated_ads || [],
                       current_step: typedAnonData.wizard_data.current_step || 1,
-                      version: 1
-                    });
+                      version: 1,
+                    },
+                    { onConflict: 'user_id' } // Explicitly handle conflicts on user_id
+                  );
 
-                  if (insertError) {
-                    console.error('[WizardAuthentication] Insert error:', insertError);
-                    return;
-                  }
+                if (upsertError) {
+                  console.error('[WizardAuthentication] Upsert error:', upsertError);
+                  return;
                 }
 
                 toast({
@@ -190,7 +161,7 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
                     target_audience: finalRecord.target_audience,
                     audience_analysis: finalRecord.audience_analysis,
                     generated_ads: finalRecord.generated_ads || [],
-                    current_step: finalRecord.current_step || 1
+                    current_step: finalRecord.current_step || 1,
                   });
                 }
               }
@@ -229,6 +200,10 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
     );
   }
 
+  return null;
+};
+
+export default WizardAuthentication;
   return null;
 };
 
