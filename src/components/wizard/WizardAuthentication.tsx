@@ -53,12 +53,24 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
       }
 
       const processedData: WizardData = {
-        ...migrationResult,
+        id: migrationResult.id,
+        user_id: migrationResult.user_id,
+        business_idea: migrationResult.business_idea,
+        target_audience: migrationResult.target_audience,
+        audience_analysis: migrationResult.audience_analysis,
         generated_ads: Array.isArray(migrationResult.generated_ads) 
           ? migrationResult.generated_ads 
           : typeof migrationResult.generated_ads === 'string'
           ? JSON.parse(migrationResult.generated_ads)
-          : []
+          : [],
+        current_step: migrationResult.current_step,
+        version: migrationResult.version,
+        created_at: migrationResult.created_at,
+        updated_at: migrationResult.updated_at,
+        last_save_attempt: migrationResult.last_save_attempt,
+        selected_hooks: migrationResult.selected_hooks || [],
+        ad_format: migrationResult.ad_format,
+        video_ad_preferences: migrationResult.video_ad_preferences
       };
 
       console.log('[Migration] Successfully migrated data:', processedData);
@@ -111,12 +123,24 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
 
               if (existing) {
                 const processedExisting: WizardData = {
-                  ...existing,
+                  id: existing.id,
+                  user_id: existing.user_id,
+                  business_idea: existing.business_idea,
+                  target_audience: existing.target_audience,
+                  audience_analysis: existing.audience_analysis,
                   generated_ads: Array.isArray(existing.generated_ads)
                     ? existing.generated_ads
                     : typeof existing.generated_ads === 'string'
                     ? JSON.parse(existing.generated_ads)
-                    : []
+                    : [],
+                  current_step: existing.current_step,
+                  version: existing.version,
+                  created_at: existing.created_at,
+                  updated_at: existing.updated_at,
+                  last_save_attempt: existing.last_save_attempt,
+                  selected_hooks: existing.selected_hooks || [],
+                  ad_format: existing.ad_format,
+                  video_ad_preferences: existing.video_ad_preferences
                 };
                 onAnonymousDataChange(processedExisting);
               }
