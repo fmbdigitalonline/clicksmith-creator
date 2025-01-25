@@ -53,8 +53,8 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
       }
 
       const processedData: WizardData = {
-        id: migrationResult.id,
-        user_id: migrationResult.user_id,
+        id: migrationResult.id as string,
+        user_id: migrationResult.user_id as string,
         business_idea: migrationResult.business_idea,
         target_audience: migrationResult.target_audience,
         audience_analysis: migrationResult.audience_analysis,
@@ -63,12 +63,14 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
           : typeof migrationResult.generated_ads === 'string'
           ? JSON.parse(migrationResult.generated_ads)
           : [],
-        current_step: migrationResult.current_step,
-        version: migrationResult.version,
-        created_at: migrationResult.created_at,
-        updated_at: migrationResult.updated_at,
-        last_save_attempt: migrationResult.last_save_attempt,
-        selected_hooks: migrationResult.selected_hooks || [],
+        current_step: migrationResult.current_step as number,
+        version: migrationResult.version as number,
+        created_at: migrationResult.created_at as string,
+        updated_at: migrationResult.updated_at as string,
+        last_save_attempt: migrationResult.last_save_attempt as string | null,
+        selected_hooks: Array.isArray(migrationResult.selected_hooks) 
+          ? migrationResult.selected_hooks 
+          : [],
         ad_format: migrationResult.ad_format,
         video_ad_preferences: migrationResult.video_ad_preferences
       };
@@ -123,8 +125,8 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
 
               if (existing) {
                 const processedExisting: WizardData = {
-                  id: existing.id,
-                  user_id: existing.user_id,
+                  id: existing.id as string,
+                  user_id: existing.user_id as string,
                   business_idea: existing.business_idea,
                   target_audience: existing.target_audience,
                   audience_analysis: existing.audience_analysis,
@@ -133,12 +135,14 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
                     : typeof existing.generated_ads === 'string'
                     ? JSON.parse(existing.generated_ads)
                     : [],
-                  current_step: existing.current_step,
-                  version: existing.version,
-                  created_at: existing.created_at,
-                  updated_at: existing.updated_at,
-                  last_save_attempt: existing.last_save_attempt,
-                  selected_hooks: existing.selected_hooks || [],
+                  current_step: existing.current_step as number,
+                  version: existing.version as number,
+                  created_at: existing.created_at as string,
+                  updated_at: existing.updated_at as string,
+                  last_save_attempt: existing.last_save_attempt as string | null,
+                  selected_hooks: Array.isArray(existing.selected_hooks) 
+                    ? existing.selected_hooks 
+                    : [],
                   ad_format: existing.ad_format,
                   video_ad_preferences: existing.video_ad_preferences
                 };
