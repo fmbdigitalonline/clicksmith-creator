@@ -82,25 +82,6 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
             console.log('[WizardAuthentication] Checking anonymous session:', sessionId);
             
             try {
-              // First check if we already have a record for this user
-              const { data: existingRecord, error: existingError } = await supabase
-                .from('wizard_progress')
-                .select('*')
-                .eq('user_id', user.id)
-                .single();
-
-              if (existingError && existingError.code !== 'PGRST116') {
-                console.error('[WizardAuthentication] Error checking existing record:', existingError);
-                return;
-              }
-
-              // If we already have a record, skip migration
-              if (existingRecord) {
-                console.log('[WizardAuthentication] User already has wizard progress, skipping migration');
-                localStorage.removeItem('anonymous_session_id');
-                return;
-              }
-
               const { data: anonData, error: anonError } = await supabase
                 .from('anonymous_usage')
                 .select('wizard_data, completed, used')
@@ -124,10 +105,10 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
                 console.log('[WizardAuthentication] Attempting to migrate data for user:', user.id);
 
                 try {
-                  // Using v2 syntax for insert
+                  // Using v2 upsert syntax
                   const { error: insertError } = await supabase
                     .from('wizard_progress')
-                    .insert({
+                    .upsert({
                       user_id: user.id,
                       business_idea: typedAnonData.wizard_data.business_idea,
                       target_audience: typedAnonData.wizard_data.target_audience,
