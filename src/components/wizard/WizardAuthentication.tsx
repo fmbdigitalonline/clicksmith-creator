@@ -142,6 +142,7 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
             }
           } catch (error) {
             console.error('[Migration] Error:', error);
+            // Fallback to existing data
             const { data: existing } = await supabase
               .from('wizard_progress')
               .select('*')
