@@ -17,17 +17,28 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
 
   const redirectToStep = async (step: number) => {
     console.log('[Auth] Redirecting to step:', step);
-    // Ensure we have the latest data before redirecting
-    const { data: latestProgress } = await supabase
-      .from('wizard_progress')
-      .select('*')
-      .eq('user_id', (await supabase.auth.getSession()).data.session?.user.id)
-      .maybeSingle();
+    
+    if (!step || step < 1) {
+      console.log('[Auth] Invalid step value:', step);
+      return;
+    }
 
-    if (latestProgress?.current_step && latestProgress.current_step > 1) {
-      navigate(`/ad-wizard/step-${latestProgress.current_step}`);
-    } else if (step > 1) {
-      navigate(`/ad-wizard/step-${step}`);
+    // Get the latest progress to ensure we have the most up-to-date step
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user) {
+      const { data: latestProgress } = await supabase
+        .from('wizard_progress')
+        .select('current_step')
+        .eq('user_id', session.user.id)
+        .maybeSingle();
+
+      const finalStep = latestProgress?.current_step || step;
+      if (finalStep > 1) {
+        console.log('[Auth] Navigating to step:', finalStep);
+        navigate(`/ad-wizard/step-${finalStep}`);
+      } else {
+        console.log('[Auth] No valid step found, staying on current page');
+      }
     }
   };
 
@@ -35,8 +46,16 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
     let isMounted = true;
     let retryCount = 0;
     const maxRetries = 3;
+    let isCheckingUser = false;
 
     const checkUser = async () => {
+      if (isCheckingUser) {
+        console.log('[Auth] User check already in progress');
+        return;
+      }
+      
+      isCheckingUser = true;
+
       try {
         console.log('[Auth] Starting user check');
         
@@ -78,7 +97,6 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
                   onAnonymousDataChange(migratedData);
                   localStorage.removeItem('anonymous_session_id');
                   
-                  // Double-check the step value
                   const step = migratedData.current_step || 1;
                   console.log('[Auth] Redirecting to step after migration:', step);
                   await redirectToStep(step);
@@ -128,6 +146,7 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
             onAnonymousDataChange(anonymousData.wizard_data as WizardData);
           }
         }
+
       } catch (error) {
         console.error('[Auth] Error:', error);
         if (retryCount < maxRetries) {
@@ -141,6 +160,8 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
             variant: "destructive",
           });
         }
+      } finally {
+        isCheckingUser = false;
       }
     };
 
@@ -160,7 +181,6 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
               onAnonymousDataChange(migratedData);
               localStorage.removeItem('anonymous_session_id');
               
-              // Ensure we redirect to the correct step
               const step = migratedData.current_step || 1;
               console.log('[Auth] Redirecting to step after sign in:', step);
               await redirectToStep(step);
