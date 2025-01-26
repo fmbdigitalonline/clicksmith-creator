@@ -25,10 +25,10 @@ const AudienceStep = ({
   } = useAudienceGeneration();
 
   useEffect(() => {
-    if (audiences.length === 0) {
+    if (audiences.length === 0 && !isGenerating) {
       generateAudiences(businessIdea, false);
     }
-  }, []);
+  }, [audiences.length, businessIdea, generateAudiences, isGenerating]);
 
   return (
     <div className="space-y-6 md:space-y-8">
