@@ -15,7 +15,6 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
   const { toast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
-  const [isSaving, setIsSaving] = useState(false); // Add a state to handle concurrency
 
   const redirectToStep = (step: number) => {
     console.log('[Auth] Redirecting to step:', step);
