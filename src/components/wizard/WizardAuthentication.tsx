@@ -115,7 +115,26 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
           }
         }
 
-        // ... keep existing code (anonymous session handling)
+        const sessionId = localStorage.getItem('anonymous_session_id');
+        if (sessionId) {
+          console.log('[Auth] Found anonymous session:', sessionId);
+          
+          const { data: anonymousData, error: anonError } = await supabase
+            .from('anonymous_usage')
+            .select('wizard_data')
+            .eq('session_id', sessionId)
+            .maybeSingle();
+
+          if (anonError && anonError.code !== 'PGRST116') {
+            console.error('[Auth] Error fetching anonymous data:', anonError);
+            throw anonError;
+          }
+
+          if (anonymousData?.wizard_data) {
+            console.log('[Auth] Found anonymous progress');
+            onAnonymousDataChange(anonymousData.wizard_data as WizardData);
+          }
+        }
 
       } catch (error) {
         console.error('[Auth] Error:', error);
