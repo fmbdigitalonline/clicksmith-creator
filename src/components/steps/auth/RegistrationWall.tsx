@@ -1,45 +1,179 @@
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useNavigate } from "react-router-dom";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card } from "@/components/ui/card";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 interface RegistrationWallProps {
   onBack: () => void;
 }
 
 const RegistrationWall = ({ onBack }: RegistrationWallProps) => {
-  const navigate = useNavigate();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const { toast } = useToast();
+
+  const handleSignUp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+
+    try {
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: window.location.origin,
+        },
+      });
+
+      if (error) {
+        if (error.message.includes("already registered") || error.message.includes("already exists")) {
+          toast({
+            title: "Account already exists",
+            description: "Please try logging in instead.",
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "Registration failed",
+            description: error.message,
+            variant: "destructive",
+          });
+        }
+        return;
+      }
+
+      toast({
+        title: "Registration successful",
+        description: "Welcome to Ad Wizard! You can now continue creating your ads.",
+      });
+    } catch (error: any) {
+      console.error("[RegistrationWall] Error:", error);
+      toast({
+        title: "Something went wrong",
+        description: "Please try again later.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSignIn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) {
+        toast({
+          title: "Login failed",
+          description: error.message,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      toast({
+        title: "Welcome back!",
+        description: "You can now continue creating your ads.",
+      });
+    } catch (error: any) {
+      console.error("[RegistrationWall] Error:", error);
+      toast({
+        title: "Something went wrong",
+        description: "Please try again later.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
-    <Card className="max-w-2xl mx-auto">
-      <CardHeader>
-        <CardTitle>Create an Account to See Your Generated Ads</CardTitle>
-        <CardDescription>
-          You're just one step away from seeing your AI-generated ad campaigns.
-          Create a free account to continue and save your progress.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="space-y-2">
-          <h3 className="text-lg font-medium">Why create an account?</h3>
-          <ul className="list-disc pl-5 space-y-1">
-            <li>See your AI-generated ad campaigns</li>
-            <li>Save and manage multiple projects</li>
-            <li>Download and export your ads</li>
-            <li>Get access to advanced features</li>
-          </ul>
+    <Card className="p-6 max-w-md mx-auto">
+      <div className="space-y-6">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold">Continue Your Journey</h2>
+          <p className="text-muted-foreground mt-2">
+            Sign up or log in to save your progress and generate your ads
+          </p>
         </div>
-        <div className="flex gap-4 pt-4">
-          <Button variant="outline" onClick={onBack}>
-            Go Back
-          </Button>
-          <Button 
-            onClick={() => navigate('/login')} 
-            className="bg-facebook hover:bg-facebook/90"
-          >
-            Create Account
-          </Button>
-        </div>
-      </CardContent>
+
+        <form className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="email">Email</Label>
+            <Input
+              id="email"
+              type="email"
+              placeholder="Enter your email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              disabled={isLoading}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="password">Password</Label>
+            <Input
+              id="password"
+              type="password"
+              placeholder="Create a password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              disabled={isLoading}
+            />
+          </div>
+
+          <div className="space-y-4">
+            <Button
+              type="submit"
+              className="w-full"
+              onClick={handleSignUp}
+              disabled={isLoading}
+            >
+              {isLoading ? "Processing..." : "Sign Up"}
+            </Button>
+
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-background px-2 text-muted-foreground">
+                  Or
+                </span>
+              </div>
+            </div>
+
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              onClick={handleSignIn}
+              disabled={isLoading}
+            >
+              Log In
+            </Button>
+          </div>
+        </form>
+
+        <Button
+          variant="ghost"
+          className="w-full"
+          onClick={onBack}
+          disabled={isLoading}
+        >
+          Go Back
+        </Button>
+      </div>
     </Card>
   );
 };
