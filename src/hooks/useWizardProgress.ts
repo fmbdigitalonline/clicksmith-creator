@@ -18,9 +18,24 @@ export const useWizardProgress = () => {
 
     try {
       const startTime = performance.now();
+      
+      // Prepare the data object to match the database schema exactly
+      const progressData = {
+        user_id: data.user_id,
+        business_idea: data.business_idea || null,
+        target_audience: data.target_audience || null,
+        audience_analysis: data.audience_analysis || null,
+        selected_hooks: data.selected_hooks || null,
+        generated_ads: data.generated_ads || null,
+        current_step: data.current_step || 1,
+        version: data.version || 1,
+        is_migration: data.is_migration || false,
+        updated_at: new Date().toISOString()
+      };
+
       const { error } = await supabase
         .from('wizard_progress')
-        .upsert(data, { 
+        .upsert(progressData, { 
           onConflict: 'user_id',
           ignoreDuplicates: false 
         });
