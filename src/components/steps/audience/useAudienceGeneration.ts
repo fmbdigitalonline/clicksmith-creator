@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { BusinessIdea, TargetAudience } from "@/types/adWizard";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
@@ -10,7 +10,7 @@ export const useAudienceGeneration = () => {
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
-  const generateAudiences = async (businessIdea: BusinessIdea, forceRegenerate: boolean = false) => {
+  const generateAudiences = useCallback(async (businessIdea: BusinessIdea, forceRegenerate: boolean = false) => {
     setIsGenerating(true);
     setError(null);
     
@@ -65,7 +65,7 @@ export const useAudienceGeneration = () => {
     } finally {
       setIsGenerating(false);
     }
-  };
+  }, [regenerationCount, toast]);
 
   return {
     audiences,
