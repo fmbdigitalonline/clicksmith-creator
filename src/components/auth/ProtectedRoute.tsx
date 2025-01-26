@@ -28,9 +28,9 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
         if (!session && anonymousSessionId) {
           const { data: usage } = await supabase
             .from('anonymous_usage')
-            .select('used')
+            .select('used, wizard_data')
             .eq('session_id', anonymousSessionId)
-            .single();
+            .maybeSingle();
 
           if (usage && !usage.used) {
             navigate('/ad-wizard/new', { replace: true });
@@ -71,12 +71,51 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
                 .from('free_tier_usage')
                 .select('*')
                 .eq('user_id', user.id)
-                .single();
+                .maybeSingle();
 
               if (!existingUsage) {
                 await supabase
                   .from('free_tier_usage')
                   .insert([{ user_id: user.id, generations_used: 0 }]);
+              }
+
+              // Check for anonymous session data to migrate
+              const anonymousSessionId = localStorage.getItem('anonymous_session_id');
+              if (anonymousSessionId) {
+                try {
+                  const { data: migratedData, error: migrationError } = await supabase
+                    .rpc('atomic_migration', { 
+                      p_user_id: user.id, 
+                      p_session_id: anonymousSessionId 
+                    });
+
+                  if (migrationError) {
+                    console.error("Migration error:", migrationError);
+                    throw migrationError;
+                  }
+
+                  if (migratedData) {
+                    console.log("Successfully migrated data:", migratedData);
+                    localStorage.removeItem('anonymous_session_id');
+                    
+                    // Redirect to the appropriate step
+                    if (migratedData.current_step && migratedData.current_step > 1) {
+                      navigate(`/ad-wizard/step-${migratedData.current_step}`, { replace: true });
+                    }
+
+                    toast({
+                      title: "Progress Restored",
+                      description: "Your previous work has been saved to your account.",
+                    });
+                  }
+                } catch (error) {
+                  console.error("Error during migration:", error);
+                  toast({
+                    title: "Migration Error",
+                    description: "There was an error restoring your previous work. You may need to start over.",
+                    variant: "destructive",
+                  });
+                }
               }
               
               setIsAuthenticated(true);
