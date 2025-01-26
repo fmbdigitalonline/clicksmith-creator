@@ -4,8 +4,8 @@ import { useWizardState } from "./WizardStateProvider";
 import WizardSteps from "./WizardSteps";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { WizardHeader } from "./WizardHeader";
-import { WizardAuthentication } from "./WizardAuthentication";
+import WizardHeader from "./WizardHeader";
+import WizardAuthentication from "./WizardAuthentication";
 
 const WizardContent = () => {
   const navigate = useNavigate();
