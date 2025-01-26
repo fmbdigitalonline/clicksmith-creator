@@ -4,57 +4,25 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { migrateUserProgress } from "@/utils/migration";
 import { WizardData } from "@/types/wizardProgress";
-
-interface WizardAuthenticationProps {
-  onUserChange: (user: any) => void;
-  onAnonymousDataChange: (data: WizardData) => void;
-}
+import { useSession } from "@/providers/SessionProvider";
 
 const isWizardData = (data: any): data is WizardData => {
   return typeof data === 'object' && data !== null;
 };
 
-const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAuthenticationProps) => {
+const WizardAuthentication = ({ 
+  onUserChange, 
+  onAnonymousDataChange 
+}: { 
+  onUserChange: (user: any) => void;
+  onAnonymousDataChange: (data: WizardData) => void;
+}) => {
   const [authError, setAuthError] = useState<string | null>(null);
   const [isMigrating, setIsMigrating] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
-
-  const validateStepRequirements = (data: WizardData): number => {
-    const requirements = {
-      step1: !!data.business_idea?.toString().trim(),
-      step2: !!data.target_audience?.toString().trim(),
-      step3: !!data.audience_analysis
-    };
-
-    return Math.max(
-      requirements.step3 ? 3 : 
-      requirements.step2 ? 2 : 
-      requirements.step1 ? 1 : 1
-    );
-  };
-
-  const redirectToStep = (step: number, migrationSource?: string) => {
-    const isNewRegistration = location.state?.from === '/register';
-    const targetStep = isNewRegistration ? Math.max(step, 3) : step;
-
-    console.log('[Auth] Redirect decision:', {
-      rawStep: step,
-      targetStep,
-      isNewRegistration,
-      migrationSource
-    });
-
-    if (targetStep > 1) {
-      navigate(`/ad-wizard/new`, { 
-        state: { 
-          step: targetStep,
-          preservedSession: localStorage.getItem('anonymous_session_id')
-        }
-      });
-    }
-  };
+  const { migrationStatus, setMigrationStatus } = useSession();
 
   const handleMigration = async (user: any, sessionId: string) => {
     setIsMigrating(true);
@@ -73,7 +41,12 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
 
       if (!error) {
         onAnonymousDataChange({ ...migratedData, current_step: validatedStep });
-        redirectToStep(validatedStep, 'post-migration');
+        navigate('/ad-wizard/new', {
+          state: { 
+            migrated: true,
+            step: validatedStep 
+          }
+        });
         localStorage.removeItem('anonymous_session_id');
       }
     } catch (error) {
@@ -120,7 +93,9 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
               .single();
 
             if (existing?.current_step) {
-              redirectToStep(existing.current_step, 'existing-record');
+              navigate('/ad-wizard/new', {
+                state: { step: existing.current_step }
+              });
             }
           }
         }
@@ -178,6 +153,20 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
       subscription?.unsubscribe();
     };
   }, [onUserChange, onAnonymousDataChange, toast, navigate, location.state, isMigrating]);
+
+  const validateStepRequirements = (data: WizardData): number => {
+    const requirements = {
+      step1: !!data.business_idea?.toString().trim(),
+      step2: !!data.target_audience?.toString().trim(),
+      step3: !!data.audience_analysis
+    };
+
+    return Math.max(
+      requirements.step3 ? 3 : 
+      requirements.step2 ? 2 : 
+      requirements.step1 ? 1 : 1
+    );
+  };
 
   if (authError) {
     return (
