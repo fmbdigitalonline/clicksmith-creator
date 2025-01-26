@@ -24,52 +24,22 @@ const WizardContent = () => {
     setAudienceAnalysis,
   } = useWizardState();
 
-  const { data: user, error: userError } = useQuery({
+  const { data: user, isLoading: isUserLoading } = useQuery({
     queryKey: ["user"],
     queryFn: async () => {
-      const { data: { user }, error } = await supabase.auth.getUser();
-      if (error) {
+      try {
+        const { data: { user }, error } = await supabase.auth.getUser();
+        if (error) throw error;
+        return user;
+      } catch (error) {
         console.error('[WizardContent] User fetch error:', error);
-        throw error;
+        return null;
       }
-      return user;
     },
-    retry: 1,
+    retry: false
   });
 
-  // Validate required data for current step
-  useEffect(() => {
-    console.log('[WizardContent] Validating step requirements:', {
-      currentStep,
-      hasBusinessIdea: !!businessIdea,
-      hasTargetAudience: !!targetAudience,
-      hasAudienceAnalysis: !!audienceAnalysis
-    });
-
-    if (currentStep > 1 && !businessIdea) {
-      console.log('[WizardContent] Missing business idea, redirecting to step 1');
-      setCurrentStep(1);
-      navigate("/ad-wizard/new");
-      return;
-    }
-
-    if (currentStep > 2 && !targetAudience) {
-      console.log('[WizardContent] Missing target audience, redirecting to step 2');
-      setCurrentStep(2);
-      navigate("/ad-wizard/new");
-      return;
-    }
-
-    if (currentStep > 3 && !audienceAnalysis) {
-      console.log('[WizardContent] Missing audience analysis, redirecting to step 3');
-      setCurrentStep(3);
-      navigate("/ad-wizard/new");
-      return;
-    }
-  }, [currentStep, businessIdea, targetAudience, audienceAnalysis, navigate, setCurrentStep]);
-
   const handleUserChange = (newUser: any) => {
-    console.log('[WizardContent] User changed:', newUser);
     if (!newUser) {
       toast({
         title: "Authentication Error",
@@ -80,20 +50,17 @@ const WizardContent = () => {
   };
 
   const handleAnonymousDataChange = (data: WizardData) => {
-    console.log('[WizardContent] Anonymous data changed:', data);
     if (data.business_idea) setBusinessIdea(data.business_idea);
     if (data.target_audience) setTargetAudience(data.target_audience);
     if (data.audience_analysis) setAudienceAnalysis(data.audience_analysis);
   };
 
-  if (userError) {
-    console.error('[WizardContent] User fetch error:', userError);
-    toast({
-      title: "Error",
-      description: "Failed to load user data. Please try again.",
-      variant: "destructive",
-    });
-    return null;
+  if (isUserLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-facebook"></div>
+      </div>
+    );
   }
 
   return (
