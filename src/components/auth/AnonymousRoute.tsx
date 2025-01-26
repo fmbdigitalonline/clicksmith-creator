@@ -30,6 +30,19 @@ export const AnonymousRoute = ({ children }: { children: React.ReactNode }) => {
           sessionId = uuidv4();
           localStorage.setItem('anonymous_session_id', sessionId);
           console.log('[AnonymousRoute] Created new anonymous session:', sessionId);
+          
+          // Initialize anonymous usage record for new sessions
+          const { error: initError } = await supabase
+            .from('anonymous_usage')
+            .insert({
+              session_id: sessionId,
+              used: false,
+              last_completed_step: 1
+            });
+
+          if (initError) {
+            console.error('[AnonymousRoute] Error initializing anonymous usage:', initError);
+          }
         } else {
           console.log('[AnonymousRoute] Found existing anonymous session:', sessionId);
         }
@@ -39,7 +52,7 @@ export const AnonymousRoute = ({ children }: { children: React.ReactNode }) => {
           .from('anonymous_usage')
           .select('*')
           .eq('session_id', sessionId)
-          .single();
+          .maybeSingle();
 
         if (error && error.code !== 'PGRST116') {
           console.error('[AnonymousRoute] Unexpected error:', error);
@@ -48,7 +61,7 @@ export const AnonymousRoute = ({ children }: { children: React.ReactNode }) => {
           return;
         }
 
-        // Allow access if the user hasn't completed step 3 yet
+        // Allow access if no usage record exists or if they haven't completed step 3
         if (!usage || usage.last_completed_step <= 3) {
           setCanAccess(true);
           setIsLoading(false);

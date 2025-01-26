@@ -691,8 +691,8 @@ export type Database = {
       }
       atomic_migration: {
         Args: {
-          user_id: string
-          session_id: string
+          p_user_id: string
+          p_session_id: string
         }
         Returns: {
           ad_format: Json | null
