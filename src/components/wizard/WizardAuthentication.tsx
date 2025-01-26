@@ -21,55 +21,57 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
     const checkUser = async () => {
       try {
         console.log('[Auth] Starting user check');
-        const { data: { user }, error } = await supabase.auth.getUser();
-
+        
+        // First check for an existing session
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        
         if (!isMounted) return;
 
-        if (error) {
-          console.error('[Auth] Error:', error);
-          throw error;
+        if (sessionError) {
+          console.error('[Auth] Session error:', sessionError);
+          throw sessionError;
         }
 
-        if (!user) {
-          console.log('[Auth] No authenticated user found (anonymous session)');
-          return;
+        // If we have a session, handle authenticated user
+        if (session?.user) {
+          console.log('[Auth] Found authenticated user:', session.user.id);
+          onUserChange(session.user);
+          
+          // Check for existing progress
+          const { data: existing } = await supabase
+            .from('wizard_progress')
+            .select('*')
+            .eq('user_id', session.user.id)
+            .maybeSingle();
+
+          if (existing) {
+            console.log('[Auth] Found existing progress for user:', session.user.id);
+            onAnonymousDataChange(existing as WizardData);
+            localStorage.removeItem('anonymous_session_id');
+            return;
+          }
         }
 
-        onUserChange(user);
-        
-        // Pre-check: Does the user already have progress?
-        const { data: existing } = await supabase
-          .from('wizard_progress')
-          .select('*')
-          .eq('user_id', user.id)
-          .maybeSingle();
-
-        if (existing) {
-          console.log('[Auth] Found existing progress for user:', user.id);
-          onAnonymousDataChange(existing as WizardData);
-          localStorage.removeItem('anonymous_session_id');
-          return;
-        }
-
+        // Handle anonymous session if no authenticated user
         const sessionId = localStorage.getItem('anonymous_session_id');
         if (sessionId) {
-          console.log('[Auth] Found anonymous session, starting migration:', sessionId);
-          try {
-            const migratedData = await migrateUserProgress(user.id, sessionId);
+          console.log('[Auth] Found anonymous session:', sessionId);
+          
+          // Check for anonymous progress
+          const { data: anonymousData, error: anonError } = await supabase
+            .from('anonymous_usage')
+            .select('wizard_data')
+            .eq('session_id', sessionId)
+            .maybeSingle();
 
-            if (migratedData) {
-              onAnonymousDataChange(migratedData);
-              localStorage.removeItem('anonymous_session_id');
-              toast({
-                title: "Progress Migrated",
-                description: "Your previous work has been saved to your account.",
-              });
-            }
-          } catch (error) {
-            console.error('[Auth] Migration error:', error);
-            if (existing) {
-              onAnonymousDataChange(existing as WizardData);
-            }
+          if (anonError && anonError.code !== 'PGRST116') {
+            console.error('[Auth] Error fetching anonymous data:', anonError);
+            throw anonError;
+          }
+
+          if (anonymousData?.wizard_data) {
+            console.log('[Auth] Found anonymous progress');
+            onAnonymousDataChange(anonymousData.wizard_data as WizardData);
           }
         }
       } catch (error) {
@@ -88,8 +90,41 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
       }
     };
 
+    // Set up auth state change listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('[Auth] Auth state changed:', event);
+      
+      if (event === 'SIGNED_IN' && session?.user) {
+        onUserChange(session.user);
+        
+        const sessionId = localStorage.getItem('anonymous_session_id');
+        if (sessionId) {
+          try {
+            const migratedData = await migrateUserProgress(session.user.id, sessionId);
+            if (migratedData) {
+              onAnonymousDataChange(migratedData);
+              localStorage.removeItem('anonymous_session_id');
+              toast({
+                title: "Progress Migrated",
+                description: "Your previous work has been saved to your account.",
+              });
+            }
+          } catch (error) {
+            console.error('[Auth] Migration error:', error);
+          }
+        }
+      } else if (event === 'SIGNED_OUT') {
+        onUserChange(null);
+      }
+    });
+
+    // Initial check
     checkUser();
-    return () => { isMounted = false; };
+
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
   }, [onUserChange, onAnonymousDataChange, toast]);
 
   if (authError) {
