@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { WizardData } from "@/types/wizardProgress";
 
 export const sessionRecovery = {
   async cleanOrphanedSessions() {
@@ -72,7 +73,7 @@ export const sessionRecovery = {
 
       if (existingProgress) {
         console.log('[Recovery] Found existing wizard progress');
-        return existingProgress;
+        return existingProgress as WizardData;
       }
 
       // If no progress found, check for anonymous data
@@ -101,7 +102,7 @@ export const sessionRecovery = {
           .from('wizard_progress')
           .insert({
             user_id: userId,
-            ...anonymousData.wizard_data,
+            ...(anonymousData.wizard_data as WizardData),
             is_migration: true,
             version: 1
           })
@@ -113,7 +114,7 @@ export const sessionRecovery = {
           return null;
         }
 
-        return newProgress;
+        return newProgress as WizardData;
       }
 
       return null;
