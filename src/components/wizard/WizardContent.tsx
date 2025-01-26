@@ -82,16 +82,15 @@ const WizardContent = () => {
       <WizardAuthentication
         onUserChange={handleUserChange}
         onAnonymousDataChange={handleAnonymousDataChange}
-      >
-        <WizardSteps
-          currentUser={user}
-          videoAdsEnabled={false}
-          generatedAds={[]}
-          hasLoadedInitialAds={false}
-          onCreateProject={() => {}}
-          renderSaveButton={() => null}
-        />
-      </WizardAuthentication>
+      />
+      <WizardSteps
+        currentUser={user}
+        videoAdsEnabled={false}
+        generatedAds={[]}
+        hasLoadedInitialAds={false}
+        onCreateProject={() => {}}
+        renderSaveButton={() => null}
+      />
     </div>
   );
 };
