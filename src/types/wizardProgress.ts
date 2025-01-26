@@ -6,14 +6,14 @@ export interface WizardHook {
 
 export interface WizardData {
   user_id?: string;
-  business_idea?: any;
-  target_audience?: any;
-  audience_analysis?: any;
-  generated_ads?: any[];
+  business_idea?: Record<string, any>;
+  target_audience?: Record<string, any>;
+  audience_analysis?: Record<string, any>;
+  generated_ads?: Record<string, any>[];
   current_step?: number;
   version?: number;
   is_migration?: boolean;
-  selected_hooks?: WizardHook[];
+  selected_hooks?: Record<string, any>[];
 }
 
 export interface WizardProgressData {

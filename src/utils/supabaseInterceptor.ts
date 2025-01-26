@@ -41,9 +41,11 @@ export const initializeSupabaseInterceptors = () => {
     })
     .subscribe();
 
-  // Add error monitoring
-  supabase.realtime.onError((error) => {
-    console.error('[Supabase] Realtime error:', error);
+  // Add error monitoring using the correct API
+  supabase.channel('error_monitoring').subscribe((status, err) => {
+    if (err) {
+      console.error('[Supabase] Realtime error:', err);
+    }
   });
 
   return () => {
