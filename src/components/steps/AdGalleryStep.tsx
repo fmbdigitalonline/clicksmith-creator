@@ -59,16 +59,6 @@ const AdGalleryStep = ({
     generateAds,
   } = useAdGeneration(businessIdea, targetAudience, adHooks);
 
-  const showPlatformWarning = (platform: string) => {
-    if (platform === 'linkedin' || platform === 'tiktok') {
-      toast({
-        title: `${platform === 'linkedin' ? 'LinkedIn' : 'TikTok'} Ad Generation`,
-        description: `Please note that ${platform === 'linkedin' ? 'LinkedIn' : 'TikTok'} ad generation is currently in beta. Some features may be limited.`,
-        variant: "warning",
-      });
-    }
-  };
-
   const handleGenerateAds = useCallback(async (selectedPlatform: string) => {
     if (!isGenerating) {
       console.log('[AdGalleryStep] Generating ads for platform:', selectedPlatform);
@@ -109,6 +99,16 @@ const AdGalleryStep = ({
       }
     }
   }, [generateAds, isGenerating, toast]);
+
+  const showPlatformWarning = (platform: string) => {
+    if (platform === 'linkedin' || platform === 'tiktok') {
+      toast({
+        title: `${platform === 'linkedin' ? 'LinkedIn' : 'TikTok'} Ad Generation`,
+        description: `Please note that ${platform === 'linkedin' ? 'LinkedIn' : 'TikTok'} ad generation is currently in beta. Some features may be limited.`,
+        variant: "warning",
+      });
+    }
+  };
 
   // Effect for initial ad generation
   useEffect(() => {
@@ -159,14 +159,14 @@ const AdGalleryStep = ({
       isNewProject,
       platform,
       adVariantsCount: adVariants.length,
-      currentAdsCount: generatedAds.length
+      currentAdsCount: generatedAds?.length || 0
     });
 
     let updatedAds;
     if (isNewProject) {
       updatedAds = adVariants;
     } else {
-      updatedAds = [...generatedAds];
+      updatedAds = [...(Array.isArray(generatedAds) ? generatedAds : [])];
       updatedAds = updatedAds.filter(ad => ad.platform !== platform);
       updatedAds.push(...adVariants);
     }
@@ -203,7 +203,9 @@ const AdGalleryStep = ({
   };
 
   const renderPlatformContent = (platformName: string) => {
-    const platformAds = generatedAds.filter(ad => ad.platform === platformName);
+    // Ensure generatedAds is always an array
+    const safeGeneratedAds = Array.isArray(generatedAds) ? generatedAds : [];
+    const platformAds = safeGeneratedAds.filter(ad => ad?.platform === platformName);
     
     return (
       <TabsContent value={platformName} className="space-y-4">
