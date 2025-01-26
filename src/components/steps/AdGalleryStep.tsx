@@ -59,41 +59,6 @@ const AdGalleryStep = ({
     generateAds,
   } = useAdGeneration(businessIdea, targetAudience, adHooks);
 
-  // New effect to handle initial ad generation
-  useEffect(() => {
-    const shouldGenerateInitialAds = 
-      hasLoadedInitialAds && 
-      !isInitialGenerationDone && 
-      !isGenerating && 
-      businessIdea && 
-      targetAudience &&
-      platform && 
-      (!generatedAds || generatedAds.length === 0);
-
-    if (shouldGenerateInitialAds) {
-      console.log('[AdGalleryStep] Triggering initial ad generation:', {
-        platform,
-        hasLoadedInitialAds,
-        isInitialGenerationDone,
-        hasBusinessIdea: !!businessIdea,
-        hasTargetAudience: !!targetAudience,
-        currentAdsCount: generatedAds?.length
-      });
-      
-      handleGenerateAds(platform);
-      setIsInitialGenerationDone(true);
-    }
-  }, [
-    hasLoadedInitialAds,
-    isInitialGenerationDone,
-    isGenerating,
-    businessIdea,
-    targetAudience,
-    platform,
-    generatedAds,
-    handleGenerateAds
-  ]);
-
   const showPlatformWarning = (platform: string) => {
     if (platform === 'linkedin' || platform === 'tiktok') {
       toast({
@@ -144,6 +109,41 @@ const AdGalleryStep = ({
       }
     }
   }, [generateAds, isGenerating, toast]);
+
+  // Effect for initial ad generation
+  useEffect(() => {
+    const shouldGenerateInitialAds = 
+      hasLoadedInitialAds && 
+      !isInitialGenerationDone && 
+      !isGenerating && 
+      businessIdea && 
+      targetAudience &&
+      platform && 
+      (!generatedAds || generatedAds.length === 0);
+
+    if (shouldGenerateInitialAds) {
+      console.log('[AdGalleryStep] Triggering initial ad generation:', {
+        platform,
+        hasLoadedInitialAds,
+        isInitialGenerationDone,
+        hasBusinessIdea: !!businessIdea,
+        hasTargetAudience: !!targetAudience,
+        currentAdsCount: generatedAds?.length
+      });
+      
+      handleGenerateAds(platform);
+      setIsInitialGenerationDone(true);
+    }
+  }, [
+    hasLoadedInitialAds,
+    isInitialGenerationDone,
+    isGenerating,
+    businessIdea,
+    targetAudience,
+    platform,
+    generatedAds,
+    handleGenerateAds
+  ]);
 
   useEffect(() => {
     if (!onAdsGenerated || adVariants.length === 0) {
