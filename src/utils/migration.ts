@@ -1,12 +1,12 @@
 import { supabase } from "@/integrations/supabase/client";
 import { WizardData } from "@/types/wizardProgress";
 
-let isMigrating = false; // Global flag
-
 export const migrateUserProgress = async (
   user_id: string,
   session_id: string
 ): Promise<WizardData | null> => {
+  let isMigrating = false; // Global flag
+
   if (isMigrating) {
     console.log('[Migration] Already in progress');
     return null;
