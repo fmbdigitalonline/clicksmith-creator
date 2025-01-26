@@ -1,4 +1,5 @@
 export interface WizardHook {
+  [key: string]: string | undefined;
   imageUrl?: string;
   description?: string;
   text?: string;
@@ -16,7 +17,7 @@ export interface WizardData {
   created_at?: string;
   updated_at?: string;
   last_save_attempt?: string | null;
-  selected_hooks?: WizardHook[] | null;
+  selected_hooks?: Record<string, any>[] | null;
   ad_format?: any;
   video_ad_preferences?: any;
   is_migration?: boolean;

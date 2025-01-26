@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import { BusinessIdea, TargetAudience, AudienceAnalysis } from "@/types/adWizard";
 import { supabase } from "@/integrations/supabase/client";
-import { WizardData } from "@/types/wizardProgress";
+import { WizardData, WizardHook } from "@/types/wizardProgress";
 
 export const useWizardProgress = () => {
   const [currentStep, setCurrentStep] = useState<number>(1);
@@ -19,13 +19,20 @@ export const useWizardProgress = () => {
     try {
       const startTime = performance.now();
       
+      // Convert WizardHook[] to a JSON-compatible format
+      const jsonCompatibleHooks = data.selected_hooks?.map(hook => ({
+        imageUrl: hook.imageUrl,
+        description: hook.description,
+        text: hook.text
+      }));
+      
       // Prepare the data object to match the database schema exactly
       const progressData = {
         user_id: data.user_id,
         business_idea: data.business_idea || null,
         target_audience: data.target_audience || null,
         audience_analysis: data.audience_analysis || null,
-        selected_hooks: data.selected_hooks || null,
+        selected_hooks: jsonCompatibleHooks || null,
         generated_ads: data.generated_ads || null,
         current_step: data.current_step || 1,
         version: data.version || 1,
