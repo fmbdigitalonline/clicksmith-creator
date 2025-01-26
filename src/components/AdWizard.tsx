@@ -71,16 +71,20 @@ const WizardContent = () => {
 
           if (existingProgress) {
             console.log('[AdWizard] Updating existing progress');
+            
+            // Ensure JSON data is properly formatted
+            const sanitizedData = {
+              business_idea: anonymousData.business_idea ? JSON.stringify(anonymousData.business_idea) : existingProgress.business_idea,
+              target_audience: anonymousData.target_audience ? JSON.stringify(anonymousData.target_audience) : existingProgress.target_audience,
+              audience_analysis: anonymousData.audience_analysis ? JSON.stringify(anonymousData.audience_analysis) : existingProgress.audience_analysis,
+              generated_ads: anonymousData.generated_ads ? JSON.stringify(anonymousData.generated_ads) : existingProgress.generated_ads,
+              current_step: Math.max(anonymousData.current_step || 1, existingProgress.current_step),
+              version: (existingProgress.version || 0) + 1
+            };
+
             const { error: updateError } = await supabase
               .from('wizard_progress')
-              .update({
-                business_idea: anonymousData.business_idea || existingProgress.business_idea,
-                target_audience: anonymousData.target_audience || existingProgress.target_audience,
-                audience_analysis: anonymousData.audience_analysis || existingProgress.audience_analysis,
-                generated_ads: anonymousData.generated_ads || existingProgress.generated_ads,
-                current_step: Math.max(anonymousData.current_step || 1, existingProgress.current_step),
-                version: (existingProgress.version || 0) + 1
-              })
+              .update(sanitizedData)
               .eq('user_id', currentUser.id);
 
             if (updateError) {
@@ -102,17 +106,21 @@ const WizardContent = () => {
             }
           } else {
             console.log('[AdWizard] Creating new progress');
+            
+            // Ensure JSON data is properly formatted for new records
+            const sanitizedData = {
+              user_id: currentUser.id,
+              business_idea: anonymousData.business_idea ? JSON.stringify(anonymousData.business_idea) : null,
+              target_audience: anonymousData.target_audience ? JSON.stringify(anonymousData.target_audience) : null,
+              audience_analysis: anonymousData.audience_analysis ? JSON.stringify(anonymousData.audience_analysis) : null,
+              generated_ads: anonymousData.generated_ads ? JSON.stringify(anonymousData.generated_ads) : '[]',
+              current_step: anonymousData.current_step || 1,
+              version: 1
+            };
+
             const { error: insertError } = await supabase
               .from('wizard_progress')
-              .insert({
-                user_id: currentUser.id,
-                business_idea: anonymousData.business_idea || null,
-                target_audience: anonymousData.target_audience || null,
-                audience_analysis: anonymousData.audience_analysis || null,
-                generated_ads: anonymousData.generated_ads || [],
-                current_step: anonymousData.current_step || 1,
-                version: 1
-              });
+              .insert(sanitizedData);
 
             if (insertError) {
               console.error('[AdWizard] Error creating progress:', insertError);
