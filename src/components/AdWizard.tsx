@@ -19,9 +19,9 @@ import { Save } from "lucide-react";
 import { BusinessIdea, TargetAudience, AudienceAnalysis } from "@/types/adWizard";
 
 interface WizardData {
-  business_idea?: any;
-  target_audience?: any;
-  audience_analysis?: any;
+  business_idea?: BusinessIdea;
+  target_audience?: TargetAudience;
+  audience_analysis?: AudienceAnalysis;
   generated_ads?: any[];
   current_step?: number;
   completed?: boolean;
@@ -63,7 +63,6 @@ const WizardContent = () => {
         if (anonymousData && currentUser) {
           console.log('[AdWizard] Checking existing progress for user:', currentUser.id);
           
-          // First check if user already has progress
           const { data: existingProgress } = await supabase
             .from('wizard_progress')
             .select('*')
@@ -89,7 +88,6 @@ const WizardContent = () => {
               throw updateError;
             }
 
-            // Set the wizard state with the migrated data, ensuring proper type casting
             if (anonymousData.business_idea) {
               setBusinessIdea(anonymousData.business_idea as BusinessIdea);
             }
@@ -102,7 +100,6 @@ const WizardContent = () => {
             if (anonymousData.current_step) {
               setCurrentStep(anonymousData.current_step);
             }
-            
           } else {
             console.log('[AdWizard] Creating new progress');
             const { error: insertError } = await supabase
@@ -122,7 +119,6 @@ const WizardContent = () => {
               throw insertError;
             }
 
-            // Set the wizard state with the anonymous data, ensuring proper type casting
             if (anonymousData.business_idea) {
               setBusinessIdea(anonymousData.business_idea as BusinessIdea);
             }
@@ -161,7 +157,6 @@ const WizardContent = () => {
           }
 
           if (wizardData) {
-            // Set all the wizard state from the loaded data with proper type casting
             if (wizardData.business_idea) {
               setBusinessIdea(wizardData.business_idea as BusinessIdea);
             }
