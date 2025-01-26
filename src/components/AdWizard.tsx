@@ -16,6 +16,7 @@ import AdGalleryStep from "./steps/AdGalleryStep";
 import RegistrationWall from "./steps/auth/RegistrationWall";
 import { Button } from "./ui/button";
 import { Save } from "lucide-react";
+import { BusinessIdea, TargetAudience, AudienceAnalysis } from "@/types/adWizard";
 
 interface WizardData {
   business_idea?: any;
@@ -88,11 +89,19 @@ const WizardContent = () => {
               throw updateError;
             }
 
-            // Set the wizard state with the migrated data
-            if (anonymousData.business_idea) setBusinessIdea(anonymousData.business_idea);
-            if (anonymousData.target_audience) setTargetAudience(anonymousData.target_audience);
-            if (anonymousData.audience_analysis) setAudienceAnalysis(anonymousData.audience_analysis);
-            if (anonymousData.current_step) setCurrentStep(anonymousData.current_step);
+            // Set the wizard state with the migrated data, ensuring proper type casting
+            if (anonymousData.business_idea) {
+              setBusinessIdea(anonymousData.business_idea as BusinessIdea);
+            }
+            if (anonymousData.target_audience) {
+              setTargetAudience(anonymousData.target_audience as TargetAudience);
+            }
+            if (anonymousData.audience_analysis) {
+              setAudienceAnalysis(anonymousData.audience_analysis as AudienceAnalysis);
+            }
+            if (anonymousData.current_step) {
+              setCurrentStep(anonymousData.current_step);
+            }
             
           } else {
             console.log('[AdWizard] Creating new progress');
@@ -113,11 +122,19 @@ const WizardContent = () => {
               throw insertError;
             }
 
-            // Set the wizard state with the anonymous data
-            if (anonymousData.business_idea) setBusinessIdea(anonymousData.business_idea);
-            if (anonymousData.target_audience) setTargetAudience(anonymousData.target_audience);
-            if (anonymousData.audience_analysis) setAudienceAnalysis(anonymousData.audience_analysis);
-            if (anonymousData.current_step) setCurrentStep(anonymousData.current_step);
+            // Set the wizard state with the anonymous data, ensuring proper type casting
+            if (anonymousData.business_idea) {
+              setBusinessIdea(anonymousData.business_idea as BusinessIdea);
+            }
+            if (anonymousData.target_audience) {
+              setTargetAudience(anonymousData.target_audience as TargetAudience);
+            }
+            if (anonymousData.audience_analysis) {
+              setAudienceAnalysis(anonymousData.audience_analysis as AudienceAnalysis);
+            }
+            if (anonymousData.current_step) {
+              setCurrentStep(anonymousData.current_step);
+            }
           }
 
           if (anonymousData.generated_ads) {
@@ -144,11 +161,19 @@ const WizardContent = () => {
           }
 
           if (wizardData) {
-            // Set all the wizard state from the loaded data
-            if (wizardData.business_idea) setBusinessIdea(wizardData.business_idea);
-            if (wizardData.target_audience) setTargetAudience(wizardData.target_audience);
-            if (wizardData.audience_analysis) setAudienceAnalysis(wizardData.audience_analysis);
-            if (wizardData.current_step) setCurrentStep(wizardData.current_step);
+            // Set all the wizard state from the loaded data with proper type casting
+            if (wizardData.business_idea) {
+              setBusinessIdea(wizardData.business_idea as BusinessIdea);
+            }
+            if (wizardData.target_audience) {
+              setTargetAudience(wizardData.target_audience as TargetAudience);
+            }
+            if (wizardData.audience_analysis) {
+              setAudienceAnalysis(wizardData.audience_analysis as AudienceAnalysis);
+            }
+            if (wizardData.current_step) {
+              setCurrentStep(wizardData.current_step);
+            }
             if (wizardData.generated_ads && Array.isArray(wizardData.generated_ads)) {
               console.log('[AdWizard] Loading saved ads from wizard progress:', wizardData.generated_ads);
               setGeneratedAds(wizardData.generated_ads);
