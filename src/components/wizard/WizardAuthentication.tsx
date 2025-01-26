@@ -15,9 +15,20 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  const redirectToStep = (step: number) => {
+  const redirectToStep = async (step: number) => {
     console.log('[Auth] Redirecting to step:', step);
-    navigate(`/ad-wizard/step-${step}`);
+    // Ensure we have the latest data before redirecting
+    const { data: latestProgress } = await supabase
+      .from('wizard_progress')
+      .select('*')
+      .eq('user_id', (await supabase.auth.getSession()).data.session?.user.id)
+      .maybeSingle();
+
+    if (latestProgress?.current_step && latestProgress.current_step > 1) {
+      navigate(`/ad-wizard/step-${latestProgress.current_step}`);
+    } else if (step > 1) {
+      navigate(`/ad-wizard/step-${step}`);
+    }
   };
 
   useEffect(() => {
@@ -59,7 +70,7 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
               .maybeSingle();
 
             if (anonymousData?.wizard_data) {
-              console.log('[Auth] Found anonymous progress');
+              console.log('[Auth] Found anonymous progress, starting migration');
               try {
                 const migratedData = await migrateUserProgress(session.user.id, sessionId);
                 if (migratedData) {
@@ -67,9 +78,10 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
                   onAnonymousDataChange(migratedData);
                   localStorage.removeItem('anonymous_session_id');
                   
-                  if (migratedData.current_step && migratedData.current_step > 1) {
-                    redirectToStep(migratedData.current_step);
-                  }
+                  // Double-check the step value
+                  const step = migratedData.current_step || 1;
+                  console.log('[Auth] Redirecting to step after migration:', step);
+                  await redirectToStep(step);
                   
                   toast({
                     title: "Progress Restored",
@@ -91,7 +103,7 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
             onAnonymousDataChange(existing as WizardData);
             
             if (existing.current_step && existing.current_step > 1) {
-              redirectToStep(existing.current_step);
+              await redirectToStep(existing.current_step);
             }
           }
         }
@@ -141,15 +153,17 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
         const sessionId = localStorage.getItem('anonymous_session_id');
         if (sessionId) {
           try {
+            console.log('[Auth] Starting migration after sign in');
             const migratedData = await migrateUserProgress(session.user.id, sessionId);
             if (migratedData) {
-              console.log('[Auth] Migrated data:', migratedData);
+              console.log('[Auth] Migration successful after sign in:', migratedData);
               onAnonymousDataChange(migratedData);
               localStorage.removeItem('anonymous_session_id');
               
-              if (migratedData.current_step && migratedData.current_step > 1) {
-                redirectToStep(migratedData.current_step);
-              }
+              // Ensure we redirect to the correct step
+              const step = migratedData.current_step || 1;
+              console.log('[Auth] Redirecting to step after sign in:', step);
+              await redirectToStep(step);
               
               toast({
                 title: "Progress Migrated",
