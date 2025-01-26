@@ -15,14 +15,15 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
   const { toast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
+  const [isSaving, setIsSaving] = useState(false); // Add a state to handle concurrency
 
   const redirectToStep = (step: number) => {
     console.log('[Auth] Redirecting to step:', step);
-    
+
     // For new registrations, ensure they continue from at least step 3
     const isNewRegistration = location.state?.from === '/login';
     const targetStep = isNewRegistration ? Math.max(step, 3) : step;
-    
+
     if (!targetStep || targetStep < 1) {
       console.log('[Auth] Invalid step value:', targetStep);
       return;
@@ -47,14 +48,14 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
         console.log('[Auth] User check already in progress');
         return;
       }
-      
+
       isCheckingUser = true;
 
       try {
         console.log('[Auth] Starting user check');
-        
+
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-        
+
         if (!isMounted) return;
 
         if (sessionError) {
@@ -65,7 +66,7 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
         if (session?.user) {
           console.log('[Auth] Found authenticated user:', session.user.id);
           onUserChange(session.user);
-          
+
           const { data: existing } = await supabase
             .from('wizard_progress')
             .select('*')
@@ -75,7 +76,7 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
           const sessionId = localStorage.getItem('anonymous_session_id');
           if (sessionId) {
             console.log('[Auth] Found anonymous session:', sessionId);
-            
+
             const { data: anonymousData } = await supabase
               .from('anonymous_usage')
               .select('wizard_data')
@@ -90,11 +91,12 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
                   console.log('[Auth] Migration successful:', migratedData);
                   onAnonymousDataChange(migratedData);
                   localStorage.removeItem('anonymous_session_id');
-                  
-                  const step = Math.max(migratedData.current_step || 1, 3);
+
+                  // Use the migrated step or existing step, whichever is higher
+                  const step = Math.max(migratedData.current_step || existing?.current_step || 1, 3);
                   console.log('[Auth] Redirecting to step after migration:', step);
                   redirectToStep(step);
-                  
+
                   toast({
                     title: "Progress Restored",
                     description: "Your previous work has been saved to your account.",
@@ -113,7 +115,7 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
             console.log('[Auth] Found existing progress for user:', session.user.id);
             console.log('[Auth] Current step:', existing.current_step);
             onAnonymousDataChange(existing as WizardData);
-            
+
             if (existing.current_step && existing.current_step > 1) {
               redirectToStep(existing.current_step);
             }
@@ -123,7 +125,7 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
         const sessionId = localStorage.getItem('anonymous_session_id');
         if (sessionId) {
           console.log('[Auth] Found anonymous session:', sessionId);
-          
+
           const { data: anonymousData, error: anonError } = await supabase
             .from('anonymous_usage')
             .select('wizard_data')
@@ -161,10 +163,10 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('[Auth] Auth state changed:', event);
-      
+
       if (event === 'SIGNED_IN' && session?.user) {
         onUserChange(session.user);
-        
+
         const sessionId = localStorage.getItem('anonymous_session_id');
         if (sessionId) {
           try {
@@ -174,11 +176,12 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
               console.log('[Auth] Migration successful after sign in:', migratedData);
               onAnonymousDataChange(migratedData);
               localStorage.removeItem('anonymous_session_id');
-              
+
+              // Use the migrated step or existing step, whichever is higher
               const step = Math.max(migratedData.current_step || 1, 3);
               console.log('[Auth] Redirecting to step after sign in:', step);
               redirectToStep(step);
-              
+
               toast({
                 title: "Progress Migrated",
                 description: "Your previous work has been saved to your account.",
