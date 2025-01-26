@@ -30,7 +30,6 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
           throw error;
         }
 
-        // Handle anonymous users
         if (!user) {
           console.log('[Auth] No authenticated user found (anonymous session)');
           return;
