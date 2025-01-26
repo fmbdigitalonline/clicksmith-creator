@@ -57,26 +57,58 @@ const WizardContent = () => {
       try {
         console.log('[AdWizard] Starting to load progress');
         if (anonymousData && currentUser) {
-          console.log('[AdWizard] Migrating anonymous data to user account:', anonymousData);
-          const { error: wizardError } = await supabase
+          console.log('[AdWizard] Checking existing progress for user:', currentUser.id);
+          
+          // First check if user already has progress
+          const { data: existingProgress } = await supabase
             .from('wizard_progress')
-            .upsert({
-              user_id: currentUser.id,
-              business_idea: anonymousData.business_idea || null,
-              target_audience: anonymousData.target_audience || null,
-              audience_analysis: anonymousData.audience_analysis || null,
-              generated_ads: anonymousData.generated_ads || [],
-              current_step: anonymousData.current_step || 4,
-              version: 1
-            });
+            .select('*')
+            .eq('user_id', currentUser.id)
+            .maybeSingle();
 
-          if (wizardError) {
-            console.error('[AdWizard] Error migrating anonymous data:', wizardError);
+          if (existingProgress) {
+            console.log('[AdWizard] Updating existing progress');
+            const { error: updateError } = await supabase
+              .from('wizard_progress')
+              .update({
+                business_idea: anonymousData.business_idea || existingProgress.business_idea,
+                target_audience: anonymousData.target_audience || existingProgress.target_audience,
+                audience_analysis: anonymousData.audience_analysis || existingProgress.audience_analysis,
+                generated_ads: anonymousData.generated_ads || existingProgress.generated_ads,
+                current_step: Math.max(anonymousData.current_step || 1, existingProgress.current_step),
+                version: (existingProgress.version || 0) + 1
+              })
+              .eq('user_id', currentUser.id);
+
+            if (updateError) {
+              console.error('[AdWizard] Error updating progress:', updateError);
+              throw updateError;
+            }
           } else {
-            setGeneratedAds(anonymousData.generated_ads || []);
-            setAnonymousData(null);
-            console.log('[AdWizard] Successfully migrated anonymous data');
+            console.log('[AdWizard] Creating new progress');
+            const { error: insertError } = await supabase
+              .from('wizard_progress')
+              .insert({
+                user_id: currentUser.id,
+                business_idea: anonymousData.business_idea || null,
+                target_audience: anonymousData.target_audience || null,
+                audience_analysis: anonymousData.audience_analysis || null,
+                generated_ads: anonymousData.generated_ads || [],
+                current_step: anonymousData.current_step || 1,
+                version: 1
+              });
+
+            if (insertError) {
+              console.error('[AdWizard] Error creating progress:', insertError);
+              throw insertError;
+            }
           }
+
+          if (anonymousData.generated_ads) {
+            setGeneratedAds(anonymousData.generated_ads);
+          }
+          setAnonymousData(null);
+          console.log('[AdWizard] Successfully migrated anonymous data');
         }
 
         if (currentUser) {
@@ -84,7 +116,7 @@ const WizardContent = () => {
             .from('wizard_progress')
             .select('*')
             .eq('user_id', currentUser.id)
-            .maybeSingle(); // Changed from .single() to .maybeSingle()
+            .maybeSingle();
 
           if (wizardError) {
             console.error('[AdWizard] Error loading wizard progress:', wizardError);
