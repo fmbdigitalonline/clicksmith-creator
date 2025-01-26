@@ -10,6 +10,10 @@ interface WizardAuthenticationProps {
   onAnonymousDataChange: (data: WizardData) => void;
 }
 
+const isWizardData = (data: any): data is WizardData => {
+  return typeof data === 'object' && data !== null;
+};
+
 const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAuthenticationProps) => {
   const [authError, setAuthError] = useState<string | null>(null);
   const [isMigrating, setIsMigrating] = useState(false);
@@ -19,8 +23,8 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
 
   const validateStepRequirements = (data: WizardData): number => {
     const requirements = {
-      step1: !!data.business_idea?.trim(),
-      step2: !!data.target_audience?.trim(),
+      step1: !!data.business_idea?.toString().trim(),
+      step2: !!data.target_audience?.toString().trim(),
       step3: !!data.audience_analysis
     };
 
@@ -56,8 +60,8 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
     setIsMigrating(true);
     try {
       const migratedData = await migrateUserProgress(user.id, sessionId);
-      if (!migratedData) {
-        throw new Error('Migration failed - no data returned');
+      if (!migratedData || !isWizardData(migratedData)) {
+        throw new Error('Migration failed - no data returned or invalid data');
       }
       
       const validatedStep = validateStepRequirements(migratedData);
@@ -131,7 +135,7 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
             .eq('session_id', preservedSession)
             .single();
 
-          if (anonymousData?.wizard_data) {
+          if (anonymousData?.wizard_data && isWizardData(anonymousData.wizard_data)) {
             onAnonymousDataChange(anonymousData.wizard_data);
           }
         }

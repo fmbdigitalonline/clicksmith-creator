@@ -1,11 +1,15 @@
 import { supabase } from "@/integrations/supabase/client";
 import { WizardData } from "@/types/wizardProgress";
 
+const isWizardData = (data: any): data is WizardData => {
+  return typeof data === 'object' && data !== null;
+};
+
 export const migrateUserProgress = async (
   user_id: string,
   session_id: string
 ): Promise<WizardData | null> => {
-  let isMigrating = false; // Global flag
+  let isMigrating = false;
 
   if (isMigrating) {
     console.log('[Migration] Already in progress');
@@ -27,8 +31,8 @@ export const migrateUserProgress = async (
       throw error;
     }
 
-    if (!data) {
-      console.log('[Migration] No data to migrate');
+    if (!data || !isWizardData(data)) {
+      console.log('[Migration] No valid data to migrate');
       return null;
     }
 
