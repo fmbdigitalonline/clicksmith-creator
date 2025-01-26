@@ -616,7 +616,6 @@ export type Database = {
           current_step: number | null
           generated_ads: Json | null
           id: string
-          is_migration: boolean | null
           last_save_attempt: string | null
           selected_hooks: Json | null
           target_audience: Json | null
@@ -633,7 +632,6 @@ export type Database = {
           current_step?: number | null
           generated_ads?: Json | null
           id?: string
-          is_migration?: boolean | null
           last_save_attempt?: string | null
           selected_hooks?: Json | null
           target_audience?: Json | null
@@ -650,7 +648,6 @@ export type Database = {
           current_step?: number | null
           generated_ads?: Json | null
           id?: string
-          is_migration?: boolean | null
           last_save_attempt?: string | null
           selected_hooks?: Json | null
           target_audience?: Json | null
@@ -702,7 +699,6 @@ export type Database = {
           current_step: number | null
           generated_ads: Json | null
           id: string
-          is_migration: boolean | null
           last_save_attempt: string | null
           selected_hooks: Json | null
           target_audience: Json | null

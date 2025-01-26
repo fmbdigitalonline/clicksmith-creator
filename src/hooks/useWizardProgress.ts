@@ -9,7 +9,7 @@ export const useWizardProgress = () => {
   const [targetAudience, setTargetAudience] = useState<TargetAudience | null>(null);
   const [audienceAnalysis, setAudienceAnalysis] = useState<AudienceAnalysis | null>(null);
 
-  const saveProgress = async (data: Partial<WizardData>) => {
+  const saveProgress = async (data: WizardData) => {
     console.log('[WizardProgress] Starting to save progress:', {
       userId: data.user_id,
       step: data.current_step,
@@ -18,19 +18,9 @@ export const useWizardProgress = () => {
 
     try {
       const startTime = performance.now();
-      
-      // Convert complex types to JSON-compatible objects
-      const jsonData = {
-        ...data,
-        business_idea: data.business_idea ? JSON.parse(JSON.stringify(data.business_idea)) : null,
-        target_audience: data.target_audience ? JSON.parse(JSON.stringify(data.target_audience)) : null,
-        audience_analysis: data.audience_analysis ? JSON.parse(JSON.stringify(data.audience_analysis)) : null,
-        selected_hooks: data.selected_hooks ? JSON.parse(JSON.stringify(data.selected_hooks)) : null
-      };
-
       const { error } = await supabase
         .from('wizard_progress')
-        .upsert(jsonData, { 
+        .upsert(data, { 
           onConflict: 'user_id',
           ignoreDuplicates: false 
         });
