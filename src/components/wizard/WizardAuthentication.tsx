@@ -78,11 +78,12 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
 
           if (anonymousData?.wizard_data) {
             console.log('[Auth] Found anonymous progress');
-            onAnonymousDataChange(anonymousData.wizard_data as WizardData);
+            const wizardData = anonymousData.wizard_data as WizardData;
+            onAnonymousDataChange(wizardData);
             
             // If authenticated and has step data, redirect
-            if (session?.user && anonymousData.wizard_data.current_step > 1) {
-              redirectToStep(anonymousData.wizard_data.current_step);
+            if (session?.user && wizardData.current_step && wizardData.current_step > 1) {
+              redirectToStep(wizardData.current_step);
             }
           }
         }
