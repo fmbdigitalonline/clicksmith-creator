@@ -59,6 +59,41 @@ const AdGalleryStep = ({
     generateAds,
   } = useAdGeneration(businessIdea, targetAudience, adHooks);
 
+  // New effect to handle initial ad generation
+  useEffect(() => {
+    const shouldGenerateInitialAds = 
+      hasLoadedInitialAds && 
+      !isInitialGenerationDone && 
+      !isGenerating && 
+      businessIdea && 
+      targetAudience &&
+      platform && 
+      (!generatedAds || generatedAds.length === 0);
+
+    if (shouldGenerateInitialAds) {
+      console.log('[AdGalleryStep] Triggering initial ad generation:', {
+        platform,
+        hasLoadedInitialAds,
+        isInitialGenerationDone,
+        hasBusinessIdea: !!businessIdea,
+        hasTargetAudience: !!targetAudience,
+        currentAdsCount: generatedAds?.length
+      });
+      
+      handleGenerateAds(platform);
+      setIsInitialGenerationDone(true);
+    }
+  }, [
+    hasLoadedInitialAds,
+    isInitialGenerationDone,
+    isGenerating,
+    businessIdea,
+    targetAudience,
+    platform,
+    generatedAds,
+    handleGenerateAds
+  ]);
+
   const showPlatformWarning = (platform: string) => {
     if (platform === 'linkedin' || platform === 'tiktok') {
       toast({
@@ -109,30 +144,6 @@ const AdGalleryStep = ({
       }
     }
   }, [generateAds, isGenerating, toast]);
-
-  useEffect(() => {
-    if (!hasLoadedInitialAds || isInitialGenerationDone) return;
-
-    const isNewProject = projectId === 'new';
-    const existingPlatformAds = generatedAds.filter(ad => ad.platform === platform);
-    const shouldGenerateAds = isNewProject || existingPlatformAds.length === 0;
-
-    console.log('[AdGalleryStep] Initial ad generation check:', {
-      hasLoadedInitialAds,
-      generatedPlatforms: Array.from(generatedPlatforms),
-      isNewProject,
-      platform,
-      existingAdsCount: existingPlatformAds.length,
-      shouldGenerateAds,
-      isInitialGenerationDone
-    });
-
-    if (shouldGenerateAds && !generatedPlatforms.has(platform)) {
-      console.log('[AdGalleryStep] Triggering initial ad generation for platform:', platform);
-      handleGenerateAds(platform);
-      setIsInitialGenerationDone(true);
-    }
-  }, [hasLoadedInitialAds, platform, projectId, generatedAds, handleGenerateAds, generatedPlatforms, isInitialGenerationDone]);
 
   useEffect(() => {
     if (!onAdsGenerated || adVariants.length === 0) {
