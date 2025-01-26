@@ -2,6 +2,7 @@ import { createContext, useContext, ReactNode, useEffect } from 'react';
 import { useAdWizardState } from "@/hooks/useAdWizardState";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { initializeSupabaseInterceptors } from "@/utils/supabaseInterceptor";
 
 const WizardStateContext = createContext<ReturnType<typeof useAdWizardState> | undefined>(undefined);
 
@@ -18,7 +19,10 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
   const { toast } = useToast();
 
   useEffect(() => {
-    // Set up real-time subscription with migration guard
+    // Initialize Supabase interceptors
+    const cleanup = initializeSupabaseInterceptors();
+
+    // Set up wizard progress monitoring
     const channel = supabase
       .channel('wizard_progress_changes')
       .on(
@@ -28,11 +32,11 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
           schema: 'public',
           table: 'wizard_progress',
         },
-        (payload) => {
+        (payload: any) => {
           console.log('[WizardStateProvider] Received real-time update:', payload);
 
           // Ignore migration-related changes
-          if (payload.new && payload.new.is_migration) {
+          if (payload.new?.is_migration) {
             console.log('[WizardStateProvider] Ignoring migration-related change');
             return;
           }
@@ -52,7 +56,8 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
       });
 
     return () => {
-      console.log('[WizardStateProvider] Cleaning up real-time subscription');
+      console.log('[WizardStateProvider] Cleaning up subscriptions');
+      cleanup();
       supabase.removeChannel(channel);
     };
   }, [toast]);
