@@ -30,6 +30,7 @@ export const CreditDisplay = () => {
         .maybeSingle();
 
       if (error && error.code !== "PGRST116") {
+        console.error('Error checking subscription:', error);
         toast({
           title: "Error checking subscription",
           description: "We couldn't verify your subscription status. Please try again.",
@@ -50,6 +51,8 @@ export const CreditDisplay = () => {
     queryFn: async () => {
       if (!user?.id) return null;
       
+      console.log('Checking free tier usage for user:', user.id);
+      
       // First try to get existing usage
       const { data: existingData, error: fetchError } = await supabase
         .from("free_tier_usage")
@@ -58,6 +61,7 @@ export const CreditDisplay = () => {
         .maybeSingle();
 
       if (fetchError && fetchError.code !== "PGRST116") {
+        console.error('Error fetching free tier usage:', fetchError);
         toast({
           title: "Error checking usage",
           description: "We couldn't verify your usage status. Please try again.",
@@ -68,13 +72,18 @@ export const CreditDisplay = () => {
 
       // If no data exists, create a new record
       if (!existingData) {
+        console.log('Creating new free tier usage record for user:', user.id);
         const { data: newData, error: insertError } = await supabase
           .from("free_tier_usage")
-          .insert([{ user_id: user.id, generations_used: 0 }])
+          .insert([{ 
+            user_id: user.id, 
+            generations_used: 0 
+          }])
           .select()
           .maybeSingle();
 
         if (insertError) {
+          console.error('Error creating free tier usage record:', insertError);
           toast({
             title: "Error creating usage record",
             description: "We couldn't initialize your usage status. Please try again.",
@@ -83,9 +92,11 @@ export const CreditDisplay = () => {
           return null;
         }
 
+        console.log('Created new free tier usage record:', newData);
         return newData;
       }
 
+      console.log('Found existing free tier usage record:', existingData);
       return existingData;
     },
     enabled: !!user?.id,
