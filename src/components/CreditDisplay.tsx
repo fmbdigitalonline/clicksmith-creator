@@ -49,13 +49,15 @@ export const CreditDisplay = () => {
     queryKey: ["free_tier_usage", user?.id],
     queryFn: async () => {
       if (!user?.id) return null;
-      const { data, error } = await supabase
+      
+      // First try to get existing usage
+      const { data: existingData, error: fetchError } = await supabase
         .from("free_tier_usage")
         .select("*")
         .eq("user_id", user.id)
         .maybeSingle();
 
-      if (error && error.code !== "PGRST116") {
+      if (fetchError && fetchError.code !== "PGRST116") {
         toast({
           title: "Error checking usage",
           description: "We couldn't verify your usage status. Please try again.",
@@ -64,7 +66,27 @@ export const CreditDisplay = () => {
         return null;
       }
 
-      return data || { generations_used: 0 };
+      // If no data exists, create a new record
+      if (!existingData) {
+        const { data: newData, error: insertError } = await supabase
+          .from("free_tier_usage")
+          .insert([{ user_id: user.id, generations_used: 0 }])
+          .select()
+          .maybeSingle();
+
+        if (insertError) {
+          toast({
+            title: "Error creating usage record",
+            description: "We couldn't initialize your usage status. Please try again.",
+            variant: "destructive",
+          });
+          return null;
+        }
+
+        return newData;
+      }
+
+      return existingData;
     },
     enabled: !!user?.id,
     refetchInterval: 5000,
