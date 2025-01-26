@@ -18,8 +18,6 @@ export const useSession = create<SessionState>((set) => ({
   migrationStatus: 'idle',
   currentSession: {},
   
-  setMigrationStatus: (status) => set({ migrationStatus: status }),
-  
   initializeSession: async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -58,6 +56,8 @@ export const useSession = create<SessionState>((set) => ({
       });
     }
   },
+  
+  setMigrationStatus: (status) => set({ migrationStatus: status }),
   
   clearMigration: () => set({ migrationStatus: 'idle' })
 }));
