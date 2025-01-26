@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import WizardHeader from "./WizardHeader";
 import WizardAuthentication from "./WizardAuthentication";
+import { WizardData } from "@/types/wizardProgress";
 
 const WizardContent = () => {
   const navigate = useNavigate();
@@ -16,6 +17,9 @@ const WizardContent = () => {
     targetAudience,
     audienceAnalysis,
     setCurrentStep,
+    setBusinessIdea,
+    setTargetAudience,
+    setAudienceAnalysis,
   } = useWizardState();
 
   const { data: user } = useQuery({
@@ -58,10 +62,27 @@ const WizardContent = () => {
     }
   }, [currentStep, businessIdea, targetAudience, audienceAnalysis, navigate, setCurrentStep]);
 
+  const handleUserChange = (newUser: any) => {
+    console.log('[WizardContent] User changed:', newUser);
+  };
+
+  const handleAnonymousDataChange = (data: WizardData) => {
+    console.log('[WizardContent] Anonymous data changed:', data);
+    if (data.business_idea) setBusinessIdea(data.business_idea);
+    if (data.target_audience) setTargetAudience(data.target_audience);
+    if (data.audience_analysis) setAudienceAnalysis(data.audience_analysis);
+  };
+
   return (
     <div className="flex-1 space-y-8 p-8 pt-6">
-      <WizardHeader />
-      <WizardAuthentication>
+      <WizardHeader 
+        title="Ad Creation Wizard" 
+        description="Create your perfect ad in just a few steps"
+      />
+      <WizardAuthentication
+        onUserChange={handleUserChange}
+        onAnonymousDataChange={handleAnonymousDataChange}
+      >
         <WizardSteps
           currentUser={user}
           videoAdsEnabled={false}
