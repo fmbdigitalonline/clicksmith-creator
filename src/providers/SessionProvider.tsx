@@ -14,7 +14,7 @@ interface SessionState {
   setMigrationStatus: (status: SessionState['migrationStatus']) => void;
 }
 
-export const useSession = create<SessionState>()((set) => ({
+export const useSession = create<SessionState>((set) => ({
   migrationStatus: 'idle',
   currentSession: {},
   
@@ -25,16 +25,17 @@ export const useSession = create<SessionState>()((set) => ({
       const { data: { user } } = await supabase.auth.getUser();
       
       if (user) {
-        const { data: session } = await supabase
-          .from('auth_sessions')
-          .select('anonymous_id')
-          .eq('user_id', user.id)
+        // Check anonymous_usage table for any existing session
+        const { data: anonymousData } = await supabase
+          .from('anonymous_usage')
+          .select('session_id')
+          .eq('used', false)
           .single();
 
         set({
           currentSession: {
             userId: user.id,
-            anonymousId: session?.anonymous_id
+            anonymousId: anonymousData?.session_id
           }
         });
       } else {
