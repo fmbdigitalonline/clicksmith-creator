@@ -50,6 +50,7 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
 
           if (existing) {
             console.log('[Auth] Found existing progress for user:', session.user.id);
+            console.log('[Auth] Current step:', existing.current_step); // Log the current step
             onAnonymousDataChange(existing as WizardData);
             localStorage.removeItem('anonymous_session_id');
             
@@ -114,6 +115,8 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
           try {
             const migratedData = await migrateUserProgress(session.user.id, sessionId);
             if (migratedData) {
+              console.log('[Auth] Migrated data:', migratedData);
+              console.log('[Auth] Current step after migration:', migratedData.current_step); // Log the current step
               onAnonymousDataChange(migratedData);
               localStorage.removeItem('anonymous_session_id');
               toast({
