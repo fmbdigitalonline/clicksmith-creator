@@ -1,7 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { supabase } from "@/integrations/supabase/client";
 import { WizardData } from "@/types/wizardProgress";
-import { useToast } from "@/hooks/use-toast";
 
 interface MigrationPayload {
   userId: string;
@@ -15,6 +14,10 @@ interface MigrationResult {
   error?: string;
 }
 
+const isWizardData = (data: any): data is WizardData => {
+  return typeof data === 'object' && data !== null;
+};
+
 export class MigrationService {
   private static LOCK_DURATION = 5000; // 5-second lock
   private static MAX_RETRIES = 3;
@@ -26,7 +29,6 @@ export class MigrationService {
     
     while (retryCount < MigrationService.MAX_RETRIES) {
       try {
-        // Acquire migration lock
         const { data: lock, error: lockError } = await supabase
           .from('wizard_progress')
           .update({ 
@@ -47,7 +49,6 @@ export class MigrationService {
           };
         }
 
-        // Fetch anonymous data
         const { data: anonymousData, error: anonError } = await supabase
           .from('anonymous_usage')
           .select('wizard_data')
@@ -59,18 +60,16 @@ export class MigrationService {
           throw new Error('Failed to fetch anonymous data');
         }
 
-        if (!anonymousData?.wizard_data) {
-          console.log('[MigrationService] No anonymous data found');
+        if (!anonymousData?.wizard_data || !isWizardData(anonymousData.wizard_data)) {
+          console.log('[MigrationService] No valid anonymous data found');
           return {
             success: false,
-            error: 'No anonymous data found'
+            error: 'No valid anonymous data found'
           };
         }
 
-        // Validate and transform data
         const validatedData = this.validateData(anonymousData.wizard_data);
         
-        // Mark anonymous session as used
         await supabase
           .from('anonymous_usage')
           .update({ 
@@ -80,7 +79,6 @@ export class MigrationService {
           })
           .eq('session_id', sessionId);
 
-        // Update wizard progress
         const { error: updateError } = await supabase
           .from('wizard_progress')
           .upsert({
@@ -107,7 +105,6 @@ export class MigrationService {
         retryCount++;
         
         if (retryCount === MigrationService.MAX_RETRIES) {
-          // Release lock on final failure
           await this.releaseLock(userId);
           return {
             success: false,
@@ -115,7 +112,6 @@ export class MigrationService {
           };
         }
         
-        // Wait before retrying
         await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
       }
     }
@@ -143,7 +139,6 @@ export class MigrationService {
   private validateData(data: WizardData): WizardData {
     console.log('[MigrationService] Validating data:', data);
     
-    // Determine the highest valid step based on data presence
     const maxStep = Math.min(
       data.audience_analysis ? 3 :
       data.target_audience ? 2 :
@@ -160,5 +155,4 @@ export class MigrationService {
   }
 }
 
-// Create a singleton instance
 export const migrationService = new MigrationService();

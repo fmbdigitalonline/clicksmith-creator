@@ -56,9 +56,12 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
     setIsMigrating(true);
     try {
       const migratedData = await migrateUserProgress(user.id, sessionId);
+      if (!migratedData) {
+        throw new Error('Migration failed - no data returned');
+      }
+      
       const validatedStep = validateStepRequirements(migratedData);
       
-      // Update database with validated step
       const { error } = await supabase
         .from('wizard_progress')
         .update({ current_step: validatedStep })
