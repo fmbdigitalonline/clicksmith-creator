@@ -72,7 +72,7 @@ const WizardContent = () => {
           if (existingProgress) {
             console.log('[AdWizard] Updating existing progress');
             
-            // Ensure JSON data is properly formatted
+            // Ensure JSON data is properly formatted and preserve generated ads
             const sanitizedData = {
               business_idea: anonymousData.business_idea ? JSON.stringify(anonymousData.business_idea) : existingProgress.business_idea,
               target_audience: anonymousData.target_audience ? JSON.stringify(anonymousData.target_audience) : existingProgress.target_audience,
@@ -92,6 +92,7 @@ const WizardContent = () => {
               throw updateError;
             }
 
+            // Set local state with anonymous data
             if (anonymousData.business_idea) {
               setBusinessIdea(anonymousData.business_idea as BusinessIdea);
             }
@@ -104,8 +105,11 @@ const WizardContent = () => {
             if (anonymousData.current_step) {
               setCurrentStep(anonymousData.current_step);
             }
+            if (anonymousData.generated_ads) {
+              setGeneratedAds(anonymousData.generated_ads);
+            }
           } else {
-            console.log('[AdWizard] Creating new progress');
+            console.log('[AdWizard] Creating new progress with anonymous data');
             
             // Ensure JSON data is properly formatted for new records
             const sanitizedData = {
@@ -127,6 +131,7 @@ const WizardContent = () => {
               throw insertError;
             }
 
+            // Set local state with anonymous data
             if (anonymousData.business_idea) {
               setBusinessIdea(anonymousData.business_idea as BusinessIdea);
             }
@@ -139,11 +144,11 @@ const WizardContent = () => {
             if (anonymousData.current_step) {
               setCurrentStep(anonymousData.current_step);
             }
+            if (anonymousData.generated_ads) {
+              setGeneratedAds(anonymousData.generated_ads);
+            }
           }
 
-          if (anonymousData.generated_ads) {
-            setGeneratedAds(anonymousData.generated_ads);
-          }
           setAnonymousData(null);
           console.log('[AdWizard] Successfully migrated anonymous data');
         }
