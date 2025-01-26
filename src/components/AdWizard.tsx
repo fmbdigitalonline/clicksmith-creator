@@ -50,6 +50,9 @@ const WizardContent = () => {
     handleStartOver,
     canNavigateToStep,
     setCurrentStep,
+    setBusinessIdea,
+    setTargetAudience,
+    setAudienceAnalysis,
   } = useWizardState();
 
   useEffect(() => {
@@ -84,6 +87,13 @@ const WizardContent = () => {
               console.error('[AdWizard] Error updating progress:', updateError);
               throw updateError;
             }
+
+            // Set the wizard state with the migrated data
+            if (anonymousData.business_idea) setBusinessIdea(anonymousData.business_idea);
+            if (anonymousData.target_audience) setTargetAudience(anonymousData.target_audience);
+            if (anonymousData.audience_analysis) setAudienceAnalysis(anonymousData.audience_analysis);
+            if (anonymousData.current_step) setCurrentStep(anonymousData.current_step);
+            
           } else {
             console.log('[AdWizard] Creating new progress');
             const { error: insertError } = await supabase
@@ -102,6 +112,12 @@ const WizardContent = () => {
               console.error('[AdWizard] Error creating progress:', insertError);
               throw insertError;
             }
+
+            // Set the wizard state with the anonymous data
+            if (anonymousData.business_idea) setBusinessIdea(anonymousData.business_idea);
+            if (anonymousData.target_audience) setTargetAudience(anonymousData.target_audience);
+            if (anonymousData.audience_analysis) setAudienceAnalysis(anonymousData.audience_analysis);
+            if (anonymousData.current_step) setCurrentStep(anonymousData.current_step);
           }
 
           if (anonymousData.generated_ads) {
@@ -127,9 +143,16 @@ const WizardContent = () => {
             });
           }
 
-          if (wizardData?.generated_ads && Array.isArray(wizardData.generated_ads)) {
-            console.log('[AdWizard] Loading saved ads from wizard progress:', wizardData.generated_ads);
-            setGeneratedAds(wizardData.generated_ads);
+          if (wizardData) {
+            // Set all the wizard state from the loaded data
+            if (wizardData.business_idea) setBusinessIdea(wizardData.business_idea);
+            if (wizardData.target_audience) setTargetAudience(wizardData.target_audience);
+            if (wizardData.audience_analysis) setAudienceAnalysis(wizardData.audience_analysis);
+            if (wizardData.current_step) setCurrentStep(wizardData.current_step);
+            if (wizardData.generated_ads && Array.isArray(wizardData.generated_ads)) {
+              console.log('[AdWizard] Loading saved ads from wizard progress:', wizardData.generated_ads);
+              setGeneratedAds(wizardData.generated_ads);
+            }
           }
         }
 
@@ -146,7 +169,7 @@ const WizardContent = () => {
     };
 
     loadProgress();
-  }, [projectId, navigate, toast, anonymousData, currentUser]);
+  }, [projectId, navigate, toast, anonymousData, currentUser, setBusinessIdea, setTargetAudience, setAudienceAnalysis, setCurrentStep]);
 
   const handleCreateProject = () => setShowCreateProject(true);
   const handleProjectCreated = (projectId: string) => {
