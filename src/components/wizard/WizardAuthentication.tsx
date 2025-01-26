@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { migrateUserProgress } from "@/utils/migration";
@@ -14,18 +14,23 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
   const [authError, setAuthError] = useState<string | null>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const redirectToStep = (step: number) => {
     console.log('[Auth] Redirecting to step:', step);
     
-    if (!step || step < 1) {
-      console.log('[Auth] Invalid step value:', step);
+    // For new registrations, ensure they continue from at least step 3
+    const isNewRegistration = location.state?.from === '/login';
+    const targetStep = isNewRegistration ? Math.max(step, 3) : step;
+    
+    if (!targetStep || targetStep < 1) {
+      console.log('[Auth] Invalid step value:', targetStep);
       return;
     }
 
-    if (step > 1) {
-      console.log('[Auth] Navigating to step:', step);
-      navigate(`/ad-wizard/step-${step}`);
+    if (targetStep > 1) {
+      console.log('[Auth] Navigating to step:', targetStep);
+      navigate(`/ad-wizard/new`, { state: { step: targetStep } });
     } else {
       console.log('[Auth] No valid step found, staying on current page');
     }
@@ -86,7 +91,7 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
                   onAnonymousDataChange(migratedData);
                   localStorage.removeItem('anonymous_session_id');
                   
-                  const step = migratedData.current_step || 1;
+                  const step = Math.max(migratedData.current_step || 1, 3);
                   console.log('[Auth] Redirecting to step after migration:', step);
                   redirectToStep(step);
                   
@@ -170,7 +175,7 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
               onAnonymousDataChange(migratedData);
               localStorage.removeItem('anonymous_session_id');
               
-              const step = migratedData.current_step || 1;
+              const step = Math.max(migratedData.current_step || 1, 3);
               console.log('[Auth] Redirecting to step after sign in:', step);
               redirectToStep(step);
               
@@ -199,7 +204,7 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
       isMounted = false;
       subscription.unsubscribe();
     };
-  }, [onUserChange, onAnonymousDataChange, toast, navigate]);
+  }, [onUserChange, onAnonymousDataChange, toast, navigate, location.state]);
 
   if (authError) {
     return (
