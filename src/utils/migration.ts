@@ -16,7 +16,10 @@ export const migrateUserProgress = async (
   try {
     console.log('[Migration] Starting migration for user:', user_id);
     const { data, error } = await supabase
-      .rpc('atomic_migration', { user_id, session_id })
+      .rpc('atomic_migration', { 
+        p_user_id: user_id, 
+        p_session_id: session_id 
+      })
       .maybeSingle();
 
     if (error) {
