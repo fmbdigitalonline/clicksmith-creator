@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { AdHook } from "@/types/adWizard";
+import { AdHook, BusinessIdea, TargetAudience, AudienceAnalysis } from "@/types/adWizard";
 import { useParams } from "react-router-dom";
 import { useWizardProgress } from "./wizard/useWizardProgress";
 import { useWizardHandlers } from "./wizard/useWizardHandlers";
@@ -47,6 +47,9 @@ export const useAdWizardState = () => {
     handleStartOver,
     canNavigateToStep,
     setCurrentStep,
+    setBusinessIdea,
+    setTargetAudience,
+    setAudienceAnalysis,
   };
 };
 
