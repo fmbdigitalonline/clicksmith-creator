@@ -45,6 +45,7 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
           .maybeSingle();
 
         if (existing) {
+          console.log('[Auth] Found existing progress for user:', user.id);
           onAnonymousDataChange(existing as WizardData);
           localStorage.removeItem('anonymous_session_id');
           return;
@@ -52,7 +53,7 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
 
         const sessionId = localStorage.getItem('anonymous_session_id');
         if (sessionId) {
-          console.log('[Migration] Starting migration process');
+          console.log('[Auth] Found anonymous session, starting migration:', sessionId);
           try {
             const migratedData = await migrateUserProgress(user.id, sessionId);
 
@@ -65,8 +66,7 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
               });
             }
           } catch (error) {
-            console.error('[Migration] Error:', error);
-            // Fallback to existing data if migration fails
+            console.error('[Auth] Migration error:', error);
             if (existing) {
               onAnonymousDataChange(existing as WizardData);
             }
