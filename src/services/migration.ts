@@ -139,15 +139,32 @@ export class MigrationService {
   private validateData(data: WizardData): WizardData {
     console.log('[MigrationService] Validating data:', data);
     
-    const maxStep = Math.min(
-      data.audience_analysis ? 3 :
-      data.target_audience ? 2 :
-      data.business_idea ? 1 : 1,
-      data.current_step || 1
-    );
+    // Calculate actual completed step based on data presence
+    let validatedStep = 1;
+    
+    // Check if business_idea exists and has content
+    if (data.business_idea && typeof data.business_idea === 'object') {
+      validatedStep = 2;
+    }
+    
+    // Check if target_audience exists and has content
+    if (validatedStep === 2 && data.target_audience && typeof data.target_audience === 'object') {
+      validatedStep = 3;
+    }
+    
+    // Check if audience_analysis exists and has content
+    if (validatedStep === 3 && data.audience_analysis && typeof data.audience_analysis === 'object') {
+      validatedStep = 4;
+    }
+
+    // Ensure the current_step doesn't exceed the validated step
+    const maxStep = Math.min(validatedStep, data.current_step || 1);
 
     return {
       ...data,
+      business_idea: validatedStep >= 1 ? data.business_idea : null,
+      target_audience: validatedStep >= 2 ? data.target_audience : null,
+      audience_analysis: validatedStep >= 3 ? data.audience_analysis : null,
       current_step: maxStep,
       version: (data.version || 0) + 1,
       updated_at: new Date().toISOString()
