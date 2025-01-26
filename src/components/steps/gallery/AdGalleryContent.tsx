@@ -54,6 +54,11 @@ const AdGalleryContent = ({
     setSelectedFormat(format);
   };
 
+  const handlePlatformTabChange = (value: string) => {
+    const hasExistingAds = Array.isArray(generatedAds) && generatedAds.length > 0;
+    handlePlatformChange(value as any, hasExistingAds);
+  };
+
   const renderPlatformContent = (platformName: string) => {
     const platformAds = Array.isArray(generatedAds) 
       ? generatedAds.filter(ad => ad.platform === platformName)
@@ -93,7 +98,7 @@ const AdGalleryContent = ({
       ) : (
         <PlatformTabs 
           platform={platform} 
-          onPlatformChange={handlePlatformChange}
+          onPlatformChange={handlePlatformTabChange}
         >
           {renderPlatformContent('facebook')}
           {renderPlatformContent('google')}

@@ -31,6 +31,7 @@ const WizardContent = () => {
     setTargetAudience,
     setAudienceAnalysis,
     setCurrentStep,
+    canNavigateToStep
   } = useWizardState();
 
   useEffect(() => {
@@ -173,6 +174,7 @@ const WizardContent = () => {
         <WizardProgress
           currentStep={currentStep}
           onStepClick={setCurrentStep}
+          canNavigateToStep={canNavigateToStep}
         />
       </div>
 
