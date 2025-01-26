@@ -14,10 +14,11 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     const checkSession = async () => {
       try {
+        console.log('[ProtectedRoute] Starting session check');
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
         
         if (sessionError) {
-          console.error("Session error:", sessionError);
+          console.error("[ProtectedRoute] Session error:", sessionError);
           setIsAuthenticated(false);
           navigate('/login', { replace: true });
           return;
@@ -26,19 +27,24 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
         // Check for anonymous session
         const anonymousSessionId = localStorage.getItem('anonymous_session_id');
         if (!session && anonymousSessionId) {
+          console.log('[ProtectedRoute] Found anonymous session:', anonymousSessionId);
           const { data: usage } = await supabase
             .from('anonymous_usage')
             .select('used, wizard_data')
             .eq('session_id', anonymousSessionId)
             .maybeSingle();
 
+          console.log('[ProtectedRoute] Anonymous usage data:', usage);
+
           if (usage && !usage.used) {
+            console.log('[ProtectedRoute] Redirecting to new wizard');
             navigate('/ad-wizard/new', { replace: true });
             return;
           }
         }
 
         if (!session) {
+          console.log('[ProtectedRoute] No session found, redirecting to login');
           setIsAuthenticated(false);
           navigate('/login', { replace: true });
           return;
@@ -51,7 +57,7 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
             
             if (refreshError) {
               if (refreshError.message.includes('refresh_token_not_found')) {
-                console.error("Invalid refresh token, redirecting to login");
+                console.error("[ProtectedRoute] Invalid refresh token, redirecting to login");
                 await supabase.auth.signOut();
                 setIsAuthenticated(false);
                 navigate('/login', { replace: true });
@@ -67,13 +73,17 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 
             // Initialize free tier usage for new users
             if (user) {
+              console.log('[ProtectedRoute] Checking free tier usage for user:', user.id);
               const { data: existingUsage } = await supabase
                 .from('free_tier_usage')
                 .select('*')
                 .eq('user_id', user.id)
                 .maybeSingle();
 
+              console.log('[ProtectedRoute] Found existing free tier usage record:', existingUsage);
+
               if (!existingUsage) {
+                console.log('[ProtectedRoute] Creating new free tier usage record');
                 await supabase
                   .from('free_tier_usage')
                   .insert([{ user_id: user.id, generations_used: 0 }]);
@@ -82,6 +92,7 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
               // Check for anonymous session data to migrate
               const anonymousSessionId = localStorage.getItem('anonymous_session_id');
               if (anonymousSessionId) {
+                console.log('[ProtectedRoute] Starting migration for session:', anonymousSessionId);
                 try {
                   const { data: migratedData, error: migrationError } = await supabase
                     .rpc('atomic_migration', { 
@@ -90,16 +101,17 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
                     });
 
                   if (migrationError) {
-                    console.error("Migration error:", migrationError);
+                    console.error("[ProtectedRoute] Migration error:", migrationError);
                     throw migrationError;
                   }
 
                   if (migratedData) {
-                    console.log("Successfully migrated data:", migratedData);
+                    console.log("[ProtectedRoute] Successfully migrated data:", migratedData);
                     localStorage.removeItem('anonymous_session_id');
                     
                     // Redirect to the appropriate step
                     if (migratedData.current_step && migratedData.current_step > 1) {
+                      console.log('[ProtectedRoute] Redirecting to step:', migratedData.current_step);
                       navigate(`/ad-wizard/step-${migratedData.current_step}`, { replace: true });
                     }
 
@@ -109,7 +121,7 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
                     });
                   }
                 } catch (error) {
-                  console.error("Error during migration:", error);
+                  console.error("[ProtectedRoute] Error during migration:", error);
                   toast({
                     title: "Migration Error",
                     description: "There was an error restoring your previous work. You may need to start over.",
@@ -121,7 +133,7 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
               setIsAuthenticated(true);
             }
           } catch (error) {
-            console.error("Token refresh error:", error);
+            console.error("[ProtectedRoute] Token refresh error:", error);
             setIsAuthenticated(false);
             navigate('/login', { replace: true });
             toast({
@@ -132,7 +144,7 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
           }
         }
       } catch (error) {
-        console.error("Auth error:", error);
+        console.error("[ProtectedRoute] Auth error:", error);
         setIsAuthenticated(false);
         navigate('/login', { replace: true });
       } finally {
@@ -145,7 +157,7 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log("Auth state changed:", event);
+      console.log("[ProtectedRoute] Auth state changed:", event);
       
       const handleAuthEvent = (event: AuthEvent) => {
         switch (event) {
