@@ -38,6 +38,19 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
 
         onUserChange(user);
         
+        // Pre-check: Does the user already have progress?
+        const { data: existing } = await supabase
+          .from('wizard_progress')
+          .select('*')
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+        if (existing) {
+          onAnonymousDataChange(existing as WizardData);
+          localStorage.removeItem('anonymous_session_id');
+          return;
+        }
+
         const sessionId = localStorage.getItem('anonymous_session_id');
         if (sessionId) {
           console.log('[Migration] Starting migration process');
@@ -54,13 +67,7 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
             }
           } catch (error) {
             console.error('[Migration] Error:', error);
-            // Fallback to existing data
-            const { data: existing } = await supabase
-              .from('wizard_progress')
-              .select('*')
-              .eq('user_id', user.id)
-              .maybeSingle();
-
+            // Fallback to existing data if migration fails
             if (existing) {
               onAnonymousDataChange(existing as WizardData);
             }

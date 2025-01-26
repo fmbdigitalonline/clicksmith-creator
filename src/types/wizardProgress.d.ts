@@ -14,3 +14,13 @@ export interface WizardData {
   ad_format?: any;
   video_ad_preferences?: any;
 }
+
+export interface WizardHook {
+  imageUrl?: string;
+  description?: string;
+  text?: string;
+}
+
+export interface WizardProgressData {
+  selected_hooks: WizardHook[];
+}
