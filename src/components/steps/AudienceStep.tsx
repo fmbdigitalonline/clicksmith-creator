@@ -25,19 +25,10 @@ const AudienceStep = ({
   } = useAudienceGeneration();
 
   useEffect(() => {
-    const shouldGenerateAudiences = audiences.length === 0 && !isGenerating;
-    
-    if (shouldGenerateAudiences) {
-      const initialGeneration = async () => {
-        try {
-          await generateAudiences(businessIdea, false);
-        } catch (err) {
-          console.error('Failed to generate initial audiences:', err);
-        }
-      };
-      initialGeneration();
+    if (audiences.length === 0) {
+      generateAudiences(businessIdea, false);
     }
-  }, [audiences.length, businessIdea, generateAudiences, isGenerating]);
+  }, []);
 
   return (
     <div className="space-y-6 md:space-y-8">

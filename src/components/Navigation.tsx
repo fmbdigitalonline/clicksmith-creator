@@ -1,10 +1,8 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Home, CreditCard, PlusCircle, LogOut } from "lucide-react";
+import { Home, CreditCard, PlusCircle } from "lucide-react";
 import { CreditDisplay } from "./CreditDisplay";
-import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/hooks/use-toast";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -20,7 +18,6 @@ import { useState } from "react";
 const Navigation = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { toast } = useToast();
   const currentPath = location.pathname;
   const [showLeaveDialog, setShowLeaveDialog] = useState(false);
   const [pendingNavigation, setPendingNavigation] = useState("");
@@ -40,6 +37,7 @@ const Navigation = () => {
   };
 
   const handleNavigationAttempt = (path: string) => {
+    // Only show confirmation if we're in step 4 of the wizard
     if (currentPath.includes('/ad-wizard') && !currentPath.includes('/new')) {
       setShowLeaveDialog(true);
       setPendingNavigation(path);
@@ -51,27 +49,6 @@ const Navigation = () => {
   const handleConfirmNavigation = () => {
     setShowLeaveDialog(false);
     navigate(pendingNavigation);
-  };
-
-  const handleLogout = async () => {
-    try {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
-      
-      toast({
-        title: "Logged out successfully",
-        description: "You have been logged out of your account.",
-      });
-      
-      navigate('/login');
-    } catch (error) {
-      console.error('Logout error:', error);
-      toast({
-        title: "Error logging out",
-        description: "There was a problem logging out. Please try again.",
-        variant: "destructive",
-      });
-    }
   };
   
   return (
@@ -118,15 +95,6 @@ const Navigation = () => {
                   <CreditCard className="h-4 w-4" />
                   <span>Pricing</span>
                 </Link>
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleLogout}
-                className="gap-2"
-              >
-                <LogOut className="h-4 w-4" />
-                <span>Logout</span>
               </Button>
             </div>
           </div>

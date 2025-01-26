@@ -1,85 +1,202 @@
-import { useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { useWizardState } from "./WizardStateProvider";
-import WizardSteps from "./WizardSteps";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import WizardHeader from "./WizardHeader";
-import WizardAuthentication from "./WizardAuthentication";
-import { WizardData } from "@/types/wizardProgress";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { WizardData } from "@/types/wizardProgress";
+import { useWizardState } from "./WizardStateProvider";
+import WizardAuthentication from "./WizardAuthentication";
+import WizardControls from "./WizardControls";
+import WizardHeader from "./WizardHeader";
+import WizardProgress from "../WizardProgress";
+import WizardSteps from "./WizardSteps";
+import CreateProjectDialog from "../projects/CreateProjectDialog";
+import { Button } from "../ui/button";
+import { Save } from "lucide-react";
 
 const WizardContent = () => {
+  const [showCreateProject, setShowCreateProject] = useState(false);
+  const [videoAdsEnabled, setVideoAdsEnabled] = useState(false);
+  const [generatedAds, setGeneratedAds] = useState<any[]>([]);
+  const [hasLoadedInitialAds, setHasLoadedInitialAds] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [anonymousData, setAnonymousData] = useState<WizardData | null>(null);
   const navigate = useNavigate();
   const { projectId } = useParams();
   const { toast } = useToast();
+
   const {
     currentStep,
     businessIdea,
-    targetAudience,
-    audienceAnalysis,
-    setCurrentStep,
     setBusinessIdea,
     setTargetAudience,
     setAudienceAnalysis,
+    setCurrentStep,
+    canNavigateToStep
   } = useWizardState();
 
-  const { data: user, isLoading: isUserLoading } = useQuery({
-    queryKey: ["user"],
-    queryFn: async () => {
+  useEffect(() => {
+    const loadProgress = async () => {
       try {
-        const { data: { user }, error } = await supabase.auth.getUser();
-        if (error) throw error;
-        return user;
-      } catch (error) {
-        console.error('[WizardContent] User fetch error:', error);
-        return null;
-      }
-    },
-    retry: false
-  });
+        console.log('[WizardContent] Starting to load progress');
+        if (anonymousData && currentUser) {
+          console.log('[WizardContent] Checking existing progress for user:', currentUser.id);
+          
+          const { data: existingProgress } = await supabase
+            .from('wizard_progress')
+            .select('*')
+            .eq('user_id', currentUser.id)
+            .maybeSingle();
 
-  const handleUserChange = (newUser: any) => {
-    if (!newUser) {
+          if (existingProgress) {
+            console.log('[WizardContent] Found existing progress');
+            if (anonymousData.business_idea) setBusinessIdea(anonymousData.business_idea);
+            if (anonymousData.target_audience) setTargetAudience(anonymousData.target_audience);
+            if (anonymousData.audience_analysis) setAudienceAnalysis(anonymousData.audience_analysis);
+            if (anonymousData.current_step) setCurrentStep(anonymousData.current_step);
+            if (anonymousData.generated_ads) setGeneratedAds(anonymousData.generated_ads);
+          }
+
+          setAnonymousData(null);
+          console.log('[WizardContent] Successfully migrated anonymous data');
+        }
+
+        setHasLoadedInitialAds(true);
+      } catch (error) {
+        console.error('[WizardContent] Error in loadProgress:', error);
+        toast({
+          title: "Something went wrong",
+          description: "We couldn't load your previous work. Please try refreshing the page.",
+          variant: "destructive",
+        });
+        setHasLoadedInitialAds(true);
+      }
+    };
+
+    loadProgress();
+  }, [projectId, navigate, toast, anonymousData, currentUser, setBusinessIdea, setTargetAudience, setAudienceAnalysis, setCurrentStep]);
+
+  const handleCreateProject = () => setShowCreateProject(true);
+  const handleProjectCreated = (projectId: string) => {
+    setShowCreateProject(false);
+    navigate(`/ad-wizard/${projectId}`);
+  };
+
+  const handleVideoAdsToggle = async (enabled: boolean) => {
+    setVideoAdsEnabled(enabled);
+    if (projectId && projectId !== 'new') {
+      await supabase
+        .from('projects')
+        .update({ 
+          video_ads_enabled: enabled,
+          video_ad_preferences: enabled ? {
+            format: 'landscape',
+            duration: 30
+          } : null
+        })
+        .eq('id', projectId);
+    }
+  };
+
+  const handleSaveToProject = async () => {
+    if (!currentUser) {
       toast({
-        title: "Authentication Error",
-        description: "Please sign in to continue.",
+        title: "Authentication Required",
+        description: "Please sign in to save your progress to a project.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const projectData = {
+        title: businessIdea?.description?.substring(0, 50) || "New Project",
+        description: businessIdea?.description,
+        user_id: currentUser.id,
+        business_idea: businessIdea,
+        status: "in_progress",
+      };
+
+      const { data, error } = await supabase
+        .from("projects")
+        .insert(projectData)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      toast({
+        title: "Project Saved",
+        description: "Your progress has been saved to a new project.",
+      });
+
+      if (data) {
+        navigate(`/ad-wizard/${data.id}`);
+      }
+    } catch (error) {
+      console.error('[WizardContent] Error saving project:', error);
+      toast({
+        title: "Error Saving Project",
+        description: "There was an error saving your progress. Please try again.",
         variant: "destructive",
       });
     }
   };
 
-  const handleAnonymousDataChange = (data: WizardData) => {
-    if (data.business_idea) setBusinessIdea(data.business_idea);
-    if (data.target_audience) setTargetAudience(data.target_audience);
-    if (data.audience_analysis) setAudienceAnalysis(data.audience_analysis);
+  const renderSaveButton = () => {
+    if (currentStep >= 1 && currentStep <= 3 && businessIdea) {
+      return (
+        <Button 
+          onClick={handleSaveToProject}
+          className="ml-4"
+          variant="outline"
+        >
+          <Save className="w-4 h-4 mr-2" />
+          Save to Project
+        </Button>
+      );
+    }
+    return null;
   };
 
-  if (isUserLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-facebook"></div>
-      </div>
-    );
-  }
-
   return (
-    <div className="flex-1 space-y-8 p-8 pt-6">
-      <WizardHeader 
-        title="Ad Creation Wizard" 
-        description="Create your perfect ad in just a few steps"
+    <div className="container max-w-6xl mx-auto px-4 py-8">
+      <WizardAuthentication 
+        onUserChange={setCurrentUser}
+        onAnonymousDataChange={setAnonymousData}
       />
-      <WizardAuthentication
-        onUserChange={handleUserChange}
-        onAnonymousDataChange={handleAnonymousDataChange}
+
+      <WizardHeader
+        title="Idea Pilot"
+        description="Quickly go from idea to ready-to-run ads by testing different audience segments with AI-powered social media ad campaigns."
       />
-      <WizardSteps
-        currentUser={user}
-        videoAdsEnabled={false}
-        generatedAds={[]}
-        hasLoadedInitialAds={false}
-        onCreateProject={() => {}}
-        renderSaveButton={() => null}
+
+      <div className="mb-8">
+        <WizardProgress
+          currentStep={currentStep}
+          onStepClick={setCurrentStep}
+          canNavigateToStep={canNavigateToStep}
+        />
+      </div>
+
+      <WizardControls
+        videoAdsEnabled={videoAdsEnabled}
+        onVideoAdsToggle={handleVideoAdsToggle}
+      />
+
+      <WizardSteps 
+        currentUser={currentUser}
+        videoAdsEnabled={videoAdsEnabled}
+        generatedAds={generatedAds}
+        hasLoadedInitialAds={hasLoadedInitialAds}
+        onCreateProject={handleCreateProject}
+        renderSaveButton={renderSaveButton}
+      />
+
+      <CreateProjectDialog
+        open={showCreateProject}
+        onOpenChange={setShowCreateProject}
+        onSuccess={handleProjectCreated}
+        initialBusinessIdea={businessIdea?.description}
       />
     </div>
   );

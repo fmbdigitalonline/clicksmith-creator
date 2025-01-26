@@ -32,17 +32,9 @@ function App() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const checkSession = async () => {
-      try {
-        await supabase.auth.getSession();
-      } catch (error) {
-        console.error('Error checking session:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    
-    checkSession();
+    supabase.auth.getSession().then(() => {
+      setIsLoading(false);
+    });
   }, []);
 
   if (isLoading) {

@@ -618,7 +618,6 @@ export type Database = {
           id: string
           is_migration: boolean | null
           last_save_attempt: string | null
-          migration_token: string | null
           selected_hooks: Json | null
           target_audience: Json | null
           updated_at: string
@@ -636,7 +635,6 @@ export type Database = {
           id?: string
           is_migration?: boolean | null
           last_save_attempt?: string | null
-          migration_token?: string | null
           selected_hooks?: Json | null
           target_audience?: Json | null
           updated_at?: string
@@ -654,7 +652,6 @@ export type Database = {
           id?: string
           is_migration?: boolean | null
           last_save_attempt?: string | null
-          migration_token?: string | null
           selected_hooks?: Json | null
           target_audience?: Json | null
           updated_at?: string
@@ -707,7 +704,6 @@ export type Database = {
           id: string
           is_migration: boolean | null
           last_save_attempt: string | null
-          migration_token: string | null
           selected_hooks: Json | null
           target_audience: Json | null
           updated_at: string
