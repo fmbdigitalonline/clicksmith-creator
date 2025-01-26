@@ -25,8 +25,17 @@ const AudienceStep = ({
   } = useAudienceGeneration();
 
   useEffect(() => {
-    if (audiences.length === 0 && !isGenerating) {
-      generateAudiences(businessIdea, false);
+    const shouldGenerateAudiences = audiences.length === 0 && !isGenerating;
+    
+    if (shouldGenerateAudiences) {
+      const initialGeneration = async () => {
+        try {
+          await generateAudiences(businessIdea, false);
+        } catch (err) {
+          console.error('Failed to generate initial audiences:', err);
+        }
+      };
+      initialGeneration();
     }
   }, [audiences.length, businessIdea, generateAudiences, isGenerating]);
 

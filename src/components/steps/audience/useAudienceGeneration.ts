@@ -11,6 +11,8 @@ export const useAudienceGeneration = () => {
   const { toast } = useToast();
 
   const generateAudiences = useCallback(async (businessIdea: BusinessIdea, forceRegenerate: boolean = false) => {
+    if (isGenerating) return;
+    
     setIsGenerating(true);
     setError(null);
     
@@ -62,10 +64,11 @@ export const useAudienceGeneration = () => {
         description: errorMessage,
         variant: "destructive",
       });
+      setAudiences([]);
     } finally {
       setIsGenerating(false);
     }
-  }, [regenerationCount, toast]);
+  }, [regenerationCount, toast, isGenerating]);
 
   return {
     audiences,
