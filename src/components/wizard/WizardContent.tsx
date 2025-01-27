@@ -54,6 +54,7 @@ const WizardContent = () => {
           const anonymousStep = anonymousData.current_step && anonymousData.current_step > 0 
             ? anonymousData.current_step 
             : 1;
+            
           console.log('[WizardContent] Anonymous step:', anonymousStep);
           
           if (existingProgress) {
