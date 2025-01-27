@@ -1,4 +1,4 @@
-import { createContext, useContext, ReactNode, useEffect, useRef } from 'react';
+import { createContext, useContext, ReactNode, useEffect, useRef, useState } from 'react';
 import { useAdWizardState } from "@/hooks/useAdWizardState";
 import { supabase } from "@/integrations/supabase/client";
 import { WizardData } from "@/types/wizardProgress";
@@ -24,6 +24,7 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
   const { toast } = useToast();
   const saveInProgress = useRef(false);
   const hasInitialized = useRef(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   const getCurrentStepFromUrl = () => {
     const match = location.pathname.match(/step-(\d+)/);
@@ -40,44 +41,57 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     const syncWizardState = async () => {
-      if (hasInitialized.current) return;
-      
-      console.log('[WizardStateProvider] Starting to sync wizard state');
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (user) {
-        const { data: progress } = await supabase
-          .from('wizard_progress')
-          .select('*')
-          .eq('user_id', user.id)
-          .single();
+      try {
+        if (hasInitialized.current) return;
+        
+        console.log('[WizardStateProvider] Starting to sync wizard state');
+        setIsLoading(true);
+        
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        if (user) {
+          const { data: progress } = await supabase
+            .from('wizard_progress')
+            .select('*')
+            .eq('user_id', user.id)
+            .single();
 
-        if (progress) {
-          console.log('[WizardStateProvider] Found existing progress:', progress);
-          
-          // Update all states at once
-          if (progress.business_idea) {
-            state.setBusinessIdea(progress.business_idea);
-          }
-          if (progress.target_audience) {
-            state.setTargetAudience(progress.target_audience);
-          }
-          if (progress.audience_analysis) {
-            state.setAudienceAnalysis(progress.audience_analysis);
-          }
-          
-          // Ensure the step is properly set
-          const urlStep = getCurrentStepFromUrl();
-          const targetStep = Math.max(progress.current_step || 1, urlStep || 1);
-          
-          if (targetStep > 1 && canNavigateToStep(targetStep)) {
-            console.log('[WizardStateProvider] Setting step to:', targetStep);
-            state.setCurrentStep(targetStep);
+          if (progress) {
+            console.log('[WizardStateProvider] Found existing progress:', progress);
+            
+            // Update all states at once
+            if (progress.business_idea) {
+              state.setBusinessIdea(progress.business_idea);
+            }
+            if (progress.target_audience) {
+              state.setTargetAudience(progress.target_audience);
+            }
+            if (progress.audience_analysis) {
+              state.setAudienceAnalysis(progress.audience_analysis);
+            }
+            
+            // Ensure the step is properly set
+            const urlStep = getCurrentStepFromUrl();
+            const targetStep = Math.max(progress.current_step || 1, urlStep || 1);
+            
+            if (targetStep > 1 && canNavigateToStep(targetStep)) {
+              console.log('[WizardStateProvider] Setting step to:', targetStep);
+              state.setCurrentStep(targetStep);
+            }
           }
         }
+        
+        hasInitialized.current = true;
+      } catch (error) {
+        console.error('[WizardStateProvider] Error syncing state:', error);
+        toast({
+          title: "Error Loading Progress",
+          description: "There was an error loading your progress. Please try refreshing the page.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
       }
-      
-      hasInitialized.current = true;
     };
 
     syncWizardState();
@@ -182,6 +196,15 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
     };
   }, [state.businessIdea, state.targetAudience, state.audienceAnalysis, state.currentStep]);
   
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+        <span className="ml-2">Loading wizard...</span>
+      </div>
+    );
+  }
+
   return (
     <WizardStateContext.Provider value={state}>
       {children}
