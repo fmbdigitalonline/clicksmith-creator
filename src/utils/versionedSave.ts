@@ -11,18 +11,18 @@ export const saveWizardState = async (
     // First check if a record exists
     const { data: existing } = await supabase
       .from('wizard_progress')
-      .select('id, version')
+      .select('id, version, business_idea, target_audience, audience_analysis')
       .eq('user_id', data.user_id)
       .maybeSingle();
 
     if (existing) {
-      // Update existing record
+      // Update existing record, preserving existing data if not provided in update
       const { data: result, error } = await supabase
         .from('wizard_progress')
         .update({
-          business_idea: data.business_idea || null,
-          target_audience: data.target_audience || null,
-          audience_analysis: data.audience_analysis || null,
+          business_idea: data.business_idea || existing.business_idea,
+          target_audience: data.target_audience || existing.target_audience,
+          audience_analysis: data.audience_analysis || existing.audience_analysis,
           current_step: data.current_step || 1,
           generated_ads: data.generated_ads || [],
           selected_hooks: data.selected_hooks || null,
