@@ -289,6 +289,68 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
     };
   }, [onUserChange, onAnonymousDataChange, toast, navigate, location]);
 
+  // After successful registration/login, immediately try to migrate data
+  const checkAnonymousAccess = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (session?.user) {
+        const sessionId = localStorage.getItem('anonymous_session_id');
+        if (sessionId) {
+          // Get anonymous data
+          const { data: anonymousData } = await supabase
+            .from('anonymous_usage')
+            .select('wizard_data')
+            .eq('session_id', sessionId)
+            .single();
+
+          if (anonymousData?.wizard_data) {
+            // First check if user already has progress
+            const { data: existingProgress } = await supabase
+              .from('wizard_progress')
+              .select('*')
+              .eq('user_id', session.user.id)
+              .single();
+
+            if (!existingProgress) {
+              // If no existing progress, migrate anonymous data
+              const { error: insertError } = await supabase
+                .from('wizard_progress')
+                .insert({
+                  user_id: session.user.id,
+                  business_idea: anonymousData.wizard_data.business_idea,
+                  target_audience: anonymousData.wizard_data.target_audience,
+                  audience_analysis: anonymousData.wizard_data.audience_analysis,
+                  generated_ads: anonymousData.wizard_data.generated_ads || [],
+                  current_step: anonymousData.wizard_data.current_step || 1,
+                  version: 1
+                });
+
+              if (!insertError) {
+                // Mark anonymous data as used
+                await supabase
+                  .from('anonymous_usage')
+                  .update({ used: true })
+                  .eq('session_id', sessionId);
+
+                // Notify parent components
+                onUserChange(session.user);
+                onAnonymousDataChange(anonymousData.wizard_data);
+                
+                toast({
+                  title: "Progress Restored",
+                  description: "Your previous work has been saved to your account.",
+                });
+              }
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('[WizardAuthentication] Error in anonymous access check:', error);
+    }
+  };
+
   if (authError) {
     return (
       <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-md text-red-700">
