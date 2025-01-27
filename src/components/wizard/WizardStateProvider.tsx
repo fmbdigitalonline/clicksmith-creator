@@ -7,7 +7,6 @@ import { useLocation } from 'react-router-dom';
 import { useToast } from "@/hooks/use-toast";
 import { debounce } from 'lodash';
 import { Json } from "@/integrations/supabase/types";
-import _ from 'lodash';
 
 // Field mapping to ensure consistency
 const FIELD_MAPPING = {
@@ -31,103 +30,6 @@ export const useWizardState = () => {
   return context;
 };
 
-const isBusinessIdea = (data: any): data is BusinessIdea => {
-  return data && typeof data === 'object' && 'description' in data;
-};
-
-const isTargetAudience = (data: any): data is TargetAudience => {
-  return data && typeof data === 'object' && 'description' in data;
-};
-
-const isAudienceAnalysis = (data: any): data is AudienceAnalysis => {
-  return data && typeof data === 'object' && 'expandedDefinition' in data;
-};
-
-const validateMigration = (source: any, target: any): boolean => {
-  if (!source || !target) return false;
-
-  // Validate using consistent field names
-  if (source[FIELD_MAPPING.businessIdea] && !target[FIELD_MAPPING.businessIdea]) return false;
-  if (source[FIELD_MAPPING.businessIdea] && !isBusinessIdea(target[FIELD_MAPPING.businessIdea])) return false;
-
-  if (source[FIELD_MAPPING.targetAudience] && !target[FIELD_MAPPING.targetAudience]) return false;
-  if (source[FIELD_MAPPING.targetAudience] && !isTargetAudience(target[FIELD_MAPPING.targetAudience])) return false;
-
-  if (source[FIELD_MAPPING.audienceAnalysis] && !target[FIELD_MAPPING.audienceAnalysis]) return false;
-  if (source[FIELD_MAPPING.audienceAnalysis] && !isAudienceAnalysis(target[FIELD_MAPPING.audienceAnalysis])) return false;
-
-  return true;
-};
-
-const retryMigration = async (
-  userId: string, 
-  sessionId: string, 
-  attempts = 0
-): Promise<{ success: boolean; data?: WizardData; error?: string }> => {
-  try {
-    await new Promise(resolve => setTimeout(resolve, 500 * (attempts + 1)));
-    
-    const { data: anonymousData } = await supabase
-      .from('anonymous_usage')
-      .select('wizard_data')
-      .eq('session_id', sessionId)
-      .single();
-
-    if (!anonymousData?.wizard_data) {
-      console.error('[Migration] No anonymous data found');
-      return { success: false, error: 'No anonymous data found' };
-    }
-
-    console.log('[Migration] Anonymous data found:', anonymousData.wizard_data);
-
-    // Map fields using consistent naming
-    const mappedData = {
-      [FIELD_MAPPING.businessIdea]: anonymousData.wizard_data[FIELD_MAPPING.businessIdea],
-      [FIELD_MAPPING.targetAudience]: anonymousData.wizard_data[FIELD_MAPPING.targetAudience],
-      [FIELD_MAPPING.audienceAnalysis]: anonymousData.wizard_data[FIELD_MAPPING.audienceAnalysis],
-      [FIELD_MAPPING.currentStep]: anonymousData.wizard_data[FIELD_MAPPING.currentStep] || 1,
-      [FIELD_MAPPING.selectedHooks]: anonymousData.wizard_data[FIELD_MAPPING.selectedHooks] || [],
-      [FIELD_MAPPING.generatedAds]: anonymousData.wizard_data[FIELD_MAPPING.generatedAds] || [],
-      [FIELD_MAPPING.adFormat]: anonymousData.wizard_data[FIELD_MAPPING.adFormat],
-      [FIELD_MAPPING.videoAdPreferences]: anonymousData.wizard_data[FIELD_MAPPING.videoAdPreferences]
-    };
-
-    const { data: migratedData, error: migrationError } = await supabase
-      .rpc('migrate_wizard_data', {
-        p_user_id: userId,
-        p_session_id: sessionId,
-        p_wizard_data: mappedData
-      });
-
-    if (migrationError) {
-      console.error('[Migration] Error:', migrationError);
-      throw migrationError;
-    }
-
-    console.log('[Migration] Migrated data:', migratedData);
-
-    const isValid = validateMigration(anonymousData.wizard_data, migratedData);
-    
-    if (!isValid) {
-      console.error('[Migration] Validation failed');
-      throw new Error('Migration validation failed');
-    }
-
-    return { success: true, data: migratedData as WizardData };
-  } catch (error) {
-    console.error(`[Migration] Attempt ${attempts + 1} failed:`, error);
-    
-    if (attempts < 3) {
-      return retryMigration(userId, sessionId, attempts + 1);
-    }
-    
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Unknown error' 
-    };
-  }
-};
-
 export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
   const state = useAdWizardState();
   const location = useLocation();
@@ -137,105 +39,77 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
   const [isLoading, setIsLoading] = useState(true);
   const migrationInProgress = useRef(false);
 
-  const getLock = async (lockKey: string): Promise<boolean> => {
-    const { data, error } = await supabase
-      .from('migration_locks')
-      .insert({
-        lock_type: lockKey,
-        expires_at: new Date(Date.now() + 30000).toISOString()
-      })
-      .select()
-      .single();
-
-    return !error;
-  };
-
-  const releaseLock = async (lockKey: string): Promise<void> => {
-    await supabase
-      .from('migration_locks')
-      .delete()
-      .eq('lock_type', lockKey);
-  };
-
-  const canNavigateToStep = (step: number): boolean => {
-    switch (step) {
-      case 1:
-        return true;
-      case 2:
-        return !!state.businessIdea;
-      case 3:
-        return !!state.businessIdea && !!state.targetAudience;
-      case 4:
-        return !!state.businessIdea && !!state.targetAudience && !!state.audienceAnalysis;
-      default:
-        return false;
-    }
-  };
-
-  const getCurrentStepFromUrl = () => {
-    const match = location.pathname.match(/step-(\d+)/);
-    return match ? parseInt(match[1]) : null;
-  };
-
-  useEffect(() => {
-    const urlStep = getCurrentStepFromUrl();
-    if (urlStep && urlStep !== state.currentStep && canNavigateToStep(urlStep)) {
-      console.log('[WizardStateProvider] Synchronizing step from URL:', urlStep);
-      state.setCurrentStep(urlStep);
-    }
-  }, [location.pathname]);
-
   const syncAnonymousData = async () => {
     const sessionId = localStorage.getItem('anonymous_session_id');
     if (!sessionId || migrationInProgress.current) return;
 
     try {
       migrationInProgress.current = true;
-      const { data: { user } } = await supabase.auth.getUser();
+      console.log('[Migration] Starting migration process');
       
-      if (!user) return;
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        console.log('[Migration] No authenticated user found');
+        return;
+      }
 
-      console.log('[WizardStateProvider] Starting migration for user:', user.id);
+      // Prepare wizard data with correct field mapping
+      const wizardData = {
+        [FIELD_MAPPING.businessIdea]: state.businessIdea,
+        [FIELD_MAPPING.targetAudience]: state.targetAudience,
+        [FIELD_MAPPING.audienceAnalysis]: state.audienceAnalysis,
+        [FIELD_MAPPING.currentStep]: state.currentStep,
+        [FIELD_MAPPING.selectedHooks]: state.selectedHooks,
+        [FIELD_MAPPING.generatedAds]: state.generatedAds,
+        [FIELD_MAPPING.adFormat]: state.adFormat,
+        [FIELD_MAPPING.videoAdPreferences]: state.videoAdPreferences,
+      };
 
-      const result = await retryMigration(user.id, sessionId);
+      console.log('[Migration] Prepared wizard data:', wizardData);
 
-      if (result.success && result.data) {
-        // Update local state with type checking
-        if (result.data.business_idea && isBusinessIdea(result.data.business_idea)) {
-          state.setBusinessIdea(result.data.business_idea);
+      const { data: migratedData, error } = await supabase.rpc(
+        'migrate_wizard_data',
+        {
+          p_user_id: user.id,
+          p_session_id: sessionId,
+          p_wizard_data: wizardData
         }
-        if (result.data.target_audience && isTargetAudience(result.data.target_audience)) {
-          state.setTargetAudience(result.data.target_audience);
-        }
-        if (result.data.audience_analysis && isAudienceAnalysis(result.data.audience_analysis)) {
-          state.setAudienceAnalysis(result.data.audience_analysis);
-        }
-        if (result.data.current_step && result.data.current_step > 1) {
-          state.setCurrentStep(result.data.current_step);
-        }
+      );
 
-        // Clean up anonymous data
-        await supabase
-          .from('anonymous_usage')
-          .delete()
-          .eq('session_id', sessionId);
+      if (error) {
+        console.error('[Migration] Error during migration:', error);
+        throw error;
+      }
+
+      if (migratedData) {
+        console.log('[Migration] Successfully migrated data:', migratedData);
         
+        // Update local state with migrated data
+        if (migratedData.business_idea) {
+          state.setBusinessIdea(migratedData.business_idea);
+        }
+        if (migratedData.target_audience) {
+          state.setTargetAudience(migratedData.target_audience);
+        }
+        if (migratedData.audience_analysis) {
+          state.setAudienceAnalysis(migratedData.audience_analysis);
+        }
+        if (migratedData.current_step > 1) {
+          state.setCurrentStep(migratedData.current_step);
+        }
+
         localStorage.removeItem('anonymous_session_id');
         
-        console.log('[WizardStateProvider] Migration completed successfully');
-
         toast({
           title: "Progress Restored",
           description: "Your previous work has been saved to your account.",
         });
-      } else {
-        throw new Error(result.error || 'Migration failed');
       }
     } catch (error) {
-      console.error('[WizardStateProvider] Migration error:', error);
+      console.error('[Migration] Migration error:', error);
       toast({
-        title: "Error During Migration",
-        description: "There was an error saving your progress. Please try again.",
+        title: "Migration Error",
+        description: "There was an error migrating your progress. You may need to start over.",
         variant: "destructive",
       });
     } finally {
