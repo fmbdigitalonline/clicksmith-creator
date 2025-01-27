@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -12,6 +12,7 @@ import WizardSteps from "./WizardSteps";
 import CreateProjectDialog from "../projects/CreateProjectDialog";
 import { Button } from "../ui/button";
 import { Save } from "lucide-react";
+import { debounce } from "lodash";
 
 const WizardContent = () => {
   const [showCreateProject, setShowCreateProject] = useState(false);
@@ -35,8 +36,9 @@ const WizardContent = () => {
     canNavigateToStep
   } = useWizardState();
 
-  useEffect(() => {
-    const loadProgress = async () => {
+  // Debounced progress loading function
+  const debouncedLoadProgress = useCallback(
+    debounce(async () => {
       if (isLoadingProgress) return;
       setIsLoadingProgress(true);
       
@@ -52,39 +54,24 @@ const WizardContent = () => {
             .eq('user_id', currentUser.id)
             .maybeSingle();
 
-          const currentPathMatch = window.location.pathname.match(/step-(\d+)/);
-          const currentUrlStep = currentPathMatch ? parseInt(currentPathMatch[1]) : null;
-          
-          const anonymousStep = anonymousData.current_step && anonymousData.current_step > 0 
-            ? anonymousData.current_step 
-            : 1;
-          console.log('[WizardContent] Anonymous step:', anonymousStep);
-          
           if (existingProgress) {
             console.log('[WizardContent] Found existing progress with step:', existingProgress.current_step);
             
             const targetStep = Math.max(
               existingProgress.current_step || 1,
-              anonymousStep,
-              currentUrlStep || 1
+              anonymousData.current_step || 1
             );
             
-            console.log('[WizardContent] Target step calculated:', targetStep);
-
             if (anonymousData.business_idea || existingProgress.business_idea) {
-              console.log('[WizardContent] Setting business idea');
               setBusinessIdea(anonymousData.business_idea || existingProgress.business_idea);
             }
             if (anonymousData.target_audience || existingProgress.target_audience) {
-              console.log('[WizardContent] Setting target audience');
               setTargetAudience(anonymousData.target_audience || existingProgress.target_audience);
             }
             if (anonymousData.audience_analysis || existingProgress.audience_analysis) {
-              console.log('[WizardContent] Setting audience analysis');
               setAudienceAnalysis(anonymousData.audience_analysis || existingProgress.audience_analysis);
             }
             if (anonymousData.generated_ads || existingProgress.generated_ads) {
-              console.log('[WizardContent] Setting generated ads');
               const anonymousAds = Array.isArray(anonymousData.generated_ads) ? anonymousData.generated_ads : [];
               const existingAds = Array.isArray(existingProgress.generated_ads) ? existingProgress.generated_ads : [];
               setGeneratedAds([...anonymousAds, ...existingAds]);
@@ -92,7 +79,6 @@ const WizardContent = () => {
             
             if (targetStep > 1 && canNavigateToStep(targetStep)) {
               setCurrentStep(targetStep);
-              
               if (window.location.pathname === '/ad-wizard/new') {
                 navigate(`/ad-wizard/step-${targetStep}`, { replace: true });
               }
@@ -115,10 +101,16 @@ const WizardContent = () => {
       } finally {
         setIsLoadingProgress(false);
       }
-    };
+    }, 1000),
+    [projectId, navigate, toast, anonymousData, currentUser, setBusinessIdea, setTargetAudience, setAudienceAnalysis, setCurrentStep, canNavigateToStep]
+  );
 
-    loadProgress();
-  }, [projectId, navigate, toast, anonymousData, currentUser, setBusinessIdea, setTargetAudience, setAudienceAnalysis, setCurrentStep, canNavigateToStep]);
+  useEffect(() => {
+    debouncedLoadProgress();
+    return () => {
+      debouncedLoadProgress.cancel();
+    };
+  }, [debouncedLoadProgress]);
 
   const handleCreateProject = () => setShowCreateProject(true);
   const handleProjectCreated = (projectId: string) => {
