@@ -17,8 +17,9 @@ export const AnonymousRoute = ({ children }: { children: React.ReactNode }) => {
         
         // Check if user is already authenticated
         const { data: { session } } = await supabase.auth.getSession();
-        if (session) {
-          console.log('[AnonymousRoute] User is authenticated, allowing access');
+        
+        if (session?.user) {
+          console.log('[AnonymousRoute] User is already authenticated:', session.user.id);
           setCanAccess(true);
           setIsLoading(false);
           return;
@@ -42,6 +43,7 @@ export const AnonymousRoute = ({ children }: { children: React.ReactNode }) => {
 
           if (initError) {
             console.error('[AnonymousRoute] Error initializing anonymous usage:', initError);
+            throw initError;
           }
         } else {
           console.log('[AnonymousRoute] Found existing anonymous session:', sessionId);
@@ -50,32 +52,28 @@ export const AnonymousRoute = ({ children }: { children: React.ReactNode }) => {
         // Check if this session has already been used
         const { data: usage, error } = await supabase
           .from('anonymous_usage')
-          .select('*')
+          .select('used, last_completed_step')
           .eq('session_id', sessionId)
           .maybeSingle();
 
-        if (error && error.code !== 'PGRST116') {
-          console.error('[AnonymousRoute] Unexpected error:', error);
-          setCanAccess(false);
-          setIsLoading(false);
-          return;
+        if (error) {
+          console.error('[AnonymousRoute] Error checking usage:', error);
+          throw error;
         }
 
         // Allow access if no usage record exists or if they haven't completed step 3
         if (!usage || usage.last_completed_step <= 3) {
+          console.log('[AnonymousRoute] Allowing access, step:', usage?.last_completed_step || 1);
           setCanAccess(true);
-          setIsLoading(false);
-          return;
+        } else {
+          console.log('[AnonymousRoute] Access denied, completed step:', usage.last_completed_step);
+          toast({
+            title: "Registration Required",
+            description: "Please sign up to continue and see your generated ads.",
+            variant: "default",
+          });
+          setCanAccess(false);
         }
-
-        // If they've completed step 3, redirect to login
-        console.log('[AnonymousRoute] User has completed step 3, redirecting to login');
-        toast({
-          title: "Registration Required",
-          description: "Please sign up to continue and see your generated ads.",
-          variant: "default",
-        });
-        setCanAccess(false);
       } catch (error) {
         console.error('[AnonymousRoute] Error in anonymous access check:', error);
         setCanAccess(false);
