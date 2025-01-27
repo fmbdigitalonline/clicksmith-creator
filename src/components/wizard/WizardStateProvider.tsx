@@ -9,6 +9,18 @@ import { debounce } from 'lodash';
 import { Json } from "@/integrations/supabase/types";
 import _ from 'lodash';
 
+// Field mapping to ensure consistency
+const FIELD_MAPPING = {
+  businessIdea: 'business_idea',
+  targetAudience: 'target_audience',
+  audienceAnalysis: 'audience_analysis',
+  currentStep: 'current_step',
+  selectedHooks: 'selected_hooks',
+  generatedAds: 'generated_ads',
+  adFormat: 'ad_format',
+  videoAdPreferences: 'video_ad_preferences',
+} as const;
+
 const WizardStateContext = createContext<ReturnType<typeof useAdWizardState> | undefined>(undefined);
 
 export const useWizardState = () => {
@@ -34,17 +46,15 @@ const isAudienceAnalysis = (data: any): data is AudienceAnalysis => {
 const validateMigration = (source: any, target: any): boolean => {
   if (!source || !target) return false;
 
-  // Validate business_idea
-  if (source.business_idea && !target.business_idea) return false;
-  if (source.business_idea && !isBusinessIdea(target.business_idea)) return false;
+  // Validate using consistent field names
+  if (source[FIELD_MAPPING.businessIdea] && !target[FIELD_MAPPING.businessIdea]) return false;
+  if (source[FIELD_MAPPING.businessIdea] && !isBusinessIdea(target[FIELD_MAPPING.businessIdea])) return false;
 
-  // Validate target_audience
-  if (source.target_audience && !target.target_audience) return false;
-  if (source.target_audience && !isTargetAudience(target.target_audience)) return false;
+  if (source[FIELD_MAPPING.targetAudience] && !target[FIELD_MAPPING.targetAudience]) return false;
+  if (source[FIELD_MAPPING.targetAudience] && !isTargetAudience(target[FIELD_MAPPING.targetAudience])) return false;
 
-  // Validate audience_analysis
-  if (source.audience_analysis && !target.audience_analysis) return false;
-  if (source.audience_analysis && !isAudienceAnalysis(target.audience_analysis)) return false;
+  if (source[FIELD_MAPPING.audienceAnalysis] && !target[FIELD_MAPPING.audienceAnalysis]) return false;
+  if (source[FIELD_MAPPING.audienceAnalysis] && !isAudienceAnalysis(target[FIELD_MAPPING.audienceAnalysis])) return false;
 
   return true;
 };
@@ -70,11 +80,23 @@ const retryMigration = async (
 
     console.log('[Migration] Anonymous data found:', anonymousData.wizard_data);
 
+    // Map fields using consistent naming
+    const mappedData = {
+      [FIELD_MAPPING.businessIdea]: anonymousData.wizard_data[FIELD_MAPPING.businessIdea],
+      [FIELD_MAPPING.targetAudience]: anonymousData.wizard_data[FIELD_MAPPING.targetAudience],
+      [FIELD_MAPPING.audienceAnalysis]: anonymousData.wizard_data[FIELD_MAPPING.audienceAnalysis],
+      [FIELD_MAPPING.currentStep]: anonymousData.wizard_data[FIELD_MAPPING.currentStep] || 1,
+      [FIELD_MAPPING.selectedHooks]: anonymousData.wizard_data[FIELD_MAPPING.selectedHooks] || [],
+      [FIELD_MAPPING.generatedAds]: anonymousData.wizard_data[FIELD_MAPPING.generatedAds] || [],
+      [FIELD_MAPPING.adFormat]: anonymousData.wizard_data[FIELD_MAPPING.adFormat],
+      [FIELD_MAPPING.videoAdPreferences]: anonymousData.wizard_data[FIELD_MAPPING.videoAdPreferences]
+    };
+
     const { data: migratedData, error: migrationError } = await supabase
       .rpc('migrate_wizard_data', {
         p_user_id: userId,
         p_session_id: sessionId,
-        p_wizard_data: anonymousData.wizard_data
+        p_wizard_data: mappedData
       });
 
     if (migrationError) {
