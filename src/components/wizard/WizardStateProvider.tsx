@@ -6,6 +6,7 @@ import { BusinessIdea, TargetAudience, AudienceAnalysis } from "@/types/adWizard
 import { useLocation } from 'react-router-dom';
 import { useToast } from "@/hooks/use-toast";
 import { debounce } from 'lodash';
+import { Database } from '@/types/supabase';
 
 const WizardStateContext = createContext<ReturnType<typeof useAdWizardState> | undefined>(undefined);
 
@@ -29,6 +30,17 @@ const isAudienceAnalysis = (data: any): data is AudienceAnalysis => {
   return data && typeof data === 'object' && 'expandedDefinition' in data;
 };
 
+// Define types for the locks table
+interface Lock {
+  key: string;
+  expires_at: string;
+}
+
+// Update WizardData type to be JSON compatible
+type JsonCompatible<T> = {
+  [P in keyof T]: T[P] extends object ? JsonCompatible<T[P]> : T[P];
+};
+
 export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
   const state = useAdWizardState();
   const location = useLocation();
@@ -39,8 +51,11 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
 
   const getLock = async (lockKey: string): Promise<boolean> => {
     const { data, error } = await supabase
-      .from('locks')
-      .insert({ key: lockKey, expires_at: new Date(Date.now() + 30000).toISOString() })
+      .from('wizard_locks')
+      .insert({
+        lock_key: lockKey,
+        expires_at: new Date(Date.now() + 30000).toISOString()
+      } as Database['public']['Tables']['wizard_locks']['Insert'])
       .select()
       .single();
 
@@ -49,9 +64,9 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
 
   const releaseLock = async (lockKey: string): Promise<void> => {
     await supabase
-      .from('locks')
+      .from('wizard_locks')
       .delete()
-      .eq('key', lockKey);
+      .eq('lock_key', lockKey);
   };
 
   const canNavigateToStep = (step: number): boolean => {
@@ -190,18 +205,15 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
     }
 
     try {
-      // Get the current user
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Check if user already has progress
       const { data: existingProgress } = await supabase
         .from('wizard_progress')
         .select('*')
         .eq('user_id', user.id)
         .single();
 
-      // Only proceed with migration if no existing progress or if existing progress is empty
       if (!existingProgress || (!existingProgress.business_idea && !existingProgress.target_audience)) {
         const { data: anonymousData } = await supabase
           .from('anonymous_usage')
@@ -210,22 +222,19 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
           .maybeSingle();
 
         if (anonymousData?.wizard_data) {
-          console.log('[WizardStateProvider] Migrating anonymous data:', anonymousData.wizard_data);
-          const wizardData = anonymousData.wizard_data as WizardData;
+          const wizardData = anonymousData.wizard_data as JsonCompatible<WizardData>;
           
-          // Save the anonymous data to the authenticated user's progress
           await supabase
             .from('wizard_progress')
             .upsert({
               user_id: user.id,
-              business_idea: wizardData.business_idea,
-              target_audience: wizardData.target_audience,
-              audience_analysis: wizardData.audience_analysis,
+              business_idea: wizardData.business_idea as Json,
+              target_audience: wizardData.target_audience as Json,
+              audience_analysis: wizardData.audience_analysis as Json,
               current_step: wizardData.current_step || 1,
               updated_at: new Date().toISOString()
             });
 
-          // Update local state
           if (wizardData.business_idea) {
             state.setBusinessIdea(wizardData.business_idea as BusinessIdea);
           }
@@ -246,7 +255,6 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
             state.setCurrentStep(targetStep);
           }
 
-          // Clean up anonymous data
           await supabase
             .from('anonymous_usage')
             .delete()
