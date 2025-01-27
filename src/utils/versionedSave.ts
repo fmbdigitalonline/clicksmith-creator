@@ -14,11 +14,15 @@ export const saveWizardState = async (
   
   try {
     // First check if a record exists
-    const { data: existing } = await supabase
+    const { data: existing, error: fetchError } = await supabase
       .from('wizard_progress')
       .select('version')
       .eq('user_id', data.user_id)
       .maybeSingle();
+
+    if (fetchError && fetchError.code !== 'PGRST116') {
+      throw fetchError;
+    }
 
     if (existing) {
       // Update existing record with version check
@@ -64,7 +68,8 @@ export const saveWizardState = async (
         .from('wizard_progress')
         .insert({
           ...data,
-          version: 1
+          version: 1,
+          current_step: data.current_step || 1
         })
         .select()
         .single();
