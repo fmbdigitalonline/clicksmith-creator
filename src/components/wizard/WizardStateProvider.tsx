@@ -35,10 +35,6 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
   const saveInProgress = useRef(false);
   const hasInitialized = useRef(false);
   const [isLoading, setIsLoading] = useState(true);
-  const currentVersion = useRef(1);
-  const saveTimeout = useRef<NodeJS.Timeout>();
-  const retryCount = useRef(0);
-  const MAX_RETRIES = 3;
 
   const canNavigateToStep = (step: number): boolean => {
     switch (step) {
@@ -68,99 +64,160 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [location.pathname]);
 
-  const saveProgress = async () => {
+  useEffect(() => {
+    const syncWizardState = async () => {
+      try {
+        if (hasInitialized.current) return;
+        
+        console.log('[WizardStateProvider] Starting to sync wizard state');
+        setIsLoading(true);
+        
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        if (user) {
+          const { data: progress } = await supabase
+            .from('wizard_progress')
+            .select('*')
+            .eq('user_id', user.id)
+            .single();
+
+          if (progress) {
+            console.log('[WizardStateProvider] Found existing progress:', progress);
+            
+            // Update all states at once
+            if (progress.business_idea && isBusinessIdea(progress.business_idea)) {
+              state.setBusinessIdea(progress.business_idea);
+            }
+            if (progress.target_audience && isTargetAudience(progress.target_audience)) {
+              state.setTargetAudience(progress.target_audience);
+            }
+            if (progress.audience_analysis && isAudienceAnalysis(progress.audience_analysis)) {
+              state.setAudienceAnalysis(progress.audience_analysis);
+            }
+            
+            // Ensure the step is properly set
+            const urlStep = getCurrentStepFromUrl();
+            const targetStep = Math.max(progress.current_step || 1, urlStep || 1);
+            
+            if (targetStep > 1 && canNavigateToStep(targetStep)) {
+              console.log('[WizardStateProvider] Setting step to:', targetStep);
+              state.setCurrentStep(targetStep);
+            }
+          }
+        }
+        
+        hasInitialized.current = true;
+      } catch (error) {
+        console.error('[WizardStateProvider] Error syncing state:', error);
+        toast({
+          title: "Error Loading Progress",
+          description: "There was an error loading your progress. Please try refreshing the page.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    syncWizardState();
+  }, []);
+
+  const saveProgress = async (retryCount = 0, maxRetries = 3) => {
     if (saveInProgress.current) {
       console.log('[WizardStateProvider] Save already in progress, skipping');
       return;
     }
 
+    console.log('[WizardStateProvider] Starting to save progress, attempt:', retryCount + 1);
     const { data: { user } } = await supabase.auth.getUser();
     
-    if (!user) {
-      console.log('[WizardStateProvider] No authenticated user, skipping save');
-      setIsLoading(false);
-      return;
-    }
+    if (user) {
+      try {
+        saveInProgress.current = true;
+        
+        const { error } = await supabase
+          .from('wizard_progress')
+          .upsert({
+            user_id: user.id,
+            business_idea: state.businessIdea,
+            target_audience: state.targetAudience,
+            audience_analysis: state.audienceAnalysis,
+            current_step: state.currentStep,
+            updated_at: new Date().toISOString()
+          }, {
+            onConflict: 'user_id'
+          });
 
-    try {
-      saveInProgress.current = true;
-      console.log('[WizardStateProvider] Starting to save progress');
-
-      // Get the current progress first
-      const { data: existingProgress, error: fetchError } = await supabase
-        .from('wizard_progress')
-        .select('version')
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      if (fetchError) {
-        throw fetchError;
-      }
-
-      const nextVersion = (existingProgress?.version || 0) + 1;
-      currentVersion.current = nextVersion;
-
-      const { error } = await supabase
-        .from('wizard_progress')
-        .upsert({
-          user_id: user.id,
-          business_idea: state.businessIdea,
-          target_audience: state.targetAudience,
-          audience_analysis: state.audienceAnalysis,
-          current_step: state.currentStep,
-          version: nextVersion,
-          updated_at: new Date().toISOString()
-        }, {
-          onConflict: 'user_id'
-        });
-
-      if (error) {
-        if (error.message.includes('Concurrent save detected') && retryCount.current < MAX_RETRIES) {
-          retryCount.current++;
-          const delay = Math.min(1000 * Math.pow(2, retryCount.current), 8000);
-          console.log(`[WizardStateProvider] Concurrent save detected, retrying in ${delay}ms (attempt ${retryCount.current})`);
-          setTimeout(() => saveProgress(), delay);
-          return;
+        if (error) throw error;
+        
+      } catch (error) {
+        console.error('[WizardStateProvider] Error saving progress:', error);
+        if (retryCount < maxRetries) {
+          setTimeout(() => saveProgress(retryCount + 1, maxRetries), 1000);
         }
-        throw error;
+      } finally {
+        saveInProgress.current = false;
       }
-
-      retryCount.current = 0;
-      console.log('[WizardStateProvider] Progress saved successfully');
-
-    } catch (error) {
-      console.error('[WizardStateProvider] Error saving progress:', error);
-      toast({
-        title: "Error Saving Progress",
-        description: "There was an error saving your progress. Your changes may not be saved.",
-        variant: "destructive",
-      });
-    } finally {
-      saveInProgress.current = false;
-      setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    if (!hasInitialized.current) {
-      setIsLoading(false);
-      hasInitialized.current = true;
-    }
+    const syncAnonymousData = async () => {
+      console.log('[WizardStateProvider] Starting to sync anonymous data');
+      const sessionId = localStorage.getItem('anonymous_session_id');
+      if (!sessionId) {
+        console.log('[WizardStateProvider] No anonymous session found');
+        return;
+      }
+
+      try {
+        const { data: anonymousData } = await supabase
+          .from('anonymous_usage')
+          .select('wizard_data')
+          .eq('session_id', sessionId)
+          .maybeSingle();
+
+        if (anonymousData?.wizard_data) {
+          console.log('[WizardStateProvider] Found anonymous data:', anonymousData.wizard_data);
+          const wizardData = anonymousData.wizard_data as WizardData;
+          
+          if (wizardData.business_idea && typeof wizardData.business_idea === 'object') {
+            state.setBusinessIdea(wizardData.business_idea as BusinessIdea);
+          }
+          if (wizardData.target_audience && typeof wizardData.target_audience === 'object') {
+            state.setTargetAudience(wizardData.target_audience as TargetAudience);
+          }
+          if (wizardData.audience_analysis && typeof wizardData.audience_analysis === 'object') {
+            state.setAudienceAnalysis(wizardData.audience_analysis as AudienceAnalysis);
+          }
+
+          const urlStep = getCurrentStepFromUrl();
+          const wizardStep = wizardData.current_step;
+          
+          const targetStep = Math.max(
+            urlStep || 1,
+            wizardStep || 1
+          );
+
+          if (targetStep > 1) {
+            state.setCurrentStep(targetStep);
+          }
+        }
+      } catch (error) {
+        console.error('[WizardStateProvider] Error syncing anonymous data:', error);
+      }
+    };
+
+    syncAnonymousData();
   }, []);
 
   useEffect(() => {
-    if (saveTimeout.current) {
-      clearTimeout(saveTimeout.current);
-    }
-
-    saveTimeout.current = setTimeout(() => {
+    const debounceTimeout = setTimeout(() => {
       saveProgress();
-    }, 2000);
+    }, 1000);
 
     return () => {
-      if (saveTimeout.current) {
-        clearTimeout(saveTimeout.current);
-      }
+      clearTimeout(debounceTimeout);
     };
   }, [state.businessIdea, state.targetAudience, state.audienceAnalysis, state.currentStep]);
   
