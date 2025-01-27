@@ -3,7 +3,6 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { WizardData } from "@/types/wizardProgress";
-import { BusinessIdea, TargetAudience, AudienceAnalysis } from "@/types/adWizard";
 import { useWizardState } from "./WizardStateProvider";
 import WizardAuthentication from "./WizardAuthentication";
 import WizardControls from "./WizardControls";
@@ -70,15 +69,15 @@ const WizardContent = () => {
 
             if (anonymousData.business_idea || existingProgress.business_idea) {
               console.log('[WizardContent] Setting business idea');
-              setBusinessIdea(anonymousData.business_idea as BusinessIdea || existingProgress.business_idea as BusinessIdea);
+              setBusinessIdea(anonymousData.business_idea || existingProgress.business_idea);
             }
             if (anonymousData.target_audience || existingProgress.target_audience) {
               console.log('[WizardContent] Setting target audience');
-              setTargetAudience(anonymousData.target_audience as TargetAudience || existingProgress.target_audience as TargetAudience);
+              setTargetAudience(anonymousData.target_audience || existingProgress.target_audience);
             }
             if (anonymousData.audience_analysis || existingProgress.audience_analysis) {
               console.log('[WizardContent] Setting audience analysis');
-              setAudienceAnalysis(anonymousData.audience_analysis as AudienceAnalysis || existingProgress.audience_analysis as AudienceAnalysis);
+              setAudienceAnalysis(anonymousData.audience_analysis || existingProgress.audience_analysis);
             }
             if (anonymousData.generated_ads || existingProgress.generated_ads) {
               console.log('[WizardContent] Setting generated ads');

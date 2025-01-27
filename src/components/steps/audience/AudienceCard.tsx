@@ -12,22 +12,6 @@ const AudienceCard = ({ audience, onClick }: AudienceCardProps) => {
   const painPoints = audience.painPoints || [];
   const marketingChannels = audience.marketingChannels || [];
 
-  // Format demographics if it's an object
-  const formatDemographics = (demographics: any) => {
-    if (typeof demographics === 'string') return demographics;
-    
-    if (typeof demographics === 'object' && demographics !== null) {
-      const parts = [];
-      if (demographics.ageRange) parts.push(`Age: ${demographics.ageRange}`);
-      if (demographics.gender) parts.push(`Gender: ${demographics.gender}`);
-      if (demographics.location) parts.push(`Location: ${demographics.location}`);
-      if (demographics.incomeLevel) parts.push(`Income: ${demographics.incomeLevel}`);
-      return parts.join(' | ');
-    }
-
-    return 'Demographics information not available';
-  };
-
   return (
     <Card
       className="relative group cursor-pointer hover:shadow-lg transition-all duration-200 border-2 hover:border-facebook"
@@ -39,7 +23,7 @@ const AudienceCard = ({ audience, onClick }: AudienceCardProps) => {
           <Users className="w-5 h-5 text-facebook" />
           <CardTitle className="text-lg">{audience.name}</CardTitle>
         </div>
-        <CardDescription>{formatDemographics(audience.demographics)}</CardDescription>
+        <CardDescription>{audience.demographics}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div>

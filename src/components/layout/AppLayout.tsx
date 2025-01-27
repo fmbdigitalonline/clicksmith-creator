@@ -1,8 +1,8 @@
 import Navigation from "../Navigation";
-import AppSidebar from "../AppSidebar";
+import AppSidebar from "../AppSidebar"; // Changed to default import
 import BreadcrumbNav from "../Breadcrumb";
 
-const AppLayout = ({ children }: { children: React.ReactNode }) => {
+export const AppLayout = ({ children }: { children: React.ReactNode }) => {
   return (
     <div className="flex flex-col w-full min-h-screen">
       <Navigation />
@@ -20,5 +20,3 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
     </div>
   );
 };
-
-export default AppLayout;
