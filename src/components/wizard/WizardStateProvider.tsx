@@ -85,9 +85,9 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
           if (progress) {
             console.log('[WizardStateProvider] Found existing progress:', progress);
             
-            if (progress.business_idea) state.setBusinessIdea(progress.business_idea);
-            if (progress.target_audience) state.setTargetAudience(progress.target_audience);
-            if (progress.audience_analysis) state.setAudienceAnalysis(progress.audience_analysis);
+            if (progress.business_idea) state.setBusinessIdea(progress.business_idea as BusinessIdea);
+            if (progress.target_audience) state.setTargetAudience(progress.target_audience as TargetAudience);
+            if (progress.audience_analysis) state.setAudienceAnalysis(progress.audience_analysis as AudienceAnalysis);
             
             setStateVersion(progress.version || 1);
             

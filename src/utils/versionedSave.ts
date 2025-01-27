@@ -9,11 +9,18 @@ export const saveWizardState = async (
     const { data: result, error } = await supabase
       .from('wizard_progress')
       .upsert({
-        ...data,
+        business_idea: data.business_idea || null,
+        target_audience: data.target_audience || null,
+        audience_analysis: data.audience_analysis || null,
+        current_step: data.current_step || 1,
+        generated_ads: data.generated_ads || [],
+        selected_hooks: data.selected_hooks || null,
+        ad_format: data.ad_format || null,
+        video_ad_preferences: data.video_ad_preferences || null,
         version: currentVersion + 1,
-        updated_at: new Date().toISOString()
-      }, {
-        onConflict: 'user_id'
+        updated_at: new Date().toISOString(),
+        user_id: data.user_id,
+        is_migration: data.is_migration || false
       })
       .select('version')
       .single();
