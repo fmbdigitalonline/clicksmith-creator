@@ -22,6 +22,8 @@ export const CreditDisplay = () => {
     queryKey: ["subscription", user?.id],
     queryFn: async () => {
       if (!user?.id) return null;
+      console.log('[Credits] Checking subscription for user:', user.id);
+      
       const { data, error } = await supabase
         .from("subscriptions")
         .select("*")
@@ -30,7 +32,7 @@ export const CreditDisplay = () => {
         .maybeSingle();
 
       if (error && error.code !== "PGRST116") {
-        console.error('Error checking subscription:', error);
+        console.error('[Credits] Error checking subscription:', error);
         toast({
           title: "Error checking subscription",
           description: "We couldn't verify your subscription status. Please try again.",
@@ -39,11 +41,12 @@ export const CreditDisplay = () => {
         return null;
       }
 
+      console.log('[Credits] Found subscription:', data);
       return data;
     },
     enabled: !!user?.id,
-    refetchInterval: 5000,
-    refetchOnWindowFocus: true,
+    staleTime: 30000, // Consider data fresh for 30 seconds
+    refetchInterval: 30000, // Only refetch every 30 seconds
   });
 
   const { data: freeUsage } = useQuery({
@@ -51,9 +54,8 @@ export const CreditDisplay = () => {
     queryFn: async () => {
       if (!user?.id) return null;
       
-      console.log('Checking free tier usage for user:', user.id);
+      console.log('[Credits] Checking free tier usage for user:', user.id);
       
-      // First try to get existing usage
       const { data: existingData, error: fetchError } = await supabase
         .from("free_tier_usage")
         .select("*")
@@ -61,7 +63,7 @@ export const CreditDisplay = () => {
         .maybeSingle();
 
       if (fetchError && fetchError.code !== "PGRST116") {
-        console.error('Error fetching free tier usage:', fetchError);
+        console.error('[Credits] Error fetching free tier usage:', fetchError);
         toast({
           title: "Error checking usage",
           description: "We couldn't verify your usage status. Please try again.",
@@ -70,9 +72,8 @@ export const CreditDisplay = () => {
         return null;
       }
 
-      // If no data exists, create a new record
       if (!existingData) {
-        console.log('Creating new free tier usage record for user:', user.id);
+        console.log('[Credits] Creating new free tier usage record');
         const { data: newData, error: insertError } = await supabase
           .from("free_tier_usage")
           .insert([{ 
@@ -83,7 +84,7 @@ export const CreditDisplay = () => {
           .maybeSingle();
 
         if (insertError) {
-          console.error('Error creating free tier usage record:', insertError);
+          console.error('[Credits] Error creating free tier usage record:', insertError);
           toast({
             title: "Error creating usage record",
             description: "We couldn't initialize your usage status. Please try again.",
@@ -92,16 +93,16 @@ export const CreditDisplay = () => {
           return null;
         }
 
-        console.log('Created new free tier usage record:', newData);
+        console.log('[Credits] Created new free tier usage record:', newData);
         return newData;
       }
 
-      console.log('Found existing free tier usage record:', existingData);
+      console.log('[Credits] Found existing free tier usage record:', existingData);
       return existingData;
     },
     enabled: !!user?.id,
-    refetchInterval: 5000,
-    refetchOnWindowFocus: true,
+    staleTime: 30000, // Consider data fresh for 30 seconds
+    refetchInterval: 30000, // Only refetch every 30 seconds
   });
 
   useEffect(() => {
