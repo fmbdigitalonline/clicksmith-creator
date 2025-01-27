@@ -29,62 +29,68 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
   const retryCount = useRef(0);
   const MAX_RETRIES = 3;
   const RETRY_DELAY = 1000; // Base delay in milliseconds
+  const saveTimeout = useRef<NodeJS.Timeout | null>(null);
 
   const queueSave = async (data: Partial<WizardData>) => {
+    // Clear any pending save timeout
+    if (saveTimeout.current) {
+      clearTimeout(saveTimeout.current);
+    }
+
+    // Return early if already saving to prevent queue buildup
     if (isSaving.current) {
-      console.log('[WizardStateProvider] Save already in progress, queueing...');
-      await saveQueue.current;
+      return;
     }
 
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
     isSaving.current = true;
-    saveQueue.current = saveQueue.current.then(async () => {
-      try {
-        const saveData = {
-          ...data,
-          user_id: user.id
-        };
-        
-        let success = false;
-        while (!success && retryCount.current < MAX_RETRIES) {
-          try {
-            const result = await saveWizardState(saveData, stateVersion);
-            if (result.success) {
-              setStateVersion(result.newVersion);
-              success = true;
-              retryCount.current = 0;
-              break;
-            }
-          } catch (error: any) {
-            retryCount.current++;
-            if (error.message === 'Concurrent save detected' && retryCount.current < MAX_RETRIES) {
-              console.log(`[WizardStateProvider] Retry attempt ${retryCount.current}/${MAX_RETRIES}`);
-              // Exponential backoff
-              await new Promise(resolve => setTimeout(resolve, RETRY_DELAY * Math.pow(2, retryCount.current - 1)));
-              continue;
-            }
-            throw error;
+    retryCount.current = 0;
+
+    try {
+      const saveData = {
+        ...data,
+        user_id: user.id,
+        last_save_attempt: new Date().toISOString()
+      };
+      
+      let success = false;
+      while (!success && retryCount.current < MAX_RETRIES) {
+        try {
+          const result = await saveWizardState(saveData, stateVersion);
+          if (result.success) {
+            setStateVersion(result.newVersion);
+            success = true;
+            retryCount.current = 0;
+            break;
           }
+        } catch (error: any) {
+          retryCount.current++;
+          if (error.message === 'Concurrent save detected' && retryCount.current < MAX_RETRIES) {
+            console.log(`[WizardStateProvider] Retry attempt ${retryCount.current}/${MAX_RETRIES}`);
+            // Exponential backoff
+            await new Promise(resolve => setTimeout(resolve, RETRY_DELAY * Math.pow(2, retryCount.current - 1)));
+            continue;
+          }
+          throw error;
         }
-
-        if (!success) {
-          console.error('[WizardStateProvider] Max retries reached');
-          toast({
-            title: "Save Error",
-            description: "Failed to save changes after multiple attempts. Please try again.",
-            variant: "destructive",
-          });
-        }
-      } catch (error) {
-        console.error('[WizardStateProvider] Error in save queue:', error);
-      } finally {
-        isSaving.current = false;
       }
-    });
 
-    return saveQueue.current;
+      if (!success) {
+        console.error('[WizardStateProvider] Max retries reached');
+        toast({
+          title: "Save Error",
+          description: "Failed to save changes after multiple attempts. Please try again.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('[WizardStateProvider] Error in save queue:', error);
+    } finally {
+      isSaving.current = false;
+      retryCount.current = 0;
+    }
   };
 
   const canNavigateToStep = (step: number): boolean => {
@@ -158,18 +164,30 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
       const { data: { user } } = await supabase.auth.getUser();
       
       if (user) {
-        await queueSave({
-          user_id: user.id,
-          business_idea: state.businessIdea,
-          target_audience: state.targetAudience,
-          audience_analysis: state.audienceAnalysis,
-          current_step: state.currentStep
-        });
+        // Debounce save operations
+        if (saveTimeout.current) {
+          clearTimeout(saveTimeout.current);
+        }
+        
+        saveTimeout.current = setTimeout(() => {
+          queueSave({
+            user_id: user.id,
+            business_idea: state.businessIdea,
+            target_audience: state.targetAudience,
+            audience_analysis: state.audienceAnalysis,
+            current_step: state.currentStep
+          });
+        }, 1000);
       }
     };
 
-    const debounceTimeout = setTimeout(saveProgress, 1000);
-    return () => clearTimeout(debounceTimeout);
+    saveProgress();
+
+    return () => {
+      if (saveTimeout.current) {
+        clearTimeout(saveTimeout.current);
+      }
+    };
   }, [state.businessIdea, state.targetAudience, state.audienceAnalysis, state.currentStep]);
 
   if (isLoading) {
