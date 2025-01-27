@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Navigate, useNavigate } from "react-router-dom";
+import { Navigate, useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -9,6 +9,7 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
 
   useEffect(() => {
@@ -80,8 +81,6 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
                 .eq('user_id', user.id)
                 .maybeSingle();
 
-              console.log('[ProtectedRoute] Found existing free tier usage record:', existingUsage);
-
               if (!existingUsage) {
                 console.log('[ProtectedRoute] Creating new free tier usage record');
                 await supabase
@@ -109,10 +108,20 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
                     console.log("[ProtectedRoute] Successfully migrated data:", migratedData);
                     localStorage.removeItem('anonymous_session_id');
                     
-                    // Redirect to the appropriate step
-                    if (migratedData.current_step && migratedData.current_step > 1) {
-                      console.log('[ProtectedRoute] Redirecting to step:', migratedData.current_step);
-                      navigate(`/ad-wizard/step-${migratedData.current_step}`, { replace: true });
+                    // Get the current step from the URL if it exists
+                    const currentPathMatch = location.pathname.match(/step-(\d+)/);
+                    const currentUrlStep = currentPathMatch ? parseInt(currentPathMatch[1]) : null;
+                    
+                    // Use the highest step between migrated data and URL
+                    const targetStep = Math.max(
+                      migratedData.current_step || 1,
+                      currentUrlStep || 1
+                    );
+                    
+                    // Only redirect if we're not already on the correct step
+                    if (targetStep > 1 && (!currentUrlStep || currentUrlStep !== targetStep)) {
+                      console.log('[ProtectedRoute] Redirecting to step:', targetStep);
+                      navigate(`/ad-wizard/step-${targetStep}`, { replace: true });
                     }
 
                     toast({
@@ -152,40 +161,34 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
       }
     };
 
-    // Check initial session
     checkSession();
 
-    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log("[ProtectedRoute] Auth state changed:", event);
       
-      const handleAuthEvent = (event: AuthEvent) => {
-        switch (event) {
-          case 'SIGNED_OUT':
-            setIsAuthenticated(false);
-            navigate('/login', { replace: true });
-            toast({
-              title: "Signed Out",
-              description: "You have been signed out",
-            });
-            break;
-          case 'SIGNED_IN':
-          case 'TOKEN_REFRESHED':
-            setIsAuthenticated(true);
-            break;
-          case 'USER_UPDATED':
-            setIsAuthenticated(!!session);
-            break;
+      if (event === 'SIGNED_IN' && session?.user) {
+        setIsAuthenticated(true);
+        
+        // Check for existing progress when user signs in
+        const { data: existingProgress } = await supabase
+          .from('wizard_progress')
+          .select('current_step')
+          .eq('user_id', session.user.id)
+          .maybeSingle();
+          
+        if (existingProgress?.current_step > 1) {
+          navigate(`/ad-wizard/step-${existingProgress.current_step}`, { replace: true });
         }
-      };
-
-      handleAuthEvent(event as AuthEvent);
+      } else if (event === 'SIGNED_OUT') {
+        setIsAuthenticated(false);
+        navigate('/login', { replace: true });
+      }
     });
 
     return () => {
       subscription.unsubscribe();
     };
-  }, [navigate, toast]);
+  }, [navigate, toast, location]);
 
   if (isLoading) {
     return (
