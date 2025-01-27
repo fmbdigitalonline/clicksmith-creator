@@ -46,7 +46,7 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
         ...data,
         user_id: user.id,
         last_save_attempt: new Date().toISOString(),
-        current_step: state.currentStep // Ensure current step is always saved
+        current_step: state.currentStep
       };
       
       const result = await saveWizardState(saveData, stateVersion);
@@ -54,7 +54,6 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
       if (result.success) {
         setStateVersion(result.newVersion);
         
-        // Update anonymous usage if needed
         const sessionId = localStorage.getItem('anonymous_session_id');
         if (sessionId) {
           await supabase
@@ -107,7 +106,6 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
           const sessionId = localStorage.getItem('anonymous_session_id');
           let targetStep = 1;
 
-          // First check anonymous data if available
           if (sessionId) {
             const { data: anonymousData } = await supabase
               .from('anonymous_usage')
@@ -115,15 +113,15 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
               .eq('session_id', sessionId)
               .maybeSingle();
 
-            if (anonymousData?.wizard_data) {
-              if (anonymousData.wizard_data.business_idea) state.setBusinessIdea(anonymousData.wizard_data.business_idea as BusinessIdea);
-              if (anonymousData.wizard_data.target_audience) state.setTargetAudience(anonymousData.wizard_data.target_audience as TargetAudience);
-              if (anonymousData.wizard_data.audience_analysis) state.setAudienceAnalysis(anonymousData.wizard_data.audience_analysis as AudienceAnalysis);
+            if (anonymousData?.wizard_data && typeof anonymousData.wizard_data === 'object') {
+              const wizardData = anonymousData.wizard_data as Record<string, any>;
+              if (wizardData.business_idea) state.setBusinessIdea(wizardData.business_idea as BusinessIdea);
+              if (wizardData.target_audience) state.setTargetAudience(wizardData.target_audience as TargetAudience);
+              if (wizardData.audience_analysis) state.setAudienceAnalysis(wizardData.audience_analysis as AudienceAnalysis);
               targetStep = Math.max(targetStep, anonymousData.last_completed_step || 1);
             }
           }
 
-          // Then check existing progress
           const { data: progress } = await supabase
             .from('wizard_progress')
             .select('*')
@@ -141,7 +139,6 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
             targetStep = Math.max(targetStep, progress.current_step || 1);
           }
 
-          // Set the highest step we found
           if (targetStep > 1 && canNavigateToStep(targetStep)) {
             state.setCurrentStep(targetStep);
           }
@@ -168,7 +165,6 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
       const { data: { user } } = await supabase.auth.getUser();
       
       if (user) {
-        // Debounce save operations
         if (saveTimeout.current) {
           clearTimeout(saveTimeout.current);
         }
