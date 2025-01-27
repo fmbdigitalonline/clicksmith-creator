@@ -33,6 +33,7 @@ export const useWizardState = () => {
 // Helper functions for locking mechanism
 const acquireLock = async (lockKey: string): Promise<boolean> => {
   try {
+    console.log('[Migration] Attempting to acquire lock:', lockKey);
     const { data, error } = await supabase
       .from('migration_locks')
       .insert([{ 
@@ -41,17 +42,35 @@ const acquireLock = async (lockKey: string): Promise<boolean> => {
       }])
       .single();
     
-    return !error;
-  } catch {
+    if (error) {
+      console.error('[Migration] Failed to acquire lock:', error);
+      return false;
+    }
+    
+    console.log('[Migration] Lock acquired successfully');
+    return true;
+  } catch (error) {
+    console.error('[Migration] Error during lock acquisition:', error);
     return false;
   }
 };
 
 const releaseLock = async (lockKey: string): Promise<void> => {
-  await supabase
-    .from('migration_locks')
-    .delete()
-    .eq('lock_type', lockKey);
+  try {
+    console.log('[Migration] Releasing lock:', lockKey);
+    const { error } = await supabase
+      .from('migration_locks')
+      .delete()
+      .eq('lock_type', lockKey);
+    
+    if (error) {
+      console.error('[Migration] Error releasing lock:', error);
+    } else {
+      console.log('[Migration] Lock released successfully');
+    }
+  } catch (error) {
+    console.error('[Migration] Error during lock release:', error);
+  }
 };
 
 export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
@@ -65,11 +84,14 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
 
   const syncAnonymousData = async () => {
     const sessionId = localStorage.getItem('anonymous_session_id');
-    if (!sessionId || migrationInProgress.current) return;
+    if (!sessionId || migrationInProgress.current) {
+      console.log('[Migration] No session ID or migration already in progress');
+      return;
+    }
 
     try {
       migrationInProgress.current = true;
-      console.log('[Migration] Starting migration process');
+      console.log('[Migration] Starting migration process for session:', sessionId);
       
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
@@ -86,7 +108,7 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
 
       if (anonymousError) {
         console.error('[Migration] Error fetching anonymous data:', anonymousError);
-        throw anonymousError;
+        throw new Error(`Failed to fetch anonymous data: ${anonymousError.message}`);
       }
 
       console.log('[Migration] Retrieved anonymous data:', anonymousData);
@@ -94,11 +116,11 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
       // Validate data structure
       if (!anonymousData?.wizard_data) {
         console.error('[Migration] Invalid anonymous data structure:', anonymousData);
-        throw new Error('Invalid anonymous data structure');
+        throw new Error('Invalid anonymous data structure: wizard_data is missing');
       }
 
       // Log each expected field
-      console.log('[Migration] Data validation:', {
+      const validationResults = {
         hasBusinessIdea: !!anonymousData.wizard_data[FIELD_MAPPING.businessIdea],
         hasTargetAudience: !!anonymousData.wizard_data[FIELD_MAPPING.targetAudience],
         hasAudienceAnalysis: !!anonymousData.wizard_data[FIELD_MAPPING.audienceAnalysis],
@@ -106,7 +128,14 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
         currentStep: anonymousData.wizard_data[FIELD_MAPPING.currentStep],
         hasSelectedHooks: Array.isArray(anonymousData.wizard_data[FIELD_MAPPING.selectedHooks]),
         hasGeneratedAds: Array.isArray(anonymousData.wizard_data[FIELD_MAPPING.generatedAds]),
-      });
+      };
+
+      console.log('[Migration] Data validation results:', validationResults);
+
+      if (!validationResults.hasBusinessIdea && !validationResults.hasTargetAudience) {
+        console.warn('[Migration] No meaningful data to migrate');
+        throw new Error('No meaningful data found in anonymous session');
+      }
 
       // Prepare wizard data with correct field mapping
       const wizardData = {
@@ -120,7 +149,7 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
         [FIELD_MAPPING.videoAdPreferences]: state.videoAdPreferences,
       };
 
-      console.log('[Migration] Prepared wizard data:', wizardData);
+      console.log('[Migration] Prepared wizard data for migration:', wizardData);
 
       const { data: migratedData, error } = await supabase.rpc(
         'migrate_wizard_data',
@@ -132,8 +161,8 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
       );
 
       if (error) {
-        console.error('[Migration] Error during migration:', error);
-        throw error;
+        console.error('[Migration] Error during RPC call:', error);
+        throw new Error(`Migration RPC failed: ${error.message}`);
       }
 
       if (migratedData && typeof migratedData === 'object') {
@@ -166,12 +195,15 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
           title: "Progress Restored",
           description: "Your previous work has been saved to your account.",
         });
+      } else {
+        console.warn('[Migration] No data returned from migration:', migratedData);
+        throw new Error('Migration completed but no data was returned');
       }
     } catch (error) {
       console.error('[Migration] Migration error:', error);
       toast({
         title: "Migration Error",
-        description: "There was an error migrating your progress. You may need to start over.",
+        description: error instanceof Error ? error.message : "There was an error migrating your progress. You may need to start over.",
         variant: "destructive",
       });
     } finally {
