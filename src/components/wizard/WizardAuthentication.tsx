@@ -32,12 +32,18 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
       return;
     }
 
-    console.log('[Auth] Navigating to step:', {
-      targetStep,
-      isNewRegistration,
-      currentPath: location.pathname
-    });
-    navigate(`/ad-wizard/new`, { state: { step: targetStep } });
+    // Only redirect if we're not already on the correct step
+    const currentPathMatch = location.pathname.match(/step-(\d+)/);
+    const currentStep = currentPathMatch ? parseInt(currentPathMatch[1]) : 1;
+    
+    if (currentStep !== targetStep) {
+      console.log('[Auth] Navigating to step:', {
+        targetStep,
+        isNewRegistration,
+        currentPath: location.pathname
+      });
+      navigate(`/ad-wizard/step-${targetStep}`, { replace: true });
+    }
   };
 
   useEffect(() => {
@@ -109,11 +115,6 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
               .eq('session_id', sessionId)
               .maybeSingle();
 
-            console.group('[Auth] Anonymous data check');
-            console.log('Has data:', !!anonymousData?.wizard_data);
-            console.log('Session ID:', sessionId);
-            console.groupEnd();
-
             if (anonymousData?.wizard_data) {
               const wizardData = anonymousData.wizard_data as WizardData;
               console.group('[Auth] Starting migration process');
@@ -134,14 +135,19 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
                   onAnonymousDataChange(migratedData);
                   localStorage.removeItem('anonymous_session_id');
                   
-                  const step = migratedData.current_step || 1;
+                  // Always use the highest step between migrated and existing data
+                  const targetStep = Math.max(
+                    migratedData.current_step || 1,
+                    existing?.current_step || 1
+                  );
+                  
                   console.group('[Auth] Redirecting after migration');
-                  console.log('Step:', step);
+                  console.log('Target step:', targetStep);
                   console.log('User ID:', session.user.id);
                   console.log('Is new registration:', location.state?.from === '/login');
                   console.groupEnd();
                   
-                  redirectToStep(step);
+                  redirectToStep(targetStep);
                   
                   toast({
                     title: "Progress Restored",
@@ -149,12 +155,7 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
                   });
                 }
               } catch (error) {
-                console.group('[Auth] Migration error');
-                console.error('Error:', error);
-                console.log('User ID:', session.user.id);
-                console.log('Session ID:', sessionId);
-                console.groupEnd();
-                
+                console.error('[Auth] Migration error:', error);
                 toast({
                   title: "Error Restoring Progress",
                   description: "There was an error restoring your previous work. You may need to start over.",
@@ -286,7 +287,7 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
       isMounted = false;
       subscription.unsubscribe();
     };
-  }, [onUserChange, onAnonymousDataChange, toast, navigate, location.state]);
+  }, [onUserChange, onAnonymousDataChange, toast, navigate, location]);
 
   if (authError) {
     return (
