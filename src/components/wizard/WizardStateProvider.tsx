@@ -28,6 +28,7 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
   const hasInitialized = useRef(false);
   const retryCount = useRef(0);
   const MAX_RETRIES = 3;
+  const RETRY_DELAY = 1000; // Base delay in milliseconds
 
   const queueSave = async (data: Partial<WizardData>) => {
     if (isSaving.current) {
@@ -54,16 +55,27 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
               setStateVersion(result.newVersion);
               success = true;
               retryCount.current = 0;
+              break;
             }
           } catch (error: any) {
             retryCount.current++;
             if (error.message === 'Concurrent save detected' && retryCount.current < MAX_RETRIES) {
               console.log(`[WizardStateProvider] Retry attempt ${retryCount.current}/${MAX_RETRIES}`);
-              await new Promise(resolve => setTimeout(resolve, 1000 * retryCount.current));
+              // Exponential backoff
+              await new Promise(resolve => setTimeout(resolve, RETRY_DELAY * Math.pow(2, retryCount.current - 1)));
               continue;
             }
             throw error;
           }
+        }
+
+        if (!success) {
+          console.error('[WizardStateProvider] Max retries reached');
+          toast({
+            title: "Save Error",
+            description: "Failed to save changes after multiple attempts. Please try again.",
+            variant: "destructive",
+          });
         }
       } catch (error) {
         console.error('[WizardStateProvider] Error in save queue:', error);
