@@ -1,6 +1,7 @@
 import { createContext, useContext, ReactNode, useEffect } from 'react';
 import { useAdWizardState } from "@/hooks/useAdWizardState";
 import { supabase } from "@/integrations/supabase/client";
+import { WizardData } from "@/types/wizardProgress";
 
 const WizardStateContext = createContext<ReturnType<typeof useAdWizardState> | undefined>(undefined);
 
@@ -27,7 +28,8 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
         .maybeSingle();
 
       if (anonymousData?.wizard_data) {
-        const { business_idea, target_audience, audience_analysis, current_step } = anonymousData.wizard_data;
+        const wizardData = anonymousData.wizard_data as WizardData;
+        const { business_idea, target_audience, audience_analysis, current_step } = wizardData;
         
         if (business_idea) state.setBusinessIdea(business_idea);
         if (target_audience) state.setTargetAudience(target_audience);
