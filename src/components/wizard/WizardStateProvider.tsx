@@ -23,11 +23,65 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
   const location = useLocation();
   const { toast } = useToast();
   const saveInProgress = useRef(false);
+  const hasInitialized = useRef(false);
 
   const getCurrentStepFromUrl = () => {
     const match = location.pathname.match(/step-(\d+)/);
     return match ? parseInt(match[1]) : null;
   };
+
+  useEffect(() => {
+    const urlStep = getCurrentStepFromUrl();
+    if (urlStep && urlStep !== state.currentStep && canNavigateToStep(urlStep)) {
+      console.log('[WizardStateProvider] Synchronizing step from URL:', urlStep);
+      state.setCurrentStep(urlStep);
+    }
+  }, [location.pathname]);
+
+  useEffect(() => {
+    const syncWizardState = async () => {
+      if (hasInitialized.current) return;
+      
+      console.log('[WizardStateProvider] Starting to sync wizard state');
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (user) {
+        const { data: progress } = await supabase
+          .from('wizard_progress')
+          .select('*')
+          .eq('user_id', user.id)
+          .single();
+
+        if (progress) {
+          console.log('[WizardStateProvider] Found existing progress:', progress);
+          
+          // Update all states at once
+          if (progress.business_idea) {
+            state.setBusinessIdea(progress.business_idea);
+          }
+          if (progress.target_audience) {
+            state.setTargetAudience(progress.target_audience);
+          }
+          if (progress.audience_analysis) {
+            state.setAudienceAnalysis(progress.audience_analysis);
+          }
+          
+          // Ensure the step is properly set
+          const urlStep = getCurrentStepFromUrl();
+          const targetStep = Math.max(progress.current_step || 1, urlStep || 1);
+          
+          if (targetStep > 1 && canNavigateToStep(targetStep)) {
+            console.log('[WizardStateProvider] Setting step to:', targetStep);
+            state.setCurrentStep(targetStep);
+          }
+        }
+      }
+      
+      hasInitialized.current = true;
+    };
+
+    syncWizardState();
+  }, []);
 
   const saveProgress = async (retryCount = 0, maxRetries = 3) => {
     if (saveInProgress.current) {
@@ -36,28 +90,11 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
     }
 
     console.log('[WizardStateProvider] Starting to save progress, attempt:', retryCount + 1);
-    const sessionId = localStorage.getItem('anonymous_session_id');
-    if (!sessionId) return;
-
-    try {
-      saveInProgress.current = true;
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (user) {
-        // First get the current version with a lock
-        const { data: currentData, error: versionError } = await supabase
-          .from('wizard_progress')
-          .select('version')
-          .eq('user_id', user.id)
-          .single();
-
-        if (versionError && !versionError.message.includes('No rows found')) {
-          console.error('[WizardStateProvider] Error fetching version:', versionError);
-          throw versionError;
-        }
-
-        const newVersion = (currentData?.version || 0) + 1;
-        console.log('[WizardStateProvider] Saving with version:', newVersion);
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (user) {
+      try {
+        saveInProgress.current = true;
         
         const { error } = await supabase
           .from('wizard_progress')
@@ -67,65 +104,21 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
             target_audience: state.targetAudience,
             audience_analysis: state.audienceAnalysis,
             current_step: state.currentStep,
-            version: newVersion,
             updated_at: new Date().toISOString()
           }, {
             onConflict: 'user_id'
           });
 
-        if (error) {
-          console.error('[WizardStateProvider] Error saving progress:', error);
-          
-          if (error.message.includes('Concurrent save detected') && retryCount < maxRetries) {
-            const backoffTime = Math.min(1000 * Math.pow(2, retryCount), 8000);
-            console.log(`[WizardStateProvider] Retrying save in ${backoffTime}ms (attempt ${retryCount + 1}/${maxRetries})`);
-            await delay(backoffTime);
-            saveInProgress.current = false;
-            return saveProgress(retryCount + 1, maxRetries);
-          }
-          
-          if (retryCount === maxRetries) {
-            toast({
-              title: "Warning",
-              description: "Having trouble saving your progress. Don't worry, we'll keep trying!",
-              variant: "default",
-            });
-          }
-          throw error;
+        if (error) throw error;
+        
+      } catch (error) {
+        console.error('[WizardStateProvider] Error saving progress:', error);
+        if (retryCount < maxRetries) {
+          setTimeout(() => saveProgress(retryCount + 1, maxRetries), 1000);
         }
-      } else {
-        // Handle anonymous user save
-        const { error: anonError } = await supabase
-          .from('anonymous_usage')
-          .upsert({
-            session_id: sessionId,
-            wizard_data: {
-              business_idea: state.businessIdea,
-              target_audience: state.targetAudience,
-              audience_analysis: state.audienceAnalysis,
-              current_step: state.currentStep,
-              updated_at: new Date().toISOString()
-            }
-          }, {
-            onConflict: 'session_id'
-          });
-
-        if (anonError) {
-          console.error('[WizardStateProvider] Error saving anonymous progress:', anonError);
-          throw anonError;
-        }
+      } finally {
+        saveInProgress.current = false;
       }
-    } catch (error) {
-      console.error('[WizardStateProvider] Unexpected error:', error);
-      if (retryCount === maxRetries) {
-        toast({
-          title: "Error Saving Progress",
-          description: "We're having trouble saving your progress. Please try again later.",
-          variant: "destructive",
-        });
-      }
-    } finally {
-      saveInProgress.current = false;
     }
   };
 
