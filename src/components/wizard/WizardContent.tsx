@@ -51,15 +51,20 @@ const WizardContent = () => {
           const currentPathMatch = window.location.pathname.match(/step-(\d+)/);
           const currentUrlStep = currentPathMatch ? parseInt(currentPathMatch[1]) : null;
           
-          const anonymousStep = anonymousData.current_step && anonymousData.current_step > 0 
-            ? anonymousData.current_step 
-            : 1;
-            
+          // Calculate the highest step from all sources
+          const anonymousStep = Math.max(
+            anonymousData.current_step || 1,
+            anonymousData.last_completed_step || 1
+          );
+          
           console.log('[WizardContent] Anonymous step:', anonymousStep);
+          console.log('[WizardContent] Current URL step:', currentUrlStep);
+          console.log('[WizardContent] Existing progress step:', existingProgress?.current_step);
           
           if (existingProgress) {
             console.log('[WizardContent] Found existing progress with step:', existingProgress.current_step);
             
+            // Calculate target step considering all progress sources
             const targetStep = Math.max(
               existingProgress.current_step || 1,
               anonymousStep,
@@ -68,6 +73,7 @@ const WizardContent = () => {
             
             console.log('[WizardContent] Target step calculated:', targetStep);
 
+            // Merge progress data
             if (anonymousData.business_idea || existingProgress.business_idea) {
               console.log('[WizardContent] Setting business idea');
               setBusinessIdea(anonymousData.business_idea || existingProgress.business_idea);
@@ -87,10 +93,12 @@ const WizardContent = () => {
               setGeneratedAds([...anonymousAds, ...existingAds]);
             }
             
+            // Only navigate if we have a valid target step and can navigate to it
             if (targetStep > 1 && canNavigateToStep(targetStep)) {
               console.log('[WizardContent] Setting current step to:', targetStep);
               setCurrentStep(targetStep);
               
+              // Handle navigation based on current path
               if (window.location.pathname === '/ad-wizard/new') {
                 console.log('[WizardContent] Navigating from /new to step:', targetStep);
                 navigate(`/ad-wizard/step-${targetStep}`, { replace: true });
@@ -101,6 +109,7 @@ const WizardContent = () => {
             }
           }
 
+          // Only clear anonymous data after successful migration
           setAnonymousData(null);
           console.log('[WizardContent] Successfully migrated anonymous data');
         }
