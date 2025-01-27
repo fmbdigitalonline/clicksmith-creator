@@ -11,17 +11,30 @@ export const AnonymousRoute = ({ children }: { children: React.ReactNode }) => {
   const location = useLocation();
 
   useEffect(() => {
+    let mounted = true;
+
     const checkAnonymousAccess = async () => {
       try {
         console.log('[AnonymousRoute] Starting anonymous access check...');
         
         // Check if user is already authenticated
-        const { data: { session } } = await supabase.auth.getSession();
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error('[AnonymousRoute] Session check error:', error);
+          if (mounted) {
+            setCanAccess(false);
+            setIsLoading(false);
+          }
+          return;
+        }
         
         if (session?.user) {
           console.log('[AnonymousRoute] User is already authenticated:', session.user.id);
-          setCanAccess(true);
-          setIsLoading(false);
+          if (mounted) {
+            setCanAccess(true);
+            setIsLoading(false);
+          }
           return;
         }
 
@@ -50,27 +63,38 @@ export const AnonymousRoute = ({ children }: { children: React.ReactNode }) => {
 
           if (initError) {
             console.error('[AnonymousRoute] Error initializing anonymous usage:', initError);
-            throw initError;
+            if (mounted) {
+              setCanAccess(false);
+              setIsLoading(false);
+            }
+            return;
           }
         } else {
           console.log('[AnonymousRoute] Found existing anonymous session:', sessionId);
         }
 
         // Check if this session has been used
-        const { data: usage, error } = await supabase
+        const { data: usage, error: usageError } = await supabase
           .from('anonymous_usage')
           .select('used, last_completed_step, wizard_data')
           .eq('session_id', sessionId)
           .maybeSingle();
 
-        if (error) {
-          console.error('[AnonymousRoute] Error checking usage:', error);
-          throw error;
+        if (usageError) {
+          console.error('[AnonymousRoute] Error checking usage:', usageError);
+          if (mounted) {
+            setCanAccess(false);
+            setIsLoading(false);
+          }
+          return;
         }
 
         if (!usage || usage.last_completed_step <= 3) {
           console.log('[AnonymousRoute] Allowing access, step:', usage?.last_completed_step || 1);
-          setCanAccess(true);
+          if (mounted) {
+            setCanAccess(true);
+            setIsLoading(false);
+          }
         } else {
           console.log('[AnonymousRoute] Access denied, completed step:', usage.last_completed_step);
           toast({
@@ -78,20 +102,29 @@ export const AnonymousRoute = ({ children }: { children: React.ReactNode }) => {
             description: "Please sign up to continue and see your generated ads.",
             variant: "default",
           });
-          setCanAccess(false);
+          if (mounted) {
+            setCanAccess(false);
+            setIsLoading(false);
+          }
         }
       } catch (error) {
         console.error('[AnonymousRoute] Error in anonymous access check:', error);
-        setCanAccess(false);
-      } finally {
-        setIsLoading(false);
+        if (mounted) {
+          setCanAccess(false);
+          setIsLoading(false);
+        }
       }
     };
 
     checkAnonymousAccess();
+
+    return () => {
+      mounted = false;
+    };
   }, [toast, location.pathname]);
 
   if (isLoading) {
+    console.log('[AnonymousRoute] Loading state...');
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900" />
@@ -100,8 +133,10 @@ export const AnonymousRoute = ({ children }: { children: React.ReactNode }) => {
   }
 
   if (!canAccess) {
+    console.log('[AnonymousRoute] Access denied, redirecting to login');
     return <Navigate to="/login" replace state={{ from: location }} />;
   }
 
+  console.log('[AnonymousRoute] Access granted, rendering children');
   return <>{children}</>;
 };
