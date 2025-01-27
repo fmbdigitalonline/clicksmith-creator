@@ -2,6 +2,7 @@ import { createContext, useContext, ReactNode, useEffect } from 'react';
 import { useAdWizardState } from "@/hooks/useAdWizardState";
 import { supabase } from "@/integrations/supabase/client";
 import { WizardData } from "@/types/wizardProgress";
+import { BusinessIdea, TargetAudience, AudienceAnalysis } from "@/types/adWizard";
 
 const WizardStateContext = createContext<ReturnType<typeof useAdWizardState> | undefined>(undefined);
 
@@ -35,23 +36,22 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
         if (anonymousData?.wizard_data) {
           console.log('[WizardStateProvider] Found anonymous data:', anonymousData.wizard_data);
           const wizardData = anonymousData.wizard_data as WizardData;
-          const { business_idea, target_audience, audience_analysis, current_step } = wizardData;
           
-          if (business_idea) {
+          if (wizardData.business_idea && typeof wizardData.business_idea === 'object') {
             console.log('[WizardStateProvider] Setting business idea');
-            state.setBusinessIdea(business_idea);
+            state.setBusinessIdea(wizardData.business_idea as BusinessIdea);
           }
-          if (target_audience) {
+          if (wizardData.target_audience && typeof wizardData.target_audience === 'object') {
             console.log('[WizardStateProvider] Setting target audience');
-            state.setTargetAudience(target_audience);
+            state.setTargetAudience(wizardData.target_audience as TargetAudience);
           }
-          if (audience_analysis) {
+          if (wizardData.audience_analysis && typeof wizardData.audience_analysis === 'object') {
             console.log('[WizardStateProvider] Setting audience analysis');
-            state.setAudienceAnalysis(audience_analysis);
+            state.setAudienceAnalysis(wizardData.audience_analysis as AudienceAnalysis);
           }
-          if (current_step && current_step > 1) {
-            console.log('[WizardStateProvider] Setting current step:', current_step);
-            state.setCurrentStep(current_step);
+          if (wizardData.current_step && typeof wizardData.current_step === 'number' && wizardData.current_step > 1) {
+            console.log('[WizardStateProvider] Setting current step:', wizardData.current_step);
+            state.setCurrentStep(wizardData.current_step);
           }
         }
       } catch (error) {
@@ -116,10 +116,16 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
 
         if (existingProgress) {
           console.log('[WizardStateProvider] Found existing progress:', existingProgress);
-          if (existingProgress.business_idea) state.setBusinessIdea(existingProgress.business_idea);
-          if (existingProgress.target_audience) state.setTargetAudience(existingProgress.target_audience);
-          if (existingProgress.audience_analysis) state.setAudienceAnalysis(existingProgress.audience_analysis);
-          if (existingProgress.current_step && existingProgress.current_step > 1) {
+          if (existingProgress.business_idea && typeof existingProgress.business_idea === 'object') {
+            state.setBusinessIdea(existingProgress.business_idea as BusinessIdea);
+          }
+          if (existingProgress.target_audience && typeof existingProgress.target_audience === 'object') {
+            state.setTargetAudience(existingProgress.target_audience as TargetAudience);
+          }
+          if (existingProgress.audience_analysis && typeof existingProgress.audience_analysis === 'object') {
+            state.setAudienceAnalysis(existingProgress.audience_analysis as AudienceAnalysis);
+          }
+          if (existingProgress.current_step && typeof existingProgress.current_step === 'number' && existingProgress.current_step > 1) {
             state.setCurrentStep(existingProgress.current_step);
           }
         }
