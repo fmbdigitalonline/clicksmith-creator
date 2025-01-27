@@ -5,6 +5,7 @@ import { WizardData } from "@/types/wizardProgress";
 import { BusinessIdea, TargetAudience, AudienceAnalysis } from "@/types/adWizard";
 import { useLocation } from 'react-router-dom';
 import { useToast } from "@/hooks/use-toast";
+import { debounce } from 'lodash';
 
 const WizardStateContext = createContext<ReturnType<typeof useAdWizardState> | undefined>(undefined);
 
@@ -35,6 +36,23 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
   const saveInProgress = useRef(false);
   const hasInitialized = useRef(false);
   const [isLoading, setIsLoading] = useState(true);
+
+  const getLock = async (lockKey: string): Promise<boolean> => {
+    const { data, error } = await supabase
+      .from('locks')
+      .insert({ key: lockKey, expires_at: new Date(Date.now() + 30000).toISOString() })
+      .select()
+      .single();
+
+    return !error;
+  };
+
+  const releaseLock = async (lockKey: string): Promise<void> => {
+    await supabase
+      .from('locks')
+      .delete()
+      .eq('key', lockKey);
+  };
 
   const canNavigateToStep = (step: number): boolean => {
     switch (step) {
@@ -84,7 +102,6 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
           if (progress) {
             console.log('[WizardStateProvider] Found existing progress:', progress);
             
-            // Update all states at once
             if (progress.business_idea && isBusinessIdea(progress.business_idea)) {
               state.setBusinessIdea(progress.business_idea);
             }
@@ -95,7 +112,6 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
               state.setAudienceAnalysis(progress.audience_analysis);
             }
             
-            // Ensure the step is properly set
             const urlStep = getCurrentStepFromUrl();
             const targetStep = Math.max(progress.current_step || 1, urlStep || 1);
             
@@ -122,19 +138,10 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
     syncWizardState();
   }, []);
 
-  const saveProgress = async (retryCount = 0, maxRetries = 3) => {
-    if (saveInProgress.current) {
-      console.log('[WizardStateProvider] Save already in progress, skipping');
-      return;
-    }
-
-    console.log('[WizardStateProvider] Starting to save progress, attempt:', retryCount + 1);
-    const { data: { user } } = await supabase.auth.getUser();
-    
-    if (user) {
+  const debouncedSave = debounce(async (user: any, retryCount = 0, maxRetries = 3) => {
+    const lockKey = `save-lock-${user.id}`;
+    if (await getLock(lockKey)) {
       try {
-        saveInProgress.current = true;
-        
         const { error } = await supabase
           .from('wizard_progress')
           .upsert({
@@ -149,15 +156,28 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
           });
 
         if (error) throw error;
-        
       } catch (error) {
         console.error('[WizardStateProvider] Error saving progress:', error);
         if (retryCount < maxRetries) {
-          setTimeout(() => saveProgress(retryCount + 1, maxRetries), 1000);
+          setTimeout(() => debouncedSave(user, retryCount + 1, maxRetries), 1000);
         }
       } finally {
+        await releaseLock(lockKey);
         saveInProgress.current = false;
       }
+    }
+  }, 1000);
+
+  const saveProgress = async () => {
+    if (saveInProgress.current) {
+      console.log('[WizardStateProvider] Save already in progress, skipping');
+      return;
+    }
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      saveInProgress.current = true;
+      await debouncedSave(user);
     }
   };
 
