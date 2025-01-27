@@ -6,7 +6,7 @@ import { BusinessIdea, TargetAudience, AudienceAnalysis } from "@/types/adWizard
 import { useLocation } from 'react-router-dom';
 import { useToast } from "@/hooks/use-toast";
 import { debounce } from 'lodash';
-import { Database } from '@/types/supabase';
+import { Json } from "@/integrations/supabase/types";
 import _ from 'lodash';
 
 const WizardStateContext = createContext<ReturnType<typeof useAdWizardState> | undefined>(undefined);
@@ -150,11 +150,11 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
 
   const getLock = async (lockKey: string): Promise<boolean> => {
     const { data, error } = await supabase
-      .from('wizard_locks')
+      .from('migration_locks')
       .insert({
         lock_key: lockKey,
         expires_at: new Date(Date.now() + 30000).toISOString()
-      } as Database['public']['Tables']['wizard_locks']['Insert'])
+      } as Database['public']['Tables']['migration_locks']['Insert'])
       .select()
       .single();
 
@@ -163,7 +163,7 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
 
   const releaseLock = async (lockKey: string): Promise<void> => {
     await supabase
-      .from('wizard_locks')
+      .from('migration_locks')
       .delete()
       .eq('lock_key', lockKey);
   };
@@ -389,3 +389,4 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
     </WizardStateContext.Provider>
   );
 };
+
