@@ -20,6 +20,7 @@ const WizardContent = () => {
   const [hasLoadedInitialAds, setHasLoadedInitialAds] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [anonymousData, setAnonymousData] = useState<WizardData | null>(null);
+  const [isLoadingProgress, setIsLoadingProgress] = useState(false);
   const navigate = useNavigate();
   const { projectId } = useParams();
   const { toast } = useToast();
@@ -36,6 +37,9 @@ const WizardContent = () => {
 
   useEffect(() => {
     const loadProgress = async () => {
+      if (isLoadingProgress) return;
+      setIsLoadingProgress(true);
+      
       try {
         console.log('[WizardContent] Starting to load progress');
         
@@ -87,14 +91,9 @@ const WizardContent = () => {
             }
             
             if (targetStep > 1 && canNavigateToStep(targetStep)) {
-              console.log('[WizardContent] Setting current step to:', targetStep);
               setCurrentStep(targetStep);
               
               if (window.location.pathname === '/ad-wizard/new') {
-                console.log('[WizardContent] Navigating from /new to step:', targetStep);
-                navigate(`/ad-wizard/step-${targetStep}`, { replace: true });
-              } else if (!currentUrlStep || currentUrlStep !== targetStep) {
-                console.log('[WizardContent] Navigating to step:', targetStep);
                 navigate(`/ad-wizard/step-${targetStep}`, { replace: true });
               }
             }
@@ -113,6 +112,8 @@ const WizardContent = () => {
           variant: "destructive",
         });
         setHasLoadedInitialAds(true);
+      } finally {
+        setIsLoadingProgress(false);
       }
     };
 
