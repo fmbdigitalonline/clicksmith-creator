@@ -104,6 +104,7 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
   const saveInProgress = useRef(false);
   const hasInitialized = useRef(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isMigrating, setIsMigrating] = useState(false);
   const migrationInProgress = useRef(false);
 
   const validateMigratedData = (data: any): boolean => {
@@ -129,16 +130,20 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
     const sessionId = localStorage.getItem('anonymous_session_id');
     if (!sessionId || migrationInProgress.current) {
       console.log('[Migration] No session ID or migration already in progress');
+      setIsLoading(false);
       return;
     }
 
     try {
+      setIsMigrating(true);
       migrationInProgress.current = true;
       console.log('[Migration] Starting migration process for session:', sessionId);
       
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         console.log('[Migration] No authenticated user found');
+        setIsLoading(false);
+        setIsMigrating(false);
         return;
       }
 
@@ -237,6 +242,7 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
       });
     } finally {
       migrationInProgress.current = false;
+      setIsMigrating(false);
       setIsLoading(false);
     }
   };
@@ -255,60 +261,7 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
     };
   }, []);
 
-  const debouncedSave = debounce(async (user: any, retryCount = 0, maxRetries = 3) => {
-    const lockKey = `save-lock-${user.id}`;
-    if (await acquireLock(lockKey)) {
-      try {
-        const { error } = await supabase
-          .from('wizard_progress')
-          .upsert({
-            user_id: user.id,
-            business_idea: state.businessIdea,
-            target_audience: state.targetAudience,
-            audience_analysis: state.audienceAnalysis,
-            current_step: state.currentStep,
-            updated_at: new Date().toISOString()
-          }, {
-            onConflict: 'user_id'
-          });
-
-        if (error) throw error;
-      } catch (error) {
-        console.error('[WizardStateProvider] Error saving progress:', error);
-        if (retryCount < maxRetries) {
-          setTimeout(() => debouncedSave(user, retryCount + 1, maxRetries), 1000);
-        }
-      } finally {
-        await releaseLock(lockKey);
-        saveInProgress.current = false;
-      }
-    }
-  }, 1000);
-
-  const saveProgress = async () => {
-    if (saveInProgress.current) {
-      console.log('[WizardStateProvider] Save already in progress, skipping');
-      return;
-    }
-
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      saveInProgress.current = true;
-      await debouncedSave(user);
-    }
-  };
-
-  useEffect(() => {
-    const debounceTimeout = setTimeout(() => {
-      saveProgress();
-    }, 1000);
-
-    return () => {
-      clearTimeout(debounceTimeout);
-    };
-  }, [state.businessIdea, state.targetAudience, state.audienceAnalysis, state.currentStep]);
-
-  if (isLoading) {
+  if (isLoading || isMigrating) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
