@@ -53,14 +53,16 @@ const WizardContent = () => {
           const currentPathMatch = window.location.pathname.match(/step-(\d+)/);
           const currentUrlStep = currentPathMatch ? parseInt(currentPathMatch[1]) : null;
           
-          // Get the anonymous step
-          const anonymousStep = anonymousData.current_step || 1;
+          // Get the anonymous step and ensure it's valid
+          const anonymousStep = anonymousData.current_step && anonymousData.current_step > 0 
+            ? anonymousData.current_step 
+            : 1;
           console.log('[WizardContent] Anonymous step:', anonymousStep);
           
           if (existingProgress) {
             console.log('[WizardContent] Found existing progress with step:', existingProgress.current_step);
             
-            // Always use the highest step between existing, anonymous, and URL
+            // Calculate the target step based on progress
             const targetStep = Math.max(
               existingProgress.current_step || 1,
               anonymousStep,
@@ -69,36 +71,37 @@ const WizardContent = () => {
             
             console.log('[WizardContent] Target step calculated:', targetStep);
 
-            // Set all the wizard state
-            if (anonymousData.business_idea) {
+            // Set wizard state based on the most complete data
+            if (anonymousData.business_idea || existingProgress.business_idea) {
               console.log('[WizardContent] Setting business idea');
-              setBusinessIdea(anonymousData.business_idea);
+              setBusinessIdea(anonymousData.business_idea || existingProgress.business_idea);
             }
-            if (anonymousData.target_audience) {
+            if (anonymousData.target_audience || existingProgress.target_audience) {
               console.log('[WizardContent] Setting target audience');
-              setTargetAudience(anonymousData.target_audience);
+              setTargetAudience(anonymousData.target_audience || existingProgress.target_audience);
             }
-            if (anonymousData.audience_analysis) {
+            if (anonymousData.audience_analysis || existingProgress.audience_analysis) {
               console.log('[WizardContent] Setting audience analysis');
-              setAudienceAnalysis(anonymousData.audience_analysis);
+              setAudienceAnalysis(anonymousData.audience_analysis || existingProgress.audience_analysis);
             }
-            if (anonymousData.generated_ads) {
+            if (anonymousData.generated_ads || existingProgress.generated_ads) {
               console.log('[WizardContent] Setting generated ads');
-              setGeneratedAds(anonymousData.generated_ads);
+              setGeneratedAds(anonymousData.generated_ads || existingProgress.generated_ads);
             }
             
             // Update the current step
-            console.log('[WizardContent] Setting current step to:', targetStep);
-            setCurrentStep(targetStep);
-            
-            // Only navigate if we're not already on the correct step
-            // and we're not on the /new route
-            if (targetStep > 1 && window.location.pathname === '/ad-wizard/new') {
-              console.log('[WizardContent] Navigating from /new to step:', targetStep);
-              navigate(`/ad-wizard/step-${targetStep}`, { replace: true });
-            } else if (targetStep > 1 && (!currentUrlStep || currentUrlStep !== targetStep)) {
-              console.log('[WizardContent] Navigating to step:', targetStep);
-              navigate(`/ad-wizard/step-${targetStep}`, { replace: true });
+            if (targetStep > 1 && canNavigateToStep(targetStep)) {
+              console.log('[WizardContent] Setting current step to:', targetStep);
+              setCurrentStep(targetStep);
+              
+              // Handle navigation based on current route
+              if (window.location.pathname === '/ad-wizard/new') {
+                console.log('[WizardContent] Navigating from /new to step:', targetStep);
+                navigate(`/ad-wizard/step-${targetStep}`, { replace: true });
+              } else if (!currentUrlStep || currentUrlStep !== targetStep) {
+                console.log('[WizardContent] Navigating to step:', targetStep);
+                navigate(`/ad-wizard/step-${targetStep}`, { replace: true });
+              }
             }
           }
 
@@ -120,7 +123,7 @@ const WizardContent = () => {
     };
 
     loadProgress();
-  }, [projectId, navigate, toast, anonymousData, currentUser, setBusinessIdea, setTargetAudience, setAudienceAnalysis, setCurrentStep]);
+  }, [projectId, navigate, toast, anonymousData, currentUser, setBusinessIdea, setTargetAudience, setAudienceAnalysis, setCurrentStep, canNavigateToStep]);
 
   const handleCreateProject = () => setShowCreateProject(true);
   const handleProjectCreated = (projectId: string) => {
@@ -227,7 +230,7 @@ const WizardContent = () => {
 
       <WizardControls
         videoAdsEnabled={videoAdsEnabled}
-        onVideoAdsToggle={handleVideoAdsToggle}
+        onVideoAdsToggle={setVideoAdsEnabled}
       />
 
       <WizardSteps 
