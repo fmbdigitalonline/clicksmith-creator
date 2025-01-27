@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { WizardData } from "@/types/wizardProgress";
 import { BusinessIdea, TargetAudience, AudienceAnalysis } from "@/types/adWizard";
 import { useLocation } from 'react-router-dom';
+import { useToast } from "@/hooks/use-toast";
 
 const WizardStateContext = createContext<ReturnType<typeof useAdWizardState> | undefined>(undefined);
 
@@ -18,10 +19,66 @@ export const useWizardState = () => {
 export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
   const state = useAdWizardState();
   const location = useLocation();
+  const { toast } = useToast();
 
   const getCurrentStepFromUrl = () => {
     const match = location.pathname.match(/step-(\d+)/);
     return match ? parseInt(match[1]) : null;
+  };
+
+  const saveProgress = async (retryCount = 0) => {
+    console.log('[WizardStateProvider] Starting to save progress');
+    const sessionId = localStorage.getItem('anonymous_session_id');
+    if (!sessionId) return;
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (user) {
+        // First get the current version
+        const { data: currentData } = await supabase
+          .from('wizard_progress')
+          .select('version')
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+        const newVersion = (currentData?.version || 0) + 1;
+        
+        const { error } = await supabase
+          .from('wizard_progress')
+          .upsert({
+            user_id: user.id,
+            business_idea: state.businessIdea,
+            target_audience: state.targetAudience,
+            audience_analysis: state.audienceAnalysis,
+            current_step: state.currentStep,
+            version: newVersion,
+            updated_at: new Date().toISOString()
+          }, {
+            onConflict: 'user_id'
+          });
+
+        if (error) {
+          console.error('[WizardStateProvider] Error saving progress:', error);
+          
+          // If it's a concurrent save error and we haven't retried too many times
+          if (error.message.includes('Concurrent save detected') && retryCount < 3) {
+            console.log(`[WizardStateProvider] Retrying save (attempt ${retryCount + 1})`);
+            // Wait a bit before retrying
+            await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
+            return saveProgress(retryCount + 1);
+          }
+          
+          toast({
+            title: "Error Saving Progress",
+            description: "There was an error saving your progress. Please try again.",
+            variant: "destructive",
+          });
+        }
+      }
+    } catch (error) {
+      console.error('[WizardStateProvider] Unexpected error:', error);
+    }
   };
 
   useEffect(() => {
@@ -45,30 +102,24 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
           const wizardData = anonymousData.wizard_data as WizardData;
           
           if (wizardData.business_idea && typeof wizardData.business_idea === 'object') {
-            console.log('[WizardStateProvider] Setting business idea');
             state.setBusinessIdea(wizardData.business_idea as BusinessIdea);
           }
           if (wizardData.target_audience && typeof wizardData.target_audience === 'object') {
-            console.log('[WizardStateProvider] Setting target audience');
             state.setTargetAudience(wizardData.target_audience as TargetAudience);
           }
           if (wizardData.audience_analysis && typeof wizardData.audience_analysis === 'object') {
-            console.log('[WizardStateProvider] Setting audience analysis');
             state.setAudienceAnalysis(wizardData.audience_analysis as AudienceAnalysis);
           }
 
-          // Get the current step from both URL and wizard data
           const urlStep = getCurrentStepFromUrl();
           const wizardStep = wizardData.current_step;
           
-          // Use the highest step between URL and wizard data
           const targetStep = Math.max(
             urlStep || 1,
             wizardStep || 1
           );
 
           if (targetStep > 1) {
-            console.log('[WizardStateProvider] Setting current step:', targetStep);
             state.setCurrentStep(targetStep);
           }
         }
@@ -81,90 +132,7 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   useEffect(() => {
-    const saveProgress = async () => {
-      console.log('[WizardStateProvider] Starting to save progress');
-      const sessionId = localStorage.getItem('anonymous_session_id');
-      if (!sessionId) return;
-
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (user) {
-        console.log('[WizardStateProvider] Saving progress for authenticated user:', user.id);
-        await supabase
-          .from('wizard_progress')
-          .upsert({
-            user_id: user.id,
-            business_idea: state.businessIdea,
-            target_audience: state.targetAudience,
-            audience_analysis: state.audienceAnalysis,
-            current_step: state.currentStep,
-            version: 1
-          }, {
-            onConflict: 'user_id'
-          });
-      } else {
-        console.log('[WizardStateProvider] Saving progress for anonymous user:', sessionId);
-        await supabase
-          .from('anonymous_usage')
-          .update({
-            wizard_data: {
-              business_idea: state.businessIdea,
-              target_audience: state.targetAudience,
-              audience_analysis: state.audienceAnalysis,
-              current_step: state.currentStep
-            },
-            last_completed_step: state.currentStep
-          })
-          .eq('session_id', sessionId);
-      }
-    };
-
-    // Add auth state change listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('[WizardStateProvider] Auth state changed:', event);
-      if (event === 'SIGNED_IN' && session?.user) {
-        console.log('[WizardStateProvider] User signed in, checking for existing progress');
-        const { data: existingProgress } = await supabase
-          .from('wizard_progress')
-          .select('*')
-          .eq('user_id', session.user.id)
-          .maybeSingle();
-
-        if (existingProgress) {
-          console.log('[WizardStateProvider] Found existing progress:', existingProgress);
-          if (existingProgress.business_idea && typeof existingProgress.business_idea === 'object') {
-            state.setBusinessIdea(existingProgress.business_idea as BusinessIdea);
-          }
-          if (existingProgress.target_audience && typeof existingProgress.target_audience === 'object') {
-            state.setTargetAudience(existingProgress.target_audience as TargetAudience);
-          }
-          if (existingProgress.audience_analysis && typeof existingProgress.audience_analysis === 'object') {
-            state.setAudienceAnalysis(existingProgress.audience_analysis as AudienceAnalysis);
-          }
-
-          // Get the current step from both URL and existing progress
-          const urlStep = getCurrentStepFromUrl();
-          const progressStep = existingProgress.current_step;
-          
-          // Use the highest step between URL and existing progress
-          const targetStep = Math.max(
-            urlStep || 1,
-            progressStep || 1
-          );
-
-          if (targetStep > 1) {
-            console.log('[WizardStateProvider] Setting current step after sign in:', targetStep);
-            state.setCurrentStep(targetStep);
-          }
-        }
-      }
-    });
-
     saveProgress();
-
-    return () => {
-      subscription.unsubscribe();
-    };
   }, [state.businessIdea, state.targetAudience, state.audienceAnalysis, state.currentStep]);
   
   return (
