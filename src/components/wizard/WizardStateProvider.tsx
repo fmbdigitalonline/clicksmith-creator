@@ -5,6 +5,7 @@ import { WizardData } from "@/types/wizardProgress";
 import { BusinessIdea, TargetAudience, AudienceAnalysis } from "@/types/adWizard";
 import { useLocation } from 'react-router-dom';
 import { useToast } from "@/hooks/use-toast";
+import { saveWizardState } from "@/utils/versionedSave";
 
 const WizardStateContext = createContext<ReturnType<typeof useAdWizardState> | undefined>(undefined);
 
@@ -16,38 +17,23 @@ export const useWizardState = () => {
   return context;
 };
 
-const isBusinessIdea = (data: any): data is BusinessIdea => {
-  return data && typeof data === 'object' && 'description' in data;
-};
-
-const isTargetAudience = (data: any): data is TargetAudience => {
-  return data && typeof data === 'object' && 'description' in data;
-};
-
-const isAudienceAnalysis = (data: any): data is AudienceAnalysis => {
-  return data && typeof data === 'object' && 'expandedDefinition' in data;
-};
-
 export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
   const state = useAdWizardState();
   const location = useLocation();
   const { toast } = useToast();
-  const saveInProgress = useRef(false);
-  const hasInitialized = useRef(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [stateVersion, setStateVersion] = useState(1);
+  const saveQueue = useRef<Promise<any>>(Promise.resolve());
+  const isSaving = useRef(false);
+  const hasInitialized = useRef(false);
 
   const canNavigateToStep = (step: number): boolean => {
     switch (step) {
-      case 1:
-        return true;
-      case 2:
-        return !!state.businessIdea;
-      case 3:
-        return !!state.businessIdea && !!state.targetAudience;
-      case 4:
-        return !!state.businessIdea && !!state.targetAudience && !!state.audienceAnalysis;
-      default:
-        return false;
+      case 1: return true;
+      case 2: return !!state.businessIdea;
+      case 3: return !!state.businessIdea && !!state.targetAudience;
+      case 4: return !!state.businessIdea && !!state.targetAudience && !!state.audienceAnalysis;
+      default: return false;
     }
   };
 
@@ -56,13 +42,28 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
     return match ? parseInt(match[1]) : null;
   };
 
-  useEffect(() => {
-    const urlStep = getCurrentStepFromUrl();
-    if (urlStep && urlStep !== state.currentStep && canNavigateToStep(urlStep)) {
-      console.log('[WizardStateProvider] Synchronizing step from URL:', urlStep);
-      state.setCurrentStep(urlStep);
+  const queueSave = async (data: Partial<WizardData>) => {
+    if (isSaving.current) {
+      console.log('[WizardStateProvider] Save already in progress, queueing...');
+      await saveQueue.current;
     }
-  }, [location.pathname]);
+
+    isSaving.current = true;
+    saveQueue.current = saveQueue.current.then(async () => {
+      try {
+        const { success, newVersion } = await saveWizardState(data, stateVersion);
+        if (success) {
+          setStateVersion(newVersion);
+        }
+      } catch (error) {
+        console.error('[WizardStateProvider] Error in save queue:', error);
+      } finally {
+        isSaving.current = false;
+      }
+    });
+
+    return saveQueue.current;
+  };
 
   useEffect(() => {
     const syncWizardState = async () => {
@@ -84,23 +85,16 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
           if (progress) {
             console.log('[WizardStateProvider] Found existing progress:', progress);
             
-            // Update all states at once
-            if (progress.business_idea && isBusinessIdea(progress.business_idea)) {
-              state.setBusinessIdea(progress.business_idea);
-            }
-            if (progress.target_audience && isTargetAudience(progress.target_audience)) {
-              state.setTargetAudience(progress.target_audience);
-            }
-            if (progress.audience_analysis && isAudienceAnalysis(progress.audience_analysis)) {
-              state.setAudienceAnalysis(progress.audience_analysis);
-            }
+            if (progress.business_idea) state.setBusinessIdea(progress.business_idea);
+            if (progress.target_audience) state.setTargetAudience(progress.target_audience);
+            if (progress.audience_analysis) state.setAudienceAnalysis(progress.audience_analysis);
             
-            // Ensure the step is properly set
+            setStateVersion(progress.version || 1);
+            
             const urlStep = getCurrentStepFromUrl();
             const targetStep = Math.max(progress.current_step || 1, urlStep || 1);
             
             if (targetStep > 1 && canNavigateToStep(targetStep)) {
-              console.log('[WizardStateProvider] Setting step to:', targetStep);
               state.setCurrentStep(targetStep);
             }
           }
@@ -122,103 +116,23 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
     syncWizardState();
   }, []);
 
-  const saveProgress = async (retryCount = 0, maxRetries = 3) => {
-    if (saveInProgress.current) {
-      console.log('[WizardStateProvider] Save already in progress, skipping');
-      return;
-    }
-
-    console.log('[WizardStateProvider] Starting to save progress, attempt:', retryCount + 1);
-    const { data: { user } } = await supabase.auth.getUser();
-    
-    if (user) {
-      try {
-        saveInProgress.current = true;
-        
-        const { error } = await supabase
-          .from('wizard_progress')
-          .upsert({
-            user_id: user.id,
-            business_idea: state.businessIdea,
-            target_audience: state.targetAudience,
-            audience_analysis: state.audienceAnalysis,
-            current_step: state.currentStep,
-            updated_at: new Date().toISOString()
-          }, {
-            onConflict: 'user_id'
-          });
-
-        if (error) throw error;
-        
-      } catch (error) {
-        console.error('[WizardStateProvider] Error saving progress:', error);
-        if (retryCount < maxRetries) {
-          setTimeout(() => saveProgress(retryCount + 1, maxRetries), 1000);
-        }
-      } finally {
-        saveInProgress.current = false;
-      }
-    }
-  };
-
   useEffect(() => {
-    const syncAnonymousData = async () => {
-      console.log('[WizardStateProvider] Starting to sync anonymous data');
-      const sessionId = localStorage.getItem('anonymous_session_id');
-      if (!sessionId) {
-        console.log('[WizardStateProvider] No anonymous session found');
-        return;
-      }
-
-      try {
-        const { data: anonymousData } = await supabase
-          .from('anonymous_usage')
-          .select('wizard_data')
-          .eq('session_id', sessionId)
-          .maybeSingle();
-
-        if (anonymousData?.wizard_data) {
-          console.log('[WizardStateProvider] Found anonymous data:', anonymousData.wizard_data);
-          const wizardData = anonymousData.wizard_data as WizardData;
-          
-          if (wizardData.business_idea && typeof wizardData.business_idea === 'object') {
-            state.setBusinessIdea(wizardData.business_idea as BusinessIdea);
-          }
-          if (wizardData.target_audience && typeof wizardData.target_audience === 'object') {
-            state.setTargetAudience(wizardData.target_audience as TargetAudience);
-          }
-          if (wizardData.audience_analysis && typeof wizardData.audience_analysis === 'object') {
-            state.setAudienceAnalysis(wizardData.audience_analysis as AudienceAnalysis);
-          }
-
-          const urlStep = getCurrentStepFromUrl();
-          const wizardStep = wizardData.current_step;
-          
-          const targetStep = Math.max(
-            urlStep || 1,
-            wizardStep || 1
-          );
-
-          if (targetStep > 1) {
-            state.setCurrentStep(targetStep);
-          }
-        }
-      } catch (error) {
-        console.error('[WizardStateProvider] Error syncing anonymous data:', error);
+    const saveProgress = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (user) {
+        await queueSave({
+          user_id: user.id,
+          business_idea: state.businessIdea,
+          target_audience: state.targetAudience,
+          audience_analysis: state.audienceAnalysis,
+          current_step: state.currentStep
+        });
       }
     };
 
-    syncAnonymousData();
-  }, []);
-
-  useEffect(() => {
-    const debounceTimeout = setTimeout(() => {
-      saveProgress();
-    }, 1000);
-
-    return () => {
-      clearTimeout(debounceTimeout);
-    };
+    const debounceTimeout = setTimeout(saveProgress, 1000);
+    return () => clearTimeout(debounceTimeout);
   }, [state.businessIdea, state.targetAudience, state.audienceAnalysis, state.currentStep]);
   
   if (isLoading) {
