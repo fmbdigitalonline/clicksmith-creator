@@ -49,29 +49,54 @@ const WizardContent = () => {
             .eq('user_id', currentUser.id)
             .maybeSingle();
 
+          // Get the current URL step if it exists
+          const currentPathMatch = window.location.pathname.match(/step-(\d+)/);
+          const currentUrlStep = currentPathMatch ? parseInt(currentPathMatch[1]) : null;
+          
+          // Get the anonymous step
+          const anonymousStep = anonymousData.current_step || 1;
+          console.log('[WizardContent] Anonymous step:', anonymousStep);
+          
           if (existingProgress) {
-            console.log('[WizardContent] Found existing progress');
+            console.log('[WizardContent] Found existing progress with step:', existingProgress.current_step);
             
-            // Always use the highest step between existing and anonymous data
+            // Always use the highest step between existing, anonymous, and URL
             const targetStep = Math.max(
               existingProgress.current_step || 1,
-              anonymousData.current_step || 1
+              anonymousStep,
+              currentUrlStep || 1
             );
+            
+            console.log('[WizardContent] Target step calculated:', targetStep);
 
             // Set all the wizard state
-            if (anonymousData.business_idea) setBusinessIdea(anonymousData.business_idea);
-            if (anonymousData.target_audience) setTargetAudience(anonymousData.target_audience);
-            if (anonymousData.audience_analysis) setAudienceAnalysis(anonymousData.audience_analysis);
-            if (anonymousData.generated_ads) setGeneratedAds(anonymousData.generated_ads);
+            if (anonymousData.business_idea) {
+              console.log('[WizardContent] Setting business idea');
+              setBusinessIdea(anonymousData.business_idea);
+            }
+            if (anonymousData.target_audience) {
+              console.log('[WizardContent] Setting target audience');
+              setTargetAudience(anonymousData.target_audience);
+            }
+            if (anonymousData.audience_analysis) {
+              console.log('[WizardContent] Setting audience analysis');
+              setAudienceAnalysis(anonymousData.audience_analysis);
+            }
+            if (anonymousData.generated_ads) {
+              console.log('[WizardContent] Setting generated ads');
+              setGeneratedAds(anonymousData.generated_ads);
+            }
             
-            // Update the current step and navigate if needed
+            // Update the current step
+            console.log('[WizardContent] Setting current step to:', targetStep);
             setCurrentStep(targetStep);
             
             // Only navigate if we're not already on the correct step
-            const currentPathMatch = window.location.pathname.match(/step-(\d+)/);
-            const currentUrlStep = currentPathMatch ? parseInt(currentPathMatch[1]) : null;
-            
-            if (targetStep > 1 && (!currentUrlStep || currentUrlStep !== targetStep)) {
+            // and we're not on the /new route
+            if (targetStep > 1 && window.location.pathname === '/ad-wizard/new') {
+              console.log('[WizardContent] Navigating from /new to step:', targetStep);
+              navigate(`/ad-wizard/step-${targetStep}`, { replace: true });
+            } else if (targetStep > 1 && (!currentUrlStep || currentUrlStep !== targetStep)) {
               console.log('[WizardContent] Navigating to step:', targetStep);
               navigate(`/ad-wizard/step-${targetStep}`, { replace: true });
             }
