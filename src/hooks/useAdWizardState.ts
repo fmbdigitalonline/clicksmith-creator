@@ -6,6 +6,9 @@ import { useWizardHandlers } from "./wizard/useWizardHandlers";
 
 export const useAdWizardState = () => {
   const [selectedHooks, setSelectedHooks] = useState<AdHook[]>([]);
+  const [generatedAds, setGeneratedAds] = useState<any[]>([]);
+  const [adFormat, setAdFormat] = useState<string | null>(null);
+  const [videoAdPreferences, setVideoAdPreferences] = useState<any>(null);
   const { projectId } = useParams();
 
   const {
@@ -40,6 +43,9 @@ export const useAdWizardState = () => {
     targetAudience,
     audienceAnalysis,
     selectedHooks,
+    generatedAds,
+    adFormat,
+    videoAdPreferences,
     handleIdeaSubmit,
     handleAudienceSelect,
     handleAnalysisComplete,
@@ -50,6 +56,9 @@ export const useAdWizardState = () => {
     setBusinessIdea,
     setTargetAudience,
     setAudienceAnalysis,
+    setGeneratedAds,
+    setAdFormat,
+    setVideoAdPreferences,
   };
 };
 

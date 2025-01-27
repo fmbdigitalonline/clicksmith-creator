@@ -30,6 +30,32 @@ export const useWizardState = () => {
   return context;
 };
 
+// Helper functions for locking mechanism
+const acquireLock = async (lockKey: string): Promise<boolean> => {
+  try {
+    const { data, error } = await supabase
+      .from('migration_locks')
+      .insert([
+        { 
+          lock_type: lockKey,
+          expires_at: new Date(Date.now() + 30000).toISOString() // 30 second lock
+        }
+      ])
+      .single();
+    
+    return !error;
+  } catch {
+    return false;
+  }
+};
+
+const releaseLock = async (lockKey: string): Promise<void> => {
+  await supabase
+    .from('migration_locks')
+    .delete()
+    .eq('lock_type', lockKey);
+};
+
 export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
   const state = useAdWizardState();
   const location = useLocation();
@@ -81,21 +107,28 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
         throw error;
       }
 
-      if (migratedData) {
+      if (migratedData && typeof migratedData === 'object') {
         console.log('[Migration] Successfully migrated data:', migratedData);
         
-        // Update local state with migrated data
-        if (migratedData.business_idea) {
-          state.setBusinessIdea(migratedData.business_idea);
+        // Type assertion for migratedData
+        const typedData = migratedData as {
+          business_idea?: BusinessIdea;
+          target_audience?: TargetAudience;
+          audience_analysis?: AudienceAnalysis;
+          current_step?: number;
+        };
+        
+        if (typedData.business_idea) {
+          state.setBusinessIdea(typedData.business_idea);
         }
-        if (migratedData.target_audience) {
-          state.setTargetAudience(migratedData.target_audience);
+        if (typedData.target_audience) {
+          state.setTargetAudience(typedData.target_audience);
         }
-        if (migratedData.audience_analysis) {
-          state.setAudienceAnalysis(migratedData.audience_analysis);
+        if (typedData.audience_analysis) {
+          state.setAudienceAnalysis(typedData.audience_analysis);
         }
-        if (migratedData.current_step > 1) {
-          state.setCurrentStep(migratedData.current_step);
+        if (typedData.current_step && typedData.current_step > 1) {
+          state.setCurrentStep(typedData.current_step);
         }
 
         localStorage.removeItem('anonymous_session_id');
@@ -134,7 +167,7 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
 
   const debouncedSave = debounce(async (user: any, retryCount = 0, maxRetries = 3) => {
     const lockKey = `save-lock-${user.id}`;
-    if (await getLock(lockKey)) {
+    if (await acquireLock(lockKey)) {
       try {
         const { error } = await supabase
           .from('wizard_progress')
