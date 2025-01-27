@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -12,7 +12,6 @@ import WizardSteps from "./WizardSteps";
 import CreateProjectDialog from "../projects/CreateProjectDialog";
 import { Button } from "../ui/button";
 import { Save } from "lucide-react";
-import { debounce } from "lodash";
 
 const WizardContent = () => {
   const [showCreateProject, setShowCreateProject] = useState(false);
@@ -21,7 +20,6 @@ const WizardContent = () => {
   const [hasLoadedInitialAds, setHasLoadedInitialAds] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [anonymousData, setAnonymousData] = useState<WizardData | null>(null);
-  const [isLoadingProgress, setIsLoadingProgress] = useState(false);
   const navigate = useNavigate();
   const { projectId } = useParams();
   const { toast } = useToast();
@@ -36,12 +34,8 @@ const WizardContent = () => {
     canNavigateToStep
   } = useWizardState();
 
-  // Debounced progress loading function
-  const debouncedLoadProgress = useCallback(
-    debounce(async () => {
-      if (isLoadingProgress) return;
-      setIsLoadingProgress(true);
-      
+  useEffect(() => {
+    const loadProgress = async () => {
       try {
         console.log('[WizardContent] Starting to load progress');
         
@@ -54,32 +48,53 @@ const WizardContent = () => {
             .eq('user_id', currentUser.id)
             .maybeSingle();
 
+          const currentPathMatch = window.location.pathname.match(/step-(\d+)/);
+          const currentUrlStep = currentPathMatch ? parseInt(currentPathMatch[1]) : null;
+          
+          const anonymousStep = anonymousData.current_step && anonymousData.current_step > 0 
+            ? anonymousData.current_step 
+            : 1;
+          console.log('[WizardContent] Anonymous step:', anonymousStep);
+          
           if (existingProgress) {
             console.log('[WizardContent] Found existing progress with step:', existingProgress.current_step);
             
             const targetStep = Math.max(
               existingProgress.current_step || 1,
-              anonymousData.current_step || 1
+              anonymousStep,
+              currentUrlStep || 1
             );
             
+            console.log('[WizardContent] Target step calculated:', targetStep);
+
             if (anonymousData.business_idea || existingProgress.business_idea) {
+              console.log('[WizardContent] Setting business idea');
               setBusinessIdea(anonymousData.business_idea || existingProgress.business_idea);
             }
             if (anonymousData.target_audience || existingProgress.target_audience) {
+              console.log('[WizardContent] Setting target audience');
               setTargetAudience(anonymousData.target_audience || existingProgress.target_audience);
             }
             if (anonymousData.audience_analysis || existingProgress.audience_analysis) {
+              console.log('[WizardContent] Setting audience analysis');
               setAudienceAnalysis(anonymousData.audience_analysis || existingProgress.audience_analysis);
             }
             if (anonymousData.generated_ads || existingProgress.generated_ads) {
+              console.log('[WizardContent] Setting generated ads');
               const anonymousAds = Array.isArray(anonymousData.generated_ads) ? anonymousData.generated_ads : [];
               const existingAds = Array.isArray(existingProgress.generated_ads) ? existingProgress.generated_ads : [];
               setGeneratedAds([...anonymousAds, ...existingAds]);
             }
             
             if (targetStep > 1 && canNavigateToStep(targetStep)) {
+              console.log('[WizardContent] Setting current step to:', targetStep);
               setCurrentStep(targetStep);
+              
               if (window.location.pathname === '/ad-wizard/new') {
+                console.log('[WizardContent] Navigating from /new to step:', targetStep);
+                navigate(`/ad-wizard/step-${targetStep}`, { replace: true });
+              } else if (!currentUrlStep || currentUrlStep !== targetStep) {
+                console.log('[WizardContent] Navigating to step:', targetStep);
                 navigate(`/ad-wizard/step-${targetStep}`, { replace: true });
               }
             }
@@ -98,19 +113,11 @@ const WizardContent = () => {
           variant: "destructive",
         });
         setHasLoadedInitialAds(true);
-      } finally {
-        setIsLoadingProgress(false);
       }
-    }, 1000),
-    [projectId, navigate, toast, anonymousData, currentUser, setBusinessIdea, setTargetAudience, setAudienceAnalysis, setCurrentStep, canNavigateToStep]
-  );
-
-  useEffect(() => {
-    debouncedLoadProgress();
-    return () => {
-      debouncedLoadProgress.cancel();
     };
-  }, [debouncedLoadProgress]);
+
+    loadProgress();
+  }, [projectId, navigate, toast, anonymousData, currentUser, setBusinessIdea, setTargetAudience, setAudienceAnalysis, setCurrentStep, canNavigateToStep]);
 
   const handleCreateProject = () => setShowCreateProject(true);
   const handleProjectCreated = (projectId: string) => {
