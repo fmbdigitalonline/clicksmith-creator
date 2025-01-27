@@ -109,6 +109,7 @@ export type Database = {
           last_save_attempt: string | null
           save_count: number | null
           session_id: string
+          updated_at: string | null
           used: boolean | null
           wizard_data: Json | null
         }
@@ -120,6 +121,7 @@ export type Database = {
           last_save_attempt?: string | null
           save_count?: number | null
           session_id: string
+          updated_at?: string | null
           used?: boolean | null
           wizard_data?: Json | null
         }
@@ -131,6 +133,7 @@ export type Database = {
           last_save_attempt?: string | null
           save_count?: number | null
           session_id?: string
+          updated_at?: string | null
           used?: boolean | null
           wizard_data?: Json | null
         }
@@ -750,6 +753,21 @@ export type Database = {
           p_error_message?: string
         }
         Returns: undefined
+      }
+      migrate_anonymous_to_authenticated: {
+        Args: {
+          p_session_id: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      migrate_wizard_data: {
+        Args: {
+          p_user_id: string
+          p_session_id: string
+          p_wizard_data: Json
+        }
+        Returns: Json
       }
       migrate_wizard_progress: {
         Args: {
