@@ -26,21 +26,8 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
   const saveQueue = useRef<Promise<any>>(Promise.resolve());
   const isSaving = useRef(false);
   const hasInitialized = useRef(false);
-
-  const canNavigateToStep = (step: number): boolean => {
-    switch (step) {
-      case 1: return true;
-      case 2: return !!state.businessIdea;
-      case 3: return !!state.businessIdea && !!state.targetAudience;
-      case 4: return !!state.businessIdea && !!state.targetAudience && !!state.audienceAnalysis;
-      default: return false;
-    }
-  };
-
-  const getCurrentStepFromUrl = () => {
-    const match = location.pathname.match(/step-(\d+)/);
-    return match ? parseInt(match[1]) : null;
-  };
+  const retryCount = useRef(0);
+  const MAX_RETRIES = 3;
 
   const queueSave = async (data: Partial<WizardData>) => {
     if (isSaving.current) {
@@ -58,9 +45,25 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
           ...data,
           user_id: user.id
         };
-        const { success, newVersion } = await saveWizardState(saveData, stateVersion);
-        if (success) {
-          setStateVersion(newVersion);
+        
+        let success = false;
+        while (!success && retryCount.current < MAX_RETRIES) {
+          try {
+            const result = await saveWizardState(saveData, stateVersion);
+            if (result.success) {
+              setStateVersion(result.newVersion);
+              success = true;
+              retryCount.current = 0;
+            }
+          } catch (error: any) {
+            retryCount.current++;
+            if (error.message === 'Concurrent save detected' && retryCount.current < MAX_RETRIES) {
+              console.log(`[WizardStateProvider] Retry attempt ${retryCount.current}/${MAX_RETRIES}`);
+              await new Promise(resolve => setTimeout(resolve, 1000 * retryCount.current));
+              continue;
+            }
+            throw error;
+          }
         }
       } catch (error) {
         console.error('[WizardStateProvider] Error in save queue:', error);
@@ -70,6 +73,21 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
     });
 
     return saveQueue.current;
+  };
+
+  const canNavigateToStep = (step: number): boolean => {
+    switch (step) {
+      case 1: return true;
+      case 2: return !!state.businessIdea;
+      case 3: return !!state.businessIdea && !!state.targetAudience;
+      case 4: return !!state.businessIdea && !!state.targetAudience && !!state.audienceAnalysis;
+      default: return false;
+    }
+  };
+
+  const getCurrentStepFromUrl = () => {
+    const match = location.pathname.match(/step-(\d+)/);
+    return match ? parseInt(match[1]) : null;
   };
 
   useEffect(() => {
