@@ -51,11 +51,10 @@ const WizardContent = () => {
           const currentPathMatch = window.location.pathname.match(/step-(\d+)/);
           const currentUrlStep = currentPathMatch ? parseInt(currentPathMatch[1]) : null;
           
-          // Calculate the highest step from all sources
-          const anonymousStep = Math.max(
-            anonymousData.current_step || 1,
-            anonymousData.last_completed_step || 1
-          );
+          // Calculate anonymous step safely
+          const anonymousStep = anonymousData.current_step && anonymousData.current_step > 0 
+            ? anonymousData.current_step 
+            : 1;
           
           console.log('[WizardContent] Anonymous step:', anonymousStep);
           console.log('[WizardContent] Current URL step:', currentUrlStep);
