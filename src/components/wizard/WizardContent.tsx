@@ -81,13 +81,9 @@ const WizardContent = () => {
             }
             if (anonymousData.generated_ads || existingProgress.generated_ads) {
               console.log('[WizardContent] Setting generated ads');
-              // Ensure we're setting an array
-              const ads = Array.isArray(anonymousData.generated_ads) 
-                ? anonymousData.generated_ads 
-                : Array.isArray(existingProgress.generated_ads)
-                  ? existingProgress.generated_ads
-                  : [];
-              setGeneratedAds(ads);
+              const anonymousAds = Array.isArray(anonymousData.generated_ads) ? anonymousData.generated_ads : [];
+              const existingAds = Array.isArray(existingProgress.generated_ads) ? existingProgress.generated_ads : [];
+              setGeneratedAds([...anonymousAds, ...existingAds]);
             }
             
             if (targetStep > 1 && canNavigateToStep(targetStep)) {
