@@ -34,11 +34,11 @@ export const saveWizardState = async (
         })
         .eq('user_id', data.user_id)
         .eq('version', version)
-        .select()
+        .select('version')
         .maybeSingle();
 
       if (error) {
-        if (error.message === 'Concurrent save detected' && retryCount < MAX_RETRIES) {
+        if (error.message.includes('Concurrent save detected') && retryCount < MAX_RETRIES) {
           console.log(`[versionedSave] Retry attempt ${retryCount + 1}/${MAX_RETRIES}`);
           // Exponential backoff
           await new Promise(resolve => 
@@ -58,7 +58,18 @@ export const saveWizardState = async (
       }
 
       if (!result) {
-        throw new Error('Failed to update wizard progress');
+        // If no result, the version didn't match - get current version and retry
+        const { data: current } = await supabase
+          .from('wizard_progress')
+          .select('version')
+          .eq('user_id', data.user_id)
+          .maybeSingle();
+
+        if (current && retryCount < MAX_RETRIES) {
+          return saveWizardState(data, current.version, retryCount + 1);
+        }
+        
+        throw new Error('Failed to update wizard progress - version mismatch');
       }
 
       return {
@@ -74,7 +85,7 @@ export const saveWizardState = async (
           version: 1,
           current_step: data.current_step || 1
         })
-        .select()
+        .select('version')
         .maybeSingle();
 
       if (error) throw error;
