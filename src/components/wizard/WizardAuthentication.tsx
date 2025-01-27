@@ -36,6 +36,17 @@ const convertToWizardData = (jsonData: Json): WizardData | null => {
   };
 };
 
+const convertWizardDataToJson = (data: WizardData): { [key: string]: Json } => {
+  return {
+    business_idea: data.business_idea as Json,
+    target_audience: data.target_audience as Json,
+    audience_analysis: data.audience_analysis as Json,
+    generated_ads: data.generated_ads as Json[],
+    current_step: data.current_step as number,
+    version: data.version as number
+  };
+};
+
 const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAuthenticationProps) => {
   const [authError, setAuthError] = useState<string | null>(null);
   const { toast } = useToast();
@@ -135,7 +146,7 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
                 try {
                   const migratedData = await migrateUserProgress(session.user.id, sessionId);
                   if (migratedData) {
-                    const convertedData = convertToWizardData(migratedData);
+                    const convertedData = convertToWizardData(migratedData as Json);
                     if (convertedData) {
                       onAnonymousDataChange(convertedData);
                       localStorage.removeItem('anonymous_session_id');
@@ -164,7 +175,7 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
               }
             }
           } else if (existing) {
-            const convertedData = convertToWizardData(existing);
+            const convertedData = convertToWizardData(existing as Json);
             if (convertedData) {
               onAnonymousDataChange(convertedData);
               if (convertedData.current_step && convertedData.current_step > 1) {
@@ -233,27 +244,30 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
             
             const migratedData = await migrateUserProgress(session.user.id, sessionId);
             if (migratedData) {
-              console.group('[Auth] Migration successful after sign in');
-              console.log('User ID:', session.user.id);
-              console.log('Current step:', migratedData.current_step);
-              console.log('Has business idea:', !!migratedData.business_idea);
-              console.groupEnd();
-              
-              onAnonymousDataChange(migratedData);
-              localStorage.removeItem('anonymous_session_id');
-              
-              const step = migratedData.current_step || 1;
-              console.group('[Auth] Redirecting to step after sign in');
-              console.log('Step:', step);
-              console.log('User ID:', session.user.id);
-              console.groupEnd();
-              
-              redirectToStep(step);
-              
-              toast({
-                title: "Progress Migrated",
-                description: "Your previous work has been saved to your account.",
-              });
+              const wizardData = convertToWizardData(migratedData as Json);
+              if (wizardData) {
+                console.group('[Auth] Migration successful after sign in');
+                console.log('User ID:', session.user.id);
+                console.log('Current step:', wizardData.current_step);
+                console.log('Has business idea:', !!wizardData.business_idea);
+                console.groupEnd();
+                
+                onAnonymousDataChange(wizardData);
+                localStorage.removeItem('anonymous_session_id');
+                
+                const step = wizardData.current_step || 1;
+                console.group('[Auth] Redirecting to step after sign in');
+                console.log('Step:', step);
+                console.log('User ID:', session.user.id);
+                console.groupEnd();
+                
+                redirectToStep(step);
+                
+                toast({
+                  title: "Progress Migrated",
+                  description: "Your previous work has been saved to your account.",
+                });
+              }
             }
           } catch (error) {
             console.group('[Auth] Migration error after sign in');
@@ -282,62 +296,6 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
       subscription.unsubscribe();
     };
   }, [onUserChange, onAnonymousDataChange, toast, navigate, location]);
-
-  const checkAnonymousAccess = async () => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (session?.user) {
-        const sessionId = localStorage.getItem('anonymous_session_id');
-        if (sessionId) {
-          const { data: anonymousData } = await supabase
-            .from('anonymous_usage')
-            .select('wizard_data')
-            .eq('session_id', sessionId)
-            .single();
-
-          if (anonymousData?.wizard_data) {
-            const { data: existingProgress } = await supabase
-              .from('wizard_progress')
-              .select('*')
-              .eq('user_id', session.user.id)
-              .single();
-
-            if (!existingProgress) {
-              const { error: insertError } = await supabase
-                .from('wizard_progress')
-                .insert({
-                  user_id: session.user.id,
-                  business_idea: anonymousData.wizard_data.business_idea,
-                  target_audience: anonymousData.wizard_data.target_audience,
-                  audience_analysis: anonymousData.wizard_data.audience_analysis,
-                  generated_ads: anonymousData.wizard_data.generated_ads || [],
-                  current_step: anonymousData.wizard_data.current_step || 1,
-                  version: 1
-                });
-
-              if (!insertError) {
-                await supabase
-                  .from('anonymous_usage')
-                  .update({ used: true })
-                  .eq('session_id', sessionId);
-
-                onUserChange(session.user);
-                onAnonymousDataChange(anonymousData.wizard_data);
-                
-                toast({
-                  title: "Progress Restored",
-                  description: "Your previous work has been saved to your account.",
-                });
-              }
-            }
-          }
-        }
-      }
-    } catch (error) {
-      console.error('[WizardAuthentication] Error in anonymous access check:', error);
-    }
-  };
 
   if (authError) {
     return (
