@@ -3,6 +3,7 @@ import { useAdWizardState } from "@/hooks/useAdWizardState";
 import { supabase } from "@/integrations/supabase/client";
 import { WizardData } from "@/types/wizardProgress";
 import { BusinessIdea, TargetAudience, AudienceAnalysis } from "@/types/adWizard";
+import { useLocation } from 'react-router-dom';
 
 const WizardStateContext = createContext<ReturnType<typeof useAdWizardState> | undefined>(undefined);
 
@@ -16,7 +17,13 @@ export const useWizardState = () => {
 
 export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
   const state = useAdWizardState();
-  
+  const location = useLocation();
+
+  const getCurrentStepFromUrl = () => {
+    const match = location.pathname.match(/step-(\d+)/);
+    return match ? parseInt(match[1]) : null;
+  };
+
   useEffect(() => {
     const syncAnonymousData = async () => {
       console.log('[WizardStateProvider] Starting to sync anonymous data');
@@ -49,9 +56,20 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
             console.log('[WizardStateProvider] Setting audience analysis');
             state.setAudienceAnalysis(wizardData.audience_analysis as AudienceAnalysis);
           }
-          if (wizardData.current_step && typeof wizardData.current_step === 'number' && wizardData.current_step > 1) {
-            console.log('[WizardStateProvider] Setting current step:', wizardData.current_step);
-            state.setCurrentStep(wizardData.current_step);
+
+          // Get the current step from both URL and wizard data
+          const urlStep = getCurrentStepFromUrl();
+          const wizardStep = wizardData.current_step;
+          
+          // Use the highest step between URL and wizard data
+          const targetStep = Math.max(
+            urlStep || 1,
+            wizardStep || 1
+          );
+
+          if (targetStep > 1) {
+            console.log('[WizardStateProvider] Setting current step:', targetStep);
+            state.setCurrentStep(targetStep);
           }
         }
       } catch (error) {
@@ -72,7 +90,6 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
       
       if (user) {
         console.log('[WizardStateProvider] Saving progress for authenticated user:', user.id);
-        // User is authenticated, save to wizard_progress
         await supabase
           .from('wizard_progress')
           .upsert({
@@ -87,7 +104,6 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
           });
       } else {
         console.log('[WizardStateProvider] Saving progress for anonymous user:', sessionId);
-        // Anonymous user, update anonymous_usage
         await supabase
           .from('anonymous_usage')
           .update({
@@ -125,8 +141,20 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
           if (existingProgress.audience_analysis && typeof existingProgress.audience_analysis === 'object') {
             state.setAudienceAnalysis(existingProgress.audience_analysis as AudienceAnalysis);
           }
-          if (existingProgress.current_step && typeof existingProgress.current_step === 'number' && existingProgress.current_step > 1) {
-            state.setCurrentStep(existingProgress.current_step);
+
+          // Get the current step from both URL and existing progress
+          const urlStep = getCurrentStepFromUrl();
+          const progressStep = existingProgress.current_step;
+          
+          // Use the highest step between URL and existing progress
+          const targetStep = Math.max(
+            urlStep || 1,
+            progressStep || 1
+          );
+
+          if (targetStep > 1) {
+            console.log('[WizardStateProvider] Setting current step after sign in:', targetStep);
+            state.setCurrentStep(targetStep);
           }
         }
       }
