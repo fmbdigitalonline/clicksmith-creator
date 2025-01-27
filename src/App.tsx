@@ -1,6 +1,6 @@
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import AdWizard from "./components/AdWizard";
-import { AppLayout } from "./components/layout/AppLayout";
+import AppLayout from "./components/layout/AppLayout";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 // Create a client
