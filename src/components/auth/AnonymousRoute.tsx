@@ -38,7 +38,14 @@ export const AnonymousRoute = ({ children }: { children: React.ReactNode }) => {
             .insert({
               session_id: sessionId,
               used: false,
-              last_completed_step: 1
+              last_completed_step: 1,
+              wizard_data: {
+                current_step: 1,
+                business_idea: null,
+                target_audience: null,
+                audience_analysis: null,
+                generated_ads: []
+              }
             });
 
           if (initError) {
@@ -49,10 +56,10 @@ export const AnonymousRoute = ({ children }: { children: React.ReactNode }) => {
           console.log('[AnonymousRoute] Found existing anonymous session:', sessionId);
         }
 
-        // Check if this session has already been used
+        // Check if this session has been used
         const { data: usage, error } = await supabase
           .from('anonymous_usage')
-          .select('used, last_completed_step')
+          .select('used, last_completed_step, wizard_data')
           .eq('session_id', sessionId)
           .maybeSingle();
 
@@ -61,7 +68,6 @@ export const AnonymousRoute = ({ children }: { children: React.ReactNode }) => {
           throw error;
         }
 
-        // Allow access if no usage record exists or if they haven't completed step 3
         if (!usage || usage.last_completed_step <= 3) {
           console.log('[AnonymousRoute] Allowing access, step:', usage?.last_completed_step || 1);
           setCanAccess(true);
