@@ -23,21 +23,16 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(true);
   const [stateVersion, setStateVersion] = useState(1);
-  const saveQueue = useRef<Promise<any>>(Promise.resolve());
   const isSaving = useRef(false);
   const hasInitialized = useRef(false);
-  const retryCount = useRef(0);
-  const MAX_RETRIES = 3;
-  const RETRY_DELAY = 1000; // Base delay in milliseconds
   const saveTimeout = useRef<NodeJS.Timeout | null>(null);
 
   const queueSave = async (data: Partial<WizardData>) => {
-    // Clear any pending save timeout
     if (saveTimeout.current) {
       clearTimeout(saveTimeout.current);
     }
 
-    // Return early if already saving to prevent queue buildup
+    // Return early if already saving
     if (isSaving.current) {
       return;
     }
@@ -46,7 +41,6 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
     if (!user) return;
 
     isSaving.current = true;
-    retryCount.current = 0;
 
     try {
       const saveData = {
@@ -55,41 +49,21 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
         last_save_attempt: new Date().toISOString()
       };
       
-      let success = false;
-      while (!success && retryCount.current < MAX_RETRIES) {
-        try {
-          const result = await saveWizardState(saveData, stateVersion);
-          if (result.success) {
-            setStateVersion(result.newVersion);
-            success = true;
-            retryCount.current = 0;
-            break;
-          }
-        } catch (error: any) {
-          retryCount.current++;
-          if (error.message === 'Concurrent save detected' && retryCount.current < MAX_RETRIES) {
-            console.log(`[WizardStateProvider] Retry attempt ${retryCount.current}/${MAX_RETRIES}`);
-            // Exponential backoff
-            await new Promise(resolve => setTimeout(resolve, RETRY_DELAY * Math.pow(2, retryCount.current - 1)));
-            continue;
-          }
-          throw error;
-        }
-      }
-
-      if (!success) {
-        console.error('[WizardStateProvider] Max retries reached');
-        toast({
-          title: "Save Error",
-          description: "Failed to save changes after multiple attempts. Please try again.",
-          variant: "destructive",
-        });
+      const result = await saveWizardState(saveData, stateVersion);
+      
+      if (result.success) {
+        setStateVersion(result.newVersion);
+        isSaving.current = false;
       }
     } catch (error) {
       console.error('[WizardStateProvider] Error in save queue:', error);
+      toast({
+        title: "Save Error",
+        description: "Failed to save changes. Your progress may be lost.",
+        variant: "destructive",
+      });
     } finally {
       isSaving.current = false;
-      retryCount.current = 0;
     }
   };
 

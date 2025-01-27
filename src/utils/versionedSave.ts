@@ -1,42 +1,56 @@
 import { supabase } from "@/integrations/supabase/client";
 import { WizardData } from "@/types/wizardProgress";
+import { useToast } from "@/hooks/use-toast";
+
+const RETRY_DELAY = 1000; // Base delay in milliseconds
+const MAX_RETRIES = 3;
 
 export const saveWizardState = async (
   data: Partial<WizardData> & { user_id: string },
-  version: number
+  version: number,
+  retryCount = 0
 ): Promise<{ success: boolean; newVersion: number }> => {
   console.log('[versionedSave] Starting save with version:', version);
-
+  
   try {
     // First check if a record exists
     const { data: existing } = await supabase
       .from('wizard_progress')
-      .select('id, version, business_idea, target_audience, audience_analysis')
+      .select('version')
       .eq('user_id', data.user_id)
       .maybeSingle();
 
     if (existing) {
-      // Update existing record, preserving existing data if not provided in update
+      // Update existing record with version check
       const { data: result, error } = await supabase
         .from('wizard_progress')
         .update({
-          business_idea: data.business_idea || existing.business_idea,
-          target_audience: data.target_audience || existing.target_audience,
-          audience_analysis: data.audience_analysis || existing.audience_analysis,
-          current_step: data.current_step || 1,
-          generated_ads: data.generated_ads || [],
-          selected_hooks: data.selected_hooks || null,
-          ad_format: data.ad_format || null,
-          video_ad_preferences: data.video_ad_preferences || null,
-          version: version,
+          ...data,
+          version: version + 1,
           updated_at: new Date().toISOString()
         })
         .eq('user_id', data.user_id)
+        .eq('version', version) // Only update if version matches
         .select()
         .single();
 
       if (error) {
-        console.error('[versionedSave] Error saving wizard state:', error);
+        if (error.message === 'Concurrent save detected' && retryCount < MAX_RETRIES) {
+          console.log(`[versionedSave] Retry attempt ${retryCount + 1}/${MAX_RETRIES}`);
+          // Exponential backoff
+          await new Promise(resolve => 
+            setTimeout(resolve, RETRY_DELAY * Math.pow(2, retryCount))
+          );
+          
+          // Get latest version before retrying
+          const { data: latest } = await supabase
+            .from('wizard_progress')
+            .select('version')
+            .eq('user_id', data.user_id)
+            .maybeSingle();
+            
+          return saveWizardState(data, latest?.version || version, retryCount + 1);
+        }
         throw error;
       }
 
@@ -49,24 +63,13 @@ export const saveWizardState = async (
       const { data: result, error } = await supabase
         .from('wizard_progress')
         .insert({
-          user_id: data.user_id,
-          business_idea: data.business_idea || null,
-          target_audience: data.target_audience || null,
-          audience_analysis: data.audience_analysis || null,
-          current_step: data.current_step || 1,
-          generated_ads: data.generated_ads || [],
-          selected_hooks: data.selected_hooks || null,
-          ad_format: data.ad_format || null,
-          video_ad_preferences: data.video_ad_preferences || null,
+          ...data,
           version: 1
         })
         .select()
         .single();
 
-      if (error) {
-        console.error('[versionedSave] Error saving wizard state:', error);
-        throw error;
-      }
+      if (error) throw error;
 
       return {
         success: true,
