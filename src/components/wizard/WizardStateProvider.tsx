@@ -37,6 +37,8 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
   const [isLoading, setIsLoading] = useState(true);
   const currentVersion = useRef(1);
   const saveTimeout = useRef<NodeJS.Timeout>();
+  const retryCount = useRef(0);
+  const MAX_RETRIES = 3;
 
   const canNavigateToStep = (step: number): boolean => {
     switch (step) {
@@ -66,7 +68,7 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [location.pathname]);
 
-  const saveProgress = async (retryCount = 0, maxRetries = 3) => {
+  const saveProgress = async () => {
     if (saveInProgress.current) {
       console.log('[WizardStateProvider] Save already in progress, skipping');
       return;
@@ -76,19 +78,24 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
     
     if (!user) {
       console.log('[WizardStateProvider] No authenticated user, skipping save');
+      setIsLoading(false);
       return;
     }
 
     try {
       saveInProgress.current = true;
-      console.log('[WizardStateProvider] Starting to save progress, attempt:', retryCount + 1);
+      console.log('[WizardStateProvider] Starting to save progress');
 
       // Get the current progress first
-      const { data: existingProgress } = await supabase
+      const { data: existingProgress, error: fetchError } = await supabase
         .from('wizard_progress')
         .select('version')
         .eq('user_id', user.id)
         .maybeSingle();
+
+      if (fetchError) {
+        throw fetchError;
+      }
 
       const nextVersion = (existingProgress?.version || 0) + 1;
       currentVersion.current = nextVersion;
@@ -108,75 +115,38 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
         });
 
       if (error) {
-        if (error.message.includes('Concurrent save detected') && retryCount < maxRetries) {
-          console.log('[WizardStateProvider] Concurrent save detected, retrying...');
-          setTimeout(() => saveProgress(retryCount + 1, maxRetries), 1000 * (retryCount + 1));
+        if (error.message.includes('Concurrent save detected') && retryCount.current < MAX_RETRIES) {
+          retryCount.current++;
+          const delay = Math.min(1000 * Math.pow(2, retryCount.current), 8000);
+          console.log(`[WizardStateProvider] Concurrent save detected, retrying in ${delay}ms (attempt ${retryCount.current})`);
+          setTimeout(() => saveProgress(), delay);
           return;
         }
         throw error;
       }
 
+      retryCount.current = 0;
+      console.log('[WizardStateProvider] Progress saved successfully');
+
     } catch (error) {
       console.error('[WizardStateProvider] Error saving progress:', error);
-      if (retryCount < maxRetries) {
-        setTimeout(() => saveProgress(retryCount + 1, maxRetries), 1000 * (retryCount + 1));
-      } else {
-        toast({
-          title: "Error Saving Progress",
-          description: "There was an error saving your progress. Your changes may not be saved.",
-          variant: "destructive",
-        });
-      }
+      toast({
+        title: "Error Saving Progress",
+        description: "There was an error saving your progress. Your changes may not be saved.",
+        variant: "destructive",
+      });
     } finally {
       saveInProgress.current = false;
+      setIsLoading(false);
     }
   };
 
-  const syncAnonymousData = async () => {
-    console.log('[WizardStateProvider] Starting to sync anonymous data');
-    const sessionId = localStorage.getItem('anonymous_session_id');
-    if (!sessionId) {
-      console.log('[WizardStateProvider] No anonymous session found');
-      return;
+  useEffect(() => {
+    if (!hasInitialized.current) {
+      setIsLoading(false);
+      hasInitialized.current = true;
     }
-
-    try {
-      const { data: anonymousData } = await supabase
-        .from('anonymous_usage')
-        .select('wizard_data')
-        .eq('session_id', sessionId)
-        .maybeSingle();
-
-      if (anonymousData?.wizard_data) {
-        console.log('[WizardStateProvider] Found anonymous data:', anonymousData.wizard_data);
-        const wizardData = anonymousData.wizard_data as WizardData;
-        
-        if (wizardData.business_idea && typeof wizardData.business_idea === 'object') {
-          state.setBusinessIdea(wizardData.business_idea as BusinessIdea);
-        }
-        if (wizardData.target_audience && typeof wizardData.target_audience === 'object') {
-          state.setTargetAudience(wizardData.target_audience as TargetAudience);
-        }
-        if (wizardData.audience_analysis && typeof wizardData.audience_analysis === 'object') {
-          state.setAudienceAnalysis(wizardData.audience_analysis as AudienceAnalysis);
-        }
-
-        const urlStep = getCurrentStepFromUrl();
-        const wizardStep = wizardData.current_step;
-        
-        const targetStep = Math.max(
-          urlStep || 1,
-          wizardStep || 1
-        );
-
-        if (targetStep > 1) {
-          state.setCurrentStep(targetStep);
-        }
-      }
-    } catch (error) {
-      console.error('[WizardStateProvider] Error syncing anonymous data:', error);
-    }
-  };
+  }, []);
 
   useEffect(() => {
     if (saveTimeout.current) {
@@ -185,7 +155,7 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
 
     saveTimeout.current = setTimeout(() => {
       saveProgress();
-    }, 2000); // Increased debounce time to 2 seconds
+    }, 2000);
 
     return () => {
       if (saveTimeout.current) {
