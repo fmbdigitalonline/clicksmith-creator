@@ -109,6 +109,7 @@ export type Database = {
           last_save_attempt: string | null
           save_count: number | null
           session_id: string
+          updated_at: string | null
           used: boolean | null
           wizard_data: Json | null
         }
@@ -120,6 +121,7 @@ export type Database = {
           last_save_attempt?: string | null
           save_count?: number | null
           session_id: string
+          updated_at?: string | null
           used?: boolean | null
           wizard_data?: Json | null
         }
@@ -131,6 +133,7 @@ export type Database = {
           last_save_attempt?: string | null
           save_count?: number | null
           session_id?: string
+          updated_at?: string | null
           used?: boolean | null
           wizard_data?: Json | null
         }
