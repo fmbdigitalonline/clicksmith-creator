@@ -754,6 +754,13 @@ export type Database = {
         }
         Returns: undefined
       }
+      migrate_anonymous_to_authenticated: {
+        Args: {
+          p_session_id: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
       migrate_wizard_progress: {
         Args: {
           p_user_id: string
