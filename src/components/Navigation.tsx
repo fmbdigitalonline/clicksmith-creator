@@ -1,8 +1,10 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Home, CreditCard, PlusCircle } from "lucide-react";
+import { Home, CreditCard, PlusCircle, LogOut } from "lucide-react";
 import { CreditDisplay } from "./CreditDisplay";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -18,7 +20,7 @@ import { useState } from "react";
 const Navigation = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const currentPath = location.pathname;
+  const { toast } = useToast();
   const [showLeaveDialog, setShowLeaveDialog] = useState(false);
   const [pendingNavigation, setPendingNavigation] = useState("");
   
@@ -32,12 +34,13 @@ const Navigation = () => {
     return currentPath === path;
   };
 
+  const currentPath = location.pathname;
+
   const handleStartClick = () => {
     navigate("/ad-wizard/new");
   };
 
   const handleNavigationAttempt = (path: string) => {
-    // Only show confirmation if we're in step 4 of the wizard
     if (currentPath.includes('/ad-wizard') && !currentPath.includes('/new')) {
       setShowLeaveDialog(true);
       setPendingNavigation(path);
@@ -49,6 +52,17 @@ const Navigation = () => {
   const handleConfirmNavigation = () => {
     setShowLeaveDialog(false);
     navigate(pendingNavigation);
+  };
+
+  const handleSignOut = async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      toast({
+        title: "Error signing out",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
   };
   
   return (
@@ -95,6 +109,15 @@ const Navigation = () => {
                   <CreditCard className="h-4 w-4" />
                   <span>Pricing</span>
                 </Link>
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleSignOut}
+                className="gap-2"
+              >
+                <LogOut className="h-4 w-4" />
+                <span>Sign Out</span>
               </Button>
             </div>
           </div>
