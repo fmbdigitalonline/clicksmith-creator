@@ -27,9 +27,9 @@ const convertToWizardData = (jsonData: Json): WizardData | null => {
   }
 
   return {
-    business_idea: jsonData.business_idea as BusinessIdea,
-    target_audience: jsonData.target_audience as TargetAudience,
-    audience_analysis: jsonData.audience_analysis as AudienceAnalysis,
+    business_idea: jsonData.business_idea as Json,
+    target_audience: jsonData.target_audience as Json,
+    audience_analysis: jsonData.audience_analysis as Json,
     generated_ads: Array.isArray(jsonData.generated_ads) ? jsonData.generated_ads : [],
     current_step: typeof jsonData.current_step === 'number' ? jsonData.current_step : 1,
     version: typeof jsonData.version === 'number' ? jsonData.version : 1

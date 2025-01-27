@@ -70,8 +70,16 @@ const validateMigration = (source: any, target: any): boolean => {
   return Object.entries(FIELD_MAPPING).every(([src, dest]) => {
     const sourceValue = _.get(source, src);
     const targetValue = _.get(target, dest);
-    return sourceValue !== null && sourceValue !== undefined &&
-           JSON.stringify(sourceValue) === JSON.stringify(targetValue);
+    
+    // Handle null/undefined values
+    if (!sourceValue && !targetValue) return true;
+    
+    // Special handling for JSON fields
+    if (typeof sourceValue === 'object' || typeof targetValue === 'object') {
+      return JSON.stringify(sourceValue) === JSON.stringify(targetValue);
+    }
+    
+    return sourceValue === targetValue;
   });
 };
 
@@ -81,7 +89,6 @@ const retryMigration = async (
   attempts = 0
 ): Promise<MigrationResult> => {
   try {
-    // Get anonymous data with retry delay
     await new Promise(resolve => setTimeout(resolve, 500 * (attempts + 1)));
     
     const { data: anonymousData } = await supabase
@@ -94,7 +101,8 @@ const retryMigration = async (
       throw new Error('No anonymous data found');
     }
 
-    // Begin transaction
+    console.log('[Migration] Anonymous data found:', anonymousData.wizard_data);
+
     const { data: migratedData, error: migrationError } = await supabase
       .rpc('migrate_wizard_data', {
         p_user_id: userId,
@@ -103,19 +111,22 @@ const retryMigration = async (
       });
 
     if (migrationError) {
+      console.error('[Migration] Error:', migrationError);
       throw migrationError;
     }
 
-    // Validate migration
+    console.log('[Migration] Migrated data:', migratedData);
+
     const isValid = validateMigration(anonymousData.wizard_data, migratedData);
     
     if (!isValid) {
+      console.error('[Migration] Validation failed. Source:', anonymousData.wizard_data, 'Target:', migratedData);
       throw new Error('Migration validation failed');
     }
 
     return { success: true, data: migratedData };
   } catch (error) {
-    console.error(`Migration attempt ${attempts + 1} failed:`, error);
+    console.error(`[Migration] Attempt ${attempts + 1} failed:`, error);
     
     if (attempts < 3) {
       return retryMigration(userId, sessionId, attempts + 1);
