@@ -35,12 +35,10 @@ const acquireLock = async (lockKey: string): Promise<boolean> => {
   try {
     const { data, error } = await supabase
       .from('migration_locks')
-      .insert([
-        { 
-          lock_type: lockKey,
-          expires_at: new Date(Date.now() + 30000).toISOString() // 30 second lock
-        }
-      ])
+      .insert([{ 
+        lock_type: lockKey,
+        expires_at: new Date(Date.now() + 30000).toISOString() // 30 second lock
+      }])
       .single();
     
     return !error;
@@ -78,6 +76,37 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
         console.log('[Migration] No authenticated user found');
         return;
       }
+
+      // Get anonymous data first to validate structure
+      const { data: anonymousData, error: anonymousError } = await supabase
+        .from('anonymous_usage')
+        .select('wizard_data')
+        .eq('session_id', sessionId)
+        .single();
+
+      if (anonymousError) {
+        console.error('[Migration] Error fetching anonymous data:', anonymousError);
+        throw anonymousError;
+      }
+
+      console.log('[Migration] Retrieved anonymous data:', anonymousData);
+
+      // Validate data structure
+      if (!anonymousData?.wizard_data) {
+        console.error('[Migration] Invalid anonymous data structure:', anonymousData);
+        throw new Error('Invalid anonymous data structure');
+      }
+
+      // Log each expected field
+      console.log('[Migration] Data validation:', {
+        hasBusinessIdea: !!anonymousData.wizard_data[FIELD_MAPPING.businessIdea],
+        hasTargetAudience: !!anonymousData.wizard_data[FIELD_MAPPING.targetAudience],
+        hasAudienceAnalysis: !!anonymousData.wizard_data[FIELD_MAPPING.audienceAnalysis],
+        hasCurrentStep: !!anonymousData.wizard_data[FIELD_MAPPING.currentStep],
+        currentStep: anonymousData.wizard_data[FIELD_MAPPING.currentStep],
+        hasSelectedHooks: Array.isArray(anonymousData.wizard_data[FIELD_MAPPING.selectedHooks]),
+        hasGeneratedAds: Array.isArray(anonymousData.wizard_data[FIELD_MAPPING.generatedAds]),
+      });
 
       // Prepare wizard data with correct field mapping
       const wizardData = {
@@ -217,7 +246,7 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
       clearTimeout(debounceTimeout);
     };
   }, [state.businessIdea, state.targetAudience, state.audienceAnalysis, state.currentStep]);
-  
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
