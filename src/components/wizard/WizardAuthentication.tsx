@@ -19,21 +19,17 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
   const redirectToStep = (step: number) => {
     console.log('[Auth] Redirecting to step:', step);
     
-    // For new registrations, ensure they continue from at least step 3
+    // For new registrations, ensure they continue from their last step
     const isNewRegistration = location.state?.from === '/login';
-    const targetStep = isNewRegistration ? Math.max(step, 3) : step;
+    const targetStep = step || 1; // Default to step 1 if no step is provided
     
     if (!targetStep || targetStep < 1) {
       console.log('[Auth] Invalid step value:', targetStep);
       return;
     }
 
-    if (targetStep > 1) {
-      console.log('[Auth] Navigating to step:', targetStep);
-      navigate(`/ad-wizard/new`, { state: { step: targetStep } });
-    } else {
-      console.log('[Auth] No valid step found, staying on current page');
-    }
+    console.log('[Auth] Navigating to step:', targetStep);
+    navigate(`/ad-wizard/new`, { state: { step: targetStep } });
   };
 
   useEffect(() => {
@@ -91,7 +87,8 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
                   onAnonymousDataChange(migratedData);
                   localStorage.removeItem('anonymous_session_id');
                   
-                  const step = Math.max(migratedData.current_step || 1, 3);
+                  // Use the current_step from migrated data
+                  const step = migratedData.current_step || 1;
                   console.log('[Auth] Redirecting to step after migration:', step);
                   redirectToStep(step);
                   
@@ -175,7 +172,8 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
               onAnonymousDataChange(migratedData);
               localStorage.removeItem('anonymous_session_id');
               
-              const step = Math.max(migratedData.current_step || 1, 3);
+              // Use the current_step from migrated data
+              const step = migratedData.current_step || 1;
               console.log('[Auth] Redirecting to step after sign in:', step);
               redirectToStep(step);
               
