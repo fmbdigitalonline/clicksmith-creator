@@ -30,6 +30,30 @@ export const useWizardState = () => {
   return context;
 };
 
+// Helper function to validate data structure
+const validateDataStructure = (data: any, field: string): boolean => {
+  if (!data) {
+    console.warn(`[Validation] ${field} is missing or null`);
+    return false;
+  }
+
+  // Check for nested objects
+  if (typeof data === 'object') {
+    if (field === FIELD_MAPPING.businessIdea) {
+      return 'description' in data && 'valueProposition' in data;
+    }
+    if (field === FIELD_MAPPING.targetAudience) {
+      return 'name' in data && 'description' in data && 'demographics' in data;
+    }
+    if (field === FIELD_MAPPING.audienceAnalysis) {
+      return 'expandedDefinition' in data && 'marketDesire' in data;
+    }
+  }
+
+  console.warn(`[Validation] ${field} has invalid structure:`, data);
+  return false;
+};
+
 // Helper functions for locking mechanism
 const acquireLock = async (lockKey: string): Promise<boolean> => {
   try {
@@ -82,6 +106,25 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
   const [isLoading, setIsLoading] = useState(true);
   const migrationInProgress = useRef(false);
 
+  const validateMigratedData = (data: any): boolean => {
+    console.log('[Migration] Validating migrated data structure:', data);
+    
+    const validationResults = {
+      businessIdea: validateDataStructure(data[FIELD_MAPPING.businessIdea], FIELD_MAPPING.businessIdea),
+      targetAudience: validateDataStructure(data[FIELD_MAPPING.targetAudience], FIELD_MAPPING.targetAudience),
+      audienceAnalysis: validateDataStructure(data[FIELD_MAPPING.audienceAnalysis], FIELD_MAPPING.audienceAnalysis),
+      currentStep: typeof data[FIELD_MAPPING.currentStep] === 'number',
+      selectedHooks: Array.isArray(data[FIELD_MAPPING.selectedHooks]),
+      generatedAds: Array.isArray(data[FIELD_MAPPING.generatedAds]),
+      adFormat: typeof data[FIELD_MAPPING.adFormat] === 'object',
+      videoAdPreferences: typeof data[FIELD_MAPPING.videoAdPreferences] === 'object'
+    };
+
+    console.log('[Migration] Validation results:', validationResults);
+    
+    return Object.values(validationResults).some(result => result === true);
+  };
+
   const syncAnonymousData = async () => {
     const sessionId = localStorage.getItem('anonymous_session_id');
     if (!sessionId || migrationInProgress.current) {
@@ -119,25 +162,11 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
         throw new Error('Invalid anonymous data structure: wizard_data is missing');
       }
 
-      // Log each expected field
-      const validationResults = {
-        hasBusinessIdea: !!anonymousData.wizard_data[FIELD_MAPPING.businessIdea],
-        hasTargetAudience: !!anonymousData.wizard_data[FIELD_MAPPING.targetAudience],
-        hasAudienceAnalysis: !!anonymousData.wizard_data[FIELD_MAPPING.audienceAnalysis],
-        hasCurrentStep: !!anonymousData.wizard_data[FIELD_MAPPING.currentStep],
-        currentStep: anonymousData.wizard_data[FIELD_MAPPING.currentStep],
-        hasSelectedHooks: Array.isArray(anonymousData.wizard_data[FIELD_MAPPING.selectedHooks]),
-        hasGeneratedAds: Array.isArray(anonymousData.wizard_data[FIELD_MAPPING.generatedAds]),
-      };
-
-      console.log('[Migration] Data validation results:', validationResults);
-
-      if (!validationResults.hasBusinessIdea && !validationResults.hasTargetAudience) {
-        console.warn('[Migration] No meaningful data to migrate');
-        throw new Error('No meaningful data found in anonymous session');
+      if (!validateMigratedData(anonymousData.wizard_data)) {
+        console.error('[Migration] Data validation failed');
+        throw new Error('Data validation failed: Invalid data structure');
       }
 
-      // Prepare wizard data with correct field mapping
       const wizardData = {
         [FIELD_MAPPING.businessIdea]: state.businessIdea,
         [FIELD_MAPPING.targetAudience]: state.targetAudience,
