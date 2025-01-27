@@ -761,6 +761,14 @@ export type Database = {
         }
         Returns: Json
       }
+      migrate_wizard_data: {
+        Args: {
+          p_user_id: string
+          p_session_id: string
+          p_wizard_data: Json
+        }
+        Returns: Json
+      }
       migrate_wizard_progress: {
         Args: {
           p_user_id: string
