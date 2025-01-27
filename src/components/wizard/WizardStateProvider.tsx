@@ -46,7 +46,8 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
         ...data,
         user_id: user.id,
         last_save_attempt: new Date().toISOString(),
-        current_step: state.currentStep
+        current_step: state.currentStep,
+        last_completed_step: state.currentStep
       };
       
       const result = await saveWizardState(saveData, stateVersion);
@@ -85,11 +86,6 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
       case 4: return !!state.businessIdea && !!state.targetAudience && !!state.audienceAnalysis;
       default: return false;
     }
-  };
-
-  const getCurrentStepFromUrl = () => {
-    const match = location.pathname.match(/step-(\d+)/);
-    return match ? parseInt(match[1]) : null;
   };
 
   useEffect(() => {
@@ -136,7 +132,7 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
             if (progress.audience_analysis) state.setAudienceAnalysis(progress.audience_analysis as AudienceAnalysis);
             
             setStateVersion(progress.version || 1);
-            targetStep = Math.max(targetStep, progress.current_step || 1);
+            targetStep = Math.max(targetStep, progress.current_step || 1, progress.last_completed_step || 1);
           }
 
           if (targetStep > 1 && canNavigateToStep(targetStep)) {
@@ -175,7 +171,8 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
             business_idea: state.businessIdea,
             target_audience: state.targetAudience,
             audience_analysis: state.audienceAnalysis,
-            current_step: state.currentStep
+            current_step: state.currentStep,
+            last_completed_step: state.currentStep
           });
         }, 1000);
       }
