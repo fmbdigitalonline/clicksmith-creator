@@ -16,6 +16,8 @@ export const useWizardState = () => {
   return context;
 };
 
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
   const state = useAdWizardState();
   const location = useLocation();
@@ -26,8 +28,8 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
     return match ? parseInt(match[1]) : null;
   };
 
-  const saveProgress = async (retryCount = 0) => {
-    console.log('[WizardStateProvider] Starting to save progress');
+  const saveProgress = async (retryCount = 0, maxRetries = 3) => {
+    console.log('[WizardStateProvider] Starting to save progress, attempt:', retryCount + 1);
     const sessionId = localStorage.getItem('anonymous_session_id');
     if (!sessionId) return;
 
@@ -36,13 +38,19 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
       
       if (user) {
         // First get the current version
-        const { data: currentData } = await supabase
+        const { data: currentData, error: versionError } = await supabase
           .from('wizard_progress')
           .select('version')
           .eq('user_id', user.id)
           .maybeSingle();
 
+        if (versionError) {
+          console.error('[WizardStateProvider] Error fetching version:', versionError);
+          throw versionError;
+        }
+
         const newVersion = (currentData?.version || 0) + 1;
+        console.log('[WizardStateProvider] Saving with version:', newVersion);
         
         const { error } = await supabase
           .from('wizard_progress')
@@ -61,23 +69,32 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
         if (error) {
           console.error('[WizardStateProvider] Error saving progress:', error);
           
-          // If it's a concurrent save error and we haven't retried too many times
-          if (error.message.includes('Concurrent save detected') && retryCount < 3) {
-            console.log(`[WizardStateProvider] Retrying save (attempt ${retryCount + 1})`);
-            // Wait a bit before retrying
-            await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
-            return saveProgress(retryCount + 1);
+          if (error.message.includes('Concurrent save detected') && retryCount < maxRetries) {
+            const backoffTime = Math.min(1000 * Math.pow(2, retryCount), 8000);
+            console.log(`[WizardStateProvider] Retrying save in ${backoffTime}ms (attempt ${retryCount + 1}/${maxRetries})`);
+            await delay(backoffTime);
+            return saveProgress(retryCount + 1, maxRetries);
           }
           
-          toast({
-            title: "Error Saving Progress",
-            description: "There was an error saving your progress. Please try again.",
-            variant: "destructive",
-          });
+          if (retryCount === maxRetries) {
+            toast({
+              title: "Warning",
+              description: "Having trouble saving your progress. Don't worry, we'll keep trying!",
+              variant: "default",
+            });
+          }
+          throw error;
         }
       }
     } catch (error) {
       console.error('[WizardStateProvider] Unexpected error:', error);
+      if (retryCount === maxRetries) {
+        toast({
+          title: "Error Saving Progress",
+          description: "We're having trouble saving your progress. Please try again later.",
+          variant: "destructive",
+        });
+      }
     }
   };
 
