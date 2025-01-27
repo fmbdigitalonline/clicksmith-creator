@@ -6,7 +6,11 @@ const App = () => {
   return (
     <Router>
       <Routes>
-        <Route path="/ad-wizard/*" element={<AdWizard />} />
+        <Route path="/ad-wizard/*" element={
+          <AppLayout>
+            <AdWizard />
+          </AppLayout>
+        } />
         <Route path="*" element={
           <AppLayout>
             <div>Welcome to the application!</div>
