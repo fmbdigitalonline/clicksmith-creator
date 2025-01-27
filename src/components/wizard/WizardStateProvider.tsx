@@ -7,6 +7,7 @@ import { useLocation } from 'react-router-dom';
 import { useToast } from "@/hooks/use-toast";
 import { debounce } from 'lodash';
 import { Database } from '@/types/supabase';
+import _ from 'lodash';
 
 const WizardStateContext = createContext<ReturnType<typeof useAdWizardState> | undefined>(undefined);
 
@@ -51,6 +52,82 @@ interface AnonymousData {
   };
 }
 
+// Field mapping for validation
+const FIELD_MAPPING = {
+  'business_idea': 'business_idea',
+  'target_audience': 'target_audience',
+  'audience_analysis': 'audience_analysis',
+  'current_step': 'current_step'
+};
+
+interface MigrationResult {
+  success: boolean;
+  data?: any;
+  error?: string;
+}
+
+const validateMigration = (source: any, target: any): boolean => {
+  return Object.entries(FIELD_MAPPING).every(([src, dest]) => {
+    const sourceValue = _.get(source, src);
+    const targetValue = _.get(target, dest);
+    return sourceValue !== null && sourceValue !== undefined &&
+           JSON.stringify(sourceValue) === JSON.stringify(targetValue);
+  });
+};
+
+const retryMigration = async (
+  userId: string, 
+  sessionId: string, 
+  attempts = 0
+): Promise<MigrationResult> => {
+  try {
+    // Get anonymous data with retry delay
+    await new Promise(resolve => setTimeout(resolve, 500 * (attempts + 1)));
+    
+    const { data: anonymousData } = await supabase
+      .from('anonymous_usage')
+      .select('wizard_data')
+      .eq('session_id', sessionId)
+      .single();
+
+    if (!anonymousData?.wizard_data) {
+      throw new Error('No anonymous data found');
+    }
+
+    // Begin transaction
+    const { data: migratedData, error: migrationError } = await supabase
+      .rpc('migrate_wizard_data', {
+        p_user_id: userId,
+        p_session_id: sessionId,
+        p_wizard_data: anonymousData.wizard_data
+      });
+
+    if (migrationError) {
+      throw migrationError;
+    }
+
+    // Validate migration
+    const isValid = validateMigration(anonymousData.wizard_data, migratedData);
+    
+    if (!isValid) {
+      throw new Error('Migration validation failed');
+    }
+
+    return { success: true, data: migratedData };
+  } catch (error) {
+    console.error(`Migration attempt ${attempts + 1} failed:`, error);
+    
+    if (attempts < 3) {
+      return retryMigration(userId, sessionId, attempts + 1);
+    }
+    
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Unknown error' 
+    };
+  }
+};
+
 export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
   const state = useAdWizardState();
   const location = useLocation();
@@ -58,6 +135,7 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
   const saveInProgress = useRef(false);
   const hasInitialized = useRef(false);
   const [isLoading, setIsLoading] = useState(true);
+  const migrationInProgress = useRef(false);
 
   const getLock = async (lockKey: string): Promise<boolean> => {
     const { data, error } = await supabase
@@ -208,138 +286,62 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
 
   const syncAnonymousData = async () => {
     const sessionId = localStorage.getItem('anonymous_session_id');
-    if (!sessionId) {
-      console.log('[WizardStateProvider] No anonymous session found');
-      return;
-    }
+    if (!sessionId || migrationInProgress.current) return;
 
     try {
+      migrationInProgress.current = true;
       const { data: { user } } = await supabase.auth.getUser();
+      
       if (!user) return;
 
-      // Use a transaction to ensure data consistency
-      const { data: migrationData, error: migrationError } = await supabase.rpc(
-        'migrate_anonymous_to_authenticated',
-        {
-          p_session_id: sessionId,
-          p_user_id: user.id
-        }
-      );
+      console.log('[WizardStateProvider] Starting migration for user:', user.id);
 
-      if (migrationError) {
-        throw migrationError;
+      const result = await retryMigration(user.id, sessionId);
+
+      if (result.success && result.data) {
+        // Update local state
+        if (result.data.business_idea) {
+          state.setBusinessIdea(result.data.business_idea);
+        }
+        if (result.data.target_audience) {
+          state.setTargetAudience(result.data.target_audience);
+        }
+        if (result.data.audience_analysis) {
+          state.setAudienceAnalysis(result.data.audience_analysis);
+        }
+        if (result.data.current_step > 1) {
+          state.setCurrentStep(result.data.current_step);
+        }
+
+        // Clean up anonymous data
+        await supabase
+          .from('anonymous_usage')
+          .delete()
+          .eq('session_id', sessionId);
+        
+        localStorage.removeItem('anonymous_session_id');
+        
+        console.log('[WizardStateProvider] Migration completed successfully');
+      } else {
+        throw new Error(result.error || 'Migration failed');
       }
-
-      // Fetch the migrated data
-      const { data: wizardProgress, error: fetchError } = await supabase
-        .from('wizard_progress')
-        .select('*')
-        .eq('user_id', user.id)
-        .single();
-
-      if (fetchError) {
-        throw fetchError;
-      }
-
-      console.log('[WizardStateProvider] Fetched migrated data:', wizardProgress);
-
-      // Update local state with the migrated data
-      if (wizardProgress) {
-        if (wizardProgress.business_idea) {
-          state.setBusinessIdea(wizardProgress.business_idea as BusinessIdea);
-          console.log('[WizardStateProvider] Set business idea:', wizardProgress.business_idea);
-        }
-
-        if (wizardProgress.target_audience) {
-          state.setTargetAudience(wizardProgress.target_audience as TargetAudience);
-          console.log('[WizardStateProvider] Set target audience:', wizardProgress.target_audience);
-        }
-
-        if (wizardProgress.audience_analysis) {
-          state.setAudienceAnalysis(wizardProgress.audience_analysis as AudienceAnalysis);
-          console.log('[WizardStateProvider] Set audience analysis:', wizardProgress.audience_analysis);
-        }
-
-        if (wizardProgress.current_step > 1) {
-          state.setCurrentStep(wizardProgress.current_step);
-          console.log('[WizardStateProvider] Set current step:', wizardProgress.current_step);
-        }
-      }
-
-      // Clean up anonymous data after successful migration
-      await supabase
-        .from('anonymous_usage')
-        .delete()
-        .eq('session_id', sessionId);
-      
-      localStorage.removeItem('anonymous_session_id');
-      console.log('[WizardStateProvider] Anonymous data cleaned up');
-
     } catch (error) {
-      console.error('[WizardStateProvider] Error in migration process:', error);
+      console.error('[WizardStateProvider] Migration error:', error);
+      toast({
+        title: "Error During Migration",
+        description: "There was an error saving your progress. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      migrationInProgress.current = false;
+      setIsLoading(false);
     }
   };
-
-  // Create a stored procedure in your database for atomic migration
-  const createMigrationProcedure = `
-  CREATE OR REPLACE FUNCTION migrate_anonymous_to_authenticated(
-    p_session_id UUID,
-    p_user_id UUID
-  ) RETURNS JSONB AS $$
-  DECLARE
-    v_anonymous_data JSONB;
-    v_result JSONB;
-  BEGIN
-    -- Get anonymous data
-    SELECT wizard_data INTO v_anonymous_data
-    FROM anonymous_usage
-    WHERE session_id = p_session_id;
-
-    IF v_anonymous_data IS NOT NULL THEN
-      -- Insert or update wizard progress
-      INSERT INTO wizard_progress (
-        user_id,
-        business_idea,
-        target_audience,
-        audience_analysis,
-        current_step,
-        updated_at
-      )
-      VALUES (
-        p_user_id,
-        v_anonymous_data->>'business_idea',
-        v_anonymous_data->>'target_audience',
-        v_anonymous_data->>'audience_analysis',
-        COALESCE((v_anonymous_data->>'current_step')::int, 1),
-        NOW()
-      )
-      ON CONFLICT (user_id) DO UPDATE
-      SET
-        business_idea = COALESCE(wizard_progress.business_idea, EXCLUDED.business_idea),
-        target_audience = COALESCE(wizard_progress.target_audience, EXCLUDED.target_audience),
-        audience_analysis = COALESCE(wizard_progress.audience_analysis, EXCLUDED.audience_analysis),
-        current_step = GREATEST(wizard_progress.current_step, EXCLUDED.current_step),
-        updated_at = NOW()
-      RETURNING jsonb_build_object(
-        'business_idea', business_idea,
-        'target_audience', target_audience,
-        'audience_analysis', audience_analysis,
-        'current_step', current_step
-      ) INTO v_result;
-      
-      RETURN v_result;
-    END IF;
-    
-    RETURN NULL;
-  END;
-  $$ LANGUAGE plpgsql SECURITY DEFINER;
-  `;
 
   // Add auth state change listener
   useEffect(() => {
     const handleAuthStateChange = async (event: string, session: any) => {
       if (event === 'SIGNED_IN') {
-        console.log('[WizardStateProvider] Auth state changed to SIGNED_IN, starting migration');
         await syncAnonymousData();
       }
     };
