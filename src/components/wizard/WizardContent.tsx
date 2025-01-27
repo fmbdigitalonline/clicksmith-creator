@@ -39,7 +39,6 @@ const WizardContent = () => {
       try {
         console.log('[WizardContent] Starting to load progress');
         
-        // If we have both anonymous data and a current user, handle migration
         if (anonymousData && currentUser) {
           console.log('[WizardContent] Checking existing progress for user:', currentUser.id);
           
@@ -49,11 +48,9 @@ const WizardContent = () => {
             .eq('user_id', currentUser.id)
             .maybeSingle();
 
-          // Get the current URL step if it exists
           const currentPathMatch = window.location.pathname.match(/step-(\d+)/);
           const currentUrlStep = currentPathMatch ? parseInt(currentPathMatch[1]) : null;
           
-          // Get the anonymous step and ensure it's valid
           const anonymousStep = anonymousData.current_step && anonymousData.current_step > 0 
             ? anonymousData.current_step 
             : 1;
@@ -62,7 +59,6 @@ const WizardContent = () => {
           if (existingProgress) {
             console.log('[WizardContent] Found existing progress with step:', existingProgress.current_step);
             
-            // Calculate the target step based on progress
             const targetStep = Math.max(
               existingProgress.current_step || 1,
               anonymousStep,
@@ -71,7 +67,6 @@ const WizardContent = () => {
             
             console.log('[WizardContent] Target step calculated:', targetStep);
 
-            // Set wizard state based on the most complete data
             if (anonymousData.business_idea || existingProgress.business_idea) {
               console.log('[WizardContent] Setting business idea');
               setBusinessIdea(anonymousData.business_idea || existingProgress.business_idea);
@@ -86,15 +81,19 @@ const WizardContent = () => {
             }
             if (anonymousData.generated_ads || existingProgress.generated_ads) {
               console.log('[WizardContent] Setting generated ads');
-              setGeneratedAds(anonymousData.generated_ads || existingProgress.generated_ads);
+              // Ensure we're setting an array
+              const ads = Array.isArray(anonymousData.generated_ads) 
+                ? anonymousData.generated_ads 
+                : Array.isArray(existingProgress.generated_ads)
+                  ? existingProgress.generated_ads
+                  : [];
+              setGeneratedAds(ads);
             }
             
-            // Update the current step
             if (targetStep > 1 && canNavigateToStep(targetStep)) {
               console.log('[WizardContent] Setting current step to:', targetStep);
               setCurrentStep(targetStep);
               
-              // Handle navigation based on current route
               if (window.location.pathname === '/ad-wizard/new') {
                 console.log('[WizardContent] Navigating from /new to step:', targetStep);
                 navigate(`/ad-wizard/step-${targetStep}`, { replace: true });
@@ -105,7 +104,6 @@ const WizardContent = () => {
             }
           }
 
-          // Clear anonymous data after migration
           setAnonymousData(null);
           console.log('[WizardContent] Successfully migrated anonymous data');
         }
