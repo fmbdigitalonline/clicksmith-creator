@@ -15,6 +15,7 @@ import { SavedAdsGallery } from "@/components/gallery/SavedAdsGallery";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -30,12 +31,34 @@ const queryClient = new QueryClient({
 
 function App() {
   const [isLoading, setIsLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const { toast } = useToast();
 
   useEffect(() => {
-    supabase.auth.getSession().then(() => {
-      setIsLoading(false);
+    const checkAuth = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        setIsAuthenticated(!!session);
+      } catch (error) {
+        console.error('Auth check error:', error);
+        toast({
+          title: "Authentication Error",
+          description: "There was an error checking your authentication status.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    checkAuth();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsAuthenticated(!!session);
     });
-  }, []);
+
+    return () => subscription.unsubscribe();
+  }, [toast]);
 
   if (isLoading) {
     return (
@@ -50,7 +73,9 @@ function App() {
       <SidebarProvider>
         <Router>
           <Routes>
-            <Route path="/login" element={<Login />} />
+            <Route path="/login" element={
+              isAuthenticated ? <Navigate to="/ad-wizard/new" replace /> : <Login />
+            } />
             <Route path="/pricing" element={<Pricing />} />
             <Route
               path="/"
