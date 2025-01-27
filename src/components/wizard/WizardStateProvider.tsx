@@ -26,6 +26,21 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
   const hasInitialized = useRef(false);
   const [isLoading, setIsLoading] = useState(true);
 
+  const canNavigateToStep = (step: number): boolean => {
+    switch (step) {
+      case 1:
+        return true;
+      case 2:
+        return !!state.businessIdea;
+      case 3:
+        return !!state.businessIdea && !!state.targetAudience;
+      case 4:
+        return !!state.businessIdea && !!state.targetAudience && !!state.audienceAnalysis;
+      default:
+        return false;
+    }
+  };
+
   const getCurrentStepFromUrl = () => {
     const match = location.pathname.match(/step-(\d+)/);
     return match ? parseInt(match[1]) : null;
