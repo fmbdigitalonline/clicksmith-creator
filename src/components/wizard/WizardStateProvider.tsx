@@ -48,10 +48,17 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
       await saveQueue.current;
     }
 
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
     isSaving.current = true;
     saveQueue.current = saveQueue.current.then(async () => {
       try {
-        const { success, newVersion } = await saveWizardState(data, stateVersion);
+        const saveData = {
+          ...data,
+          user_id: user.id
+        };
+        const { success, newVersion } = await saveWizardState(saveData, stateVersion);
         if (success) {
           setStateVersion(newVersion);
         }
@@ -134,7 +141,7 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
     const debounceTimeout = setTimeout(saveProgress, 1000);
     return () => clearTimeout(debounceTimeout);
   }, [state.businessIdea, state.targetAudience, state.audienceAnalysis, state.currentStep]);
-  
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
