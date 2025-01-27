@@ -112,11 +112,13 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
             });
 
             if (anonymousData?.wizard_data) {
+              const wizardData = anonymousData.wizard_data as WizardData;
               console.log('[Auth] Starting migration process', {
                 userId: session.user.id,
                 sessionId,
-                currentStep: anonymousData.wizard_data.current_step
+                currentStep: wizardData.current_step
               });
+              
               try {
                 const migratedData = await migrateUserProgress(session.user.id, sessionId);
                 if (migratedData) {
@@ -172,20 +174,16 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
         if (sessionId) {
           console.log('[Auth] Found anonymous session:', sessionId);
           
-          const { data: anonymousData, error: anonError } = await supabase
+          const { data: anonymousData } = await supabase
             .from('anonymous_usage')
             .select('wizard_data')
             .eq('session_id', sessionId)
             .maybeSingle();
 
-          if (anonError && anonError.code !== 'PGRST116') {
-            console.error('[Auth] Error fetching anonymous data:', anonError);
-            throw anonError;
-          }
-
           if (anonymousData?.wizard_data) {
+            const wizardData = anonymousData.wizard_data as WizardData;
             console.log('[Auth] Found anonymous progress');
-            onAnonymousDataChange(anonymousData.wizard_data as WizardData);
+            onAnonymousDataChange(wizardData);
           }
         }
 
