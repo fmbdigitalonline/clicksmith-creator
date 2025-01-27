@@ -38,6 +38,8 @@ const WizardContent = () => {
     const loadProgress = async () => {
       try {
         console.log('[WizardContent] Starting to load progress');
+        
+        // If we have both anonymous data and a current user, handle migration
         if (anonymousData && currentUser) {
           console.log('[WizardContent] Checking existing progress for user:', currentUser.id);
           
@@ -49,13 +51,33 @@ const WizardContent = () => {
 
           if (existingProgress) {
             console.log('[WizardContent] Found existing progress');
+            
+            // Always use the highest step between existing and anonymous data
+            const targetStep = Math.max(
+              existingProgress.current_step || 1,
+              anonymousData.current_step || 1
+            );
+
+            // Set all the wizard state
             if (anonymousData.business_idea) setBusinessIdea(anonymousData.business_idea);
             if (anonymousData.target_audience) setTargetAudience(anonymousData.target_audience);
             if (anonymousData.audience_analysis) setAudienceAnalysis(anonymousData.audience_analysis);
-            if (anonymousData.current_step) setCurrentStep(anonymousData.current_step);
             if (anonymousData.generated_ads) setGeneratedAds(anonymousData.generated_ads);
+            
+            // Update the current step and navigate if needed
+            setCurrentStep(targetStep);
+            
+            // Only navigate if we're not already on the correct step
+            const currentPathMatch = window.location.pathname.match(/step-(\d+)/);
+            const currentUrlStep = currentPathMatch ? parseInt(currentPathMatch[1]) : null;
+            
+            if (targetStep > 1 && (!currentUrlStep || currentUrlStep !== targetStep)) {
+              console.log('[WizardContent] Navigating to step:', targetStep);
+              navigate(`/ad-wizard/step-${targetStep}`, { replace: true });
+            }
           }
 
+          // Clear anonymous data after migration
           setAnonymousData(null);
           console.log('[WizardContent] Successfully migrated anonymous data');
         }
