@@ -13,6 +13,7 @@ export interface WizardData {
   selected_hooks?: any[] | null;
   ad_format?: any;
   video_ad_preferences?: any;
+  last_completed_step?: number;
 }
 
 export interface WizardHook {
