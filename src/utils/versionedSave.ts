@@ -2,12 +2,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { WizardData } from "@/types/wizardProgress";
 
 export const saveWizardState = async (
-  data: Partial<WizardData>,
-  currentVersion: number
+  data: Partial<WizardData> & { user_id: string },
+  version: number
 ): Promise<{ success: boolean; newVersion: number }> => {
+  console.log('[versionedSave] Starting save with version:', version);
+
   try {
-    console.log('[versionedSave] Starting save with version:', currentVersion);
-    
     // First check if a record exists
     const { data: existing } = await supabase
       .from('wizard_progress')
@@ -28,19 +28,21 @@ export const saveWizardState = async (
           selected_hooks: data.selected_hooks || null,
           ad_format: data.ad_format || null,
           video_ad_preferences: data.video_ad_preferences || null,
-          version: currentVersion + 1,
-          updated_at: new Date().toISOString(),
-          is_migration: data.is_migration || false
+          version: version,
+          updated_at: new Date().toISOString()
         })
-        .eq('id', existing.id)
-        .select('version')
-        .maybeSingle();
+        .eq('user_id', data.user_id)
+        .select()
+        .single();
 
-      if (error) throw error;
-      
-      return { 
-        success: true, 
-        newVersion: result?.version || currentVersion + 1 
+      if (error) {
+        console.error('[versionedSave] Error saving wizard state:', error);
+        throw error;
+      }
+
+      return {
+        success: true,
+        newVersion: result.version
       };
     } else {
       // Insert new record
@@ -56,21 +58,23 @@ export const saveWizardState = async (
           selected_hooks: data.selected_hooks || null,
           ad_format: data.ad_format || null,
           video_ad_preferences: data.video_ad_preferences || null,
-          version: 1,
-          is_migration: data.is_migration || false
+          version: 1
         })
-        .select('version')
-        .maybeSingle();
+        .select()
+        .single();
 
-      if (error) throw error;
-      
-      return { 
-        success: true, 
-        newVersion: result?.version || 1 
+      if (error) {
+        console.error('[versionedSave] Error saving wizard state:', error);
+        throw error;
+      }
+
+      return {
+        success: true,
+        newVersion: 1
       };
     }
   } catch (error) {
     console.error('[versionedSave] Error saving wizard state:', error);
-    return { success: false, newVersion: currentVersion };
+    throw error;
   }
 };

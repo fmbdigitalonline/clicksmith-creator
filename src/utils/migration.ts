@@ -33,12 +33,11 @@ export const migrateUserProgress = async (
       return null;
     }
 
-    // Then call the atomic migration function
+    // Update wizard progress with atomic migration
     const { data, error } = await supabase
       .rpc('atomic_migration', { 
         p_user_id: user_id, 
-        p_session_id: session_id,
-        p_wizard_data: anonymousData.wizard_data
+        p_session_id: session_id
       })
       .maybeSingle();
 
