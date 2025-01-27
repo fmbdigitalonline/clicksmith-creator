@@ -4,11 +4,16 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { migrateUserProgress } from "@/utils/migration";
 import { WizardData } from "@/types/wizardProgress";
+import { BusinessIdea, TargetAudience, AudienceAnalysis } from "@/types/adWizard";
 
 interface WizardAuthenticationProps {
   onUserChange: (user: any) => void;
   onAnonymousDataChange: (data: WizardData) => void;
 }
+
+const isWizardData = (data: any): data is WizardData => {
+  return data && typeof data === 'object';
+};
 
 const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAuthenticationProps) => {
   const [authError, setAuthError] = useState<string | null>(null);
@@ -32,7 +37,6 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
       return;
     }
 
-    // Only redirect if we're not already on the correct step
     const currentPathMatch = location.pathname.match(/step-(\d+)/);
     const currentStep = currentPathMatch ? parseInt(currentPathMatch[1]) : 1;
     
@@ -132,12 +136,20 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
                   console.log('Has business idea:', !!migratedData.business_idea);
                   console.groupEnd();
                   
-                  onAnonymousDataChange(migratedData);
+                  const wizardData: WizardData = {
+                    business_idea: migratedData.business_idea as BusinessIdea,
+                    target_audience: migratedData.target_audience as TargetAudience,
+                    audience_analysis: migratedData.audience_analysis as AudienceAnalysis,
+                    generated_ads: migratedData.generated_ads || [],
+                    current_step: migratedData.current_step || 1,
+                    version: migratedData.version || 1
+                  };
+
+                  onAnonymousDataChange(wizardData);
                   localStorage.removeItem('anonymous_session_id');
                   
-                  // Always use the highest step between migrated and existing data
                   const targetStep = Math.max(
-                    migratedData.current_step || 1,
+                    wizardData.current_step || 1,
                     existing?.current_step || 1
                   );
                   
@@ -289,7 +301,6 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
     };
   }, [onUserChange, onAnonymousDataChange, toast, navigate, location]);
 
-  // After successful registration/login, immediately try to migrate data
   const checkAnonymousAccess = async () => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -297,7 +308,6 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
       if (session?.user) {
         const sessionId = localStorage.getItem('anonymous_session_id');
         if (sessionId) {
-          // Get anonymous data
           const { data: anonymousData } = await supabase
             .from('anonymous_usage')
             .select('wizard_data')
@@ -305,7 +315,6 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
             .single();
 
           if (anonymousData?.wizard_data) {
-            // First check if user already has progress
             const { data: existingProgress } = await supabase
               .from('wizard_progress')
               .select('*')
@@ -313,7 +322,6 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
               .single();
 
             if (!existingProgress) {
-              // If no existing progress, migrate anonymous data
               const { error: insertError } = await supabase
                 .from('wizard_progress')
                 .insert({
@@ -327,13 +335,11 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
                 });
 
               if (!insertError) {
-                // Mark anonymous data as used
                 await supabase
                   .from('anonymous_usage')
                   .update({ used: true })
                   .eq('session_id', sessionId);
 
-                // Notify parent components
                 onUserChange(session.user);
                 onAnonymousDataChange(anonymousData.wizard_data);
                 

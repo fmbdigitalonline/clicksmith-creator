@@ -16,7 +16,17 @@ export const useWizardState = () => {
   return context;
 };
 
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+const isBusinessIdea = (data: any): data is BusinessIdea => {
+  return data && typeof data === 'object' && 'description' in data;
+};
+
+const isTargetAudience = (data: any): data is TargetAudience => {
+  return data && typeof data === 'object' && 'description' in data;
+};
+
+const isAudienceAnalysis = (data: any): data is AudienceAnalysis => {
+  return data && typeof data === 'object' && 'expandedDefinition' in data;
+};
 
 export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
   const state = useAdWizardState();
@@ -75,13 +85,13 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
             console.log('[WizardStateProvider] Found existing progress:', progress);
             
             // Update all states at once
-            if (progress.business_idea) {
+            if (progress.business_idea && isBusinessIdea(progress.business_idea)) {
               state.setBusinessIdea(progress.business_idea);
             }
-            if (progress.target_audience) {
+            if (progress.target_audience && isTargetAudience(progress.target_audience)) {
               state.setTargetAudience(progress.target_audience);
             }
-            if (progress.audience_analysis) {
+            if (progress.audience_analysis && isAudienceAnalysis(progress.audience_analysis)) {
               state.setAudienceAnalysis(progress.audience_analysis);
             }
             
