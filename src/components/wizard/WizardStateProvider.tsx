@@ -6,7 +6,7 @@ import { BusinessIdea, TargetAudience, AudienceAnalysis } from "@/types/adWizard
 import { useLocation } from 'react-router-dom';
 import { useToast } from "@/hooks/use-toast";
 import { debounce } from 'lodash';
-import { Json } from "@/integrations/supabase/types";
+import { Json, Database } from "@/integrations/supabase/types";
 import _ from 'lodash';
 
 const WizardStateContext = createContext<ReturnType<typeof useAdWizardState> | undefined>(undefined);
@@ -152,9 +152,9 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
     const { data, error } = await supabase
       .from('migration_locks')
       .insert({
-        lock_key: lockKey,
+        lock_type: lockKey,
         expires_at: new Date(Date.now() + 30000).toISOString()
-      } as Database['public']['Tables']['migration_locks']['Insert'])
+      })
       .select()
       .single();
 
@@ -165,7 +165,7 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
     await supabase
       .from('migration_locks')
       .delete()
-      .eq('lock_key', lockKey);
+      .eq('lock_type', lockKey);
   };
 
   const canNavigateToStep = (step: number): boolean => {
@@ -389,4 +389,5 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
     </WizardStateContext.Provider>
   );
 };
+
 
