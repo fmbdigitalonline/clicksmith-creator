@@ -6,7 +6,7 @@ import { BusinessIdea, TargetAudience, AudienceAnalysis } from "@/types/adWizard
 import { useLocation } from 'react-router-dom';
 import { useToast } from "@/hooks/use-toast";
 import { debounce } from 'lodash';
-import { Json, Database } from "@/integrations/supabase/types";
+import { Json } from "@/integrations/supabase/types";
 import _ from 'lodash';
 
 const WizardStateContext = createContext<ReturnType<typeof useAdWizardState> | undefined>(undefined);
@@ -31,63 +31,29 @@ const isAudienceAnalysis = (data: any): data is AudienceAnalysis => {
   return data && typeof data === 'object' && 'expandedDefinition' in data;
 };
 
-// Define types for the locks table
-interface Lock {
-  key: string;
-  expires_at: string;
-}
-
-// Update WizardData type to be JSON compatible
-type JsonCompatible<T> = {
-  [P in keyof T]: T[P] extends object ? JsonCompatible<T[P]> : T[P];
-};
-
-interface AnonymousData {
-  wizard_data: {
-    business_idea?: BusinessIdea;
-    target_audience?: TargetAudience;
-    audience_analysis?: AudienceAnalysis;
-    current_step?: number;
-    generated_ads?: any[];
-  };
-}
-
-// Field mapping for validation
-const FIELD_MAPPING = {
-  'business_idea': 'business_idea',
-  'target_audience': 'target_audience',
-  'audience_analysis': 'audience_analysis',
-  'current_step': 'current_step'
-};
-
-interface MigrationResult {
-  success: boolean;
-  data?: any;
-  error?: string;
-}
-
 const validateMigration = (source: any, target: any): boolean => {
-  return Object.entries(FIELD_MAPPING).every(([src, dest]) => {
-    const sourceValue = _.get(source, src);
-    const targetValue = _.get(target, dest);
-    
-    // Handle null/undefined values
-    if (!sourceValue && !targetValue) return true;
-    
-    // Special handling for JSON fields
-    if (typeof sourceValue === 'object' || typeof targetValue === 'object') {
-      return JSON.stringify(sourceValue) === JSON.stringify(targetValue);
-    }
-    
-    return sourceValue === targetValue;
-  });
+  if (!source || !target) return false;
+
+  // Validate business_idea
+  if (source.business_idea && !target.business_idea) return false;
+  if (source.business_idea && !isBusinessIdea(target.business_idea)) return false;
+
+  // Validate target_audience
+  if (source.target_audience && !target.target_audience) return false;
+  if (source.target_audience && !isTargetAudience(target.target_audience)) return false;
+
+  // Validate audience_analysis
+  if (source.audience_analysis && !target.audience_analysis) return false;
+  if (source.audience_analysis && !isAudienceAnalysis(target.audience_analysis)) return false;
+
+  return true;
 };
 
 const retryMigration = async (
   userId: string, 
   sessionId: string, 
   attempts = 0
-): Promise<MigrationResult> => {
+): Promise<{ success: boolean; data?: WizardData; error?: string }> => {
   try {
     await new Promise(resolve => setTimeout(resolve, 500 * (attempts + 1)));
     
@@ -98,7 +64,8 @@ const retryMigration = async (
       .single();
 
     if (!anonymousData?.wizard_data) {
-      throw new Error('No anonymous data found');
+      console.error('[Migration] No anonymous data found');
+      return { success: false, error: 'No anonymous data found' };
     }
 
     console.log('[Migration] Anonymous data found:', anonymousData.wizard_data);
@@ -120,11 +87,11 @@ const retryMigration = async (
     const isValid = validateMigration(anonymousData.wizard_data, migratedData);
     
     if (!isValid) {
-      console.error('[Migration] Validation failed. Source:', anonymousData.wizard_data, 'Target:', migratedData);
+      console.error('[Migration] Validation failed');
       throw new Error('Migration validation failed');
     }
 
-    return { success: true, data: migratedData };
+    return { success: true, data: migratedData as WizardData };
   } catch (error) {
     console.error(`[Migration] Attempt ${attempts + 1} failed:`, error);
     
@@ -196,60 +163,77 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [location.pathname]);
 
-  useEffect(() => {
-    const syncWizardState = async () => {
-      try {
-        if (hasInitialized.current) return;
-        
-        console.log('[WizardStateProvider] Starting to sync wizard state');
-        setIsLoading(true);
-        
-        const { data: { user } } = await supabase.auth.getUser();
-        
-        if (user) {
-          const { data: progress } = await supabase
-            .from('wizard_progress')
-            .select('*')
-            .eq('user_id', user.id)
-            .single();
+  const syncAnonymousData = async () => {
+    const sessionId = localStorage.getItem('anonymous_session_id');
+    if (!sessionId || migrationInProgress.current) return;
 
-          if (progress) {
-            console.log('[WizardStateProvider] Found existing progress:', progress);
-            
-            if (progress.business_idea && isBusinessIdea(progress.business_idea)) {
-              state.setBusinessIdea(progress.business_idea);
-            }
-            if (progress.target_audience && isTargetAudience(progress.target_audience)) {
-              state.setTargetAudience(progress.target_audience);
-            }
-            if (progress.audience_analysis && isAudienceAnalysis(progress.audience_analysis)) {
-              state.setAudienceAnalysis(progress.audience_analysis);
-            }
-            
-            const urlStep = getCurrentStepFromUrl();
-            const targetStep = Math.max(progress.current_step || 1, urlStep || 1);
-            
-            if (targetStep > 1 && canNavigateToStep(targetStep)) {
-              console.log('[WizardStateProvider] Setting step to:', targetStep);
-              state.setCurrentStep(targetStep);
-            }
-          }
+    try {
+      migrationInProgress.current = true;
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) return;
+
+      console.log('[WizardStateProvider] Starting migration for user:', user.id);
+
+      const result = await retryMigration(user.id, sessionId);
+
+      if (result.success && result.data) {
+        // Update local state with type checking
+        if (result.data.business_idea && isBusinessIdea(result.data.business_idea)) {
+          state.setBusinessIdea(result.data.business_idea);
         }
+        if (result.data.target_audience && isTargetAudience(result.data.target_audience)) {
+          state.setTargetAudience(result.data.target_audience);
+        }
+        if (result.data.audience_analysis && isAudienceAnalysis(result.data.audience_analysis)) {
+          state.setAudienceAnalysis(result.data.audience_analysis);
+        }
+        if (result.data.current_step && result.data.current_step > 1) {
+          state.setCurrentStep(result.data.current_step);
+        }
+
+        // Clean up anonymous data
+        await supabase
+          .from('anonymous_usage')
+          .delete()
+          .eq('session_id', sessionId);
         
-        hasInitialized.current = true;
-      } catch (error) {
-        console.error('[WizardStateProvider] Error syncing state:', error);
+        localStorage.removeItem('anonymous_session_id');
+        
+        console.log('[WizardStateProvider] Migration completed successfully');
+
         toast({
-          title: "Error Loading Progress",
-          description: "There was an error loading your progress. Please try refreshing the page.",
-          variant: "destructive",
+          title: "Progress Restored",
+          description: "Your previous work has been saved to your account.",
         });
-      } finally {
-        setIsLoading(false);
+      } else {
+        throw new Error(result.error || 'Migration failed');
+      }
+    } catch (error) {
+      console.error('[WizardStateProvider] Migration error:', error);
+      toast({
+        title: "Error During Migration",
+        description: "There was an error saving your progress. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      migrationInProgress.current = false;
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const handleAuthStateChange = async (event: string, session: any) => {
+      if (event === 'SIGNED_IN') {
+        await syncAnonymousData();
       }
     };
 
-    syncWizardState();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(handleAuthStateChange);
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   const debouncedSave = debounce(async (user: any, retryCount = 0, maxRetries = 3) => {
@@ -295,75 +279,6 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const syncAnonymousData = async () => {
-    const sessionId = localStorage.getItem('anonymous_session_id');
-    if (!sessionId || migrationInProgress.current) return;
-
-    try {
-      migrationInProgress.current = true;
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) return;
-
-      console.log('[WizardStateProvider] Starting migration for user:', user.id);
-
-      const result = await retryMigration(user.id, sessionId);
-
-      if (result.success && result.data) {
-        // Update local state
-        if (result.data.business_idea) {
-          state.setBusinessIdea(result.data.business_idea);
-        }
-        if (result.data.target_audience) {
-          state.setTargetAudience(result.data.target_audience);
-        }
-        if (result.data.audience_analysis) {
-          state.setAudienceAnalysis(result.data.audience_analysis);
-        }
-        if (result.data.current_step > 1) {
-          state.setCurrentStep(result.data.current_step);
-        }
-
-        // Clean up anonymous data
-        await supabase
-          .from('anonymous_usage')
-          .delete()
-          .eq('session_id', sessionId);
-        
-        localStorage.removeItem('anonymous_session_id');
-        
-        console.log('[WizardStateProvider] Migration completed successfully');
-      } else {
-        throw new Error(result.error || 'Migration failed');
-      }
-    } catch (error) {
-      console.error('[WizardStateProvider] Migration error:', error);
-      toast({
-        title: "Error During Migration",
-        description: "There was an error saving your progress. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      migrationInProgress.current = false;
-      setIsLoading(false);
-    }
-  };
-
-  // Add auth state change listener
-  useEffect(() => {
-    const handleAuthStateChange = async (event: string, session: any) => {
-      if (event === 'SIGNED_IN') {
-        await syncAnonymousData();
-      }
-    };
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(handleAuthStateChange);
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, []);
-
   useEffect(() => {
     const debounceTimeout = setTimeout(() => {
       saveProgress();
@@ -389,5 +304,3 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
     </WizardStateContext.Provider>
   );
 };
-
-
