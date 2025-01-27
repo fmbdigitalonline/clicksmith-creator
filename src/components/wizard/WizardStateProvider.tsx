@@ -80,7 +80,7 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
             .from('wizard_progress')
             .select('*')
             .eq('user_id', user.id)
-            .single();
+            .maybeSingle();
 
           if (progress) {
             console.log('[WizardStateProvider] Found existing progress:', progress);

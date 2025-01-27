@@ -6,9 +6,12 @@ export const saveWizardState = async (
   currentVersion: number
 ): Promise<{ success: boolean; newVersion: number }> => {
   try {
+    console.log('[versionedSave] Starting save with version:', currentVersion);
+    
     const { data: result, error } = await supabase
       .from('wizard_progress')
       .upsert({
+        user_id: data.user_id,
         business_idea: data.business_idea || null,
         target_audience: data.target_audience || null,
         audience_analysis: data.audience_analysis || null,
@@ -19,11 +22,10 @@ export const saveWizardState = async (
         video_ad_preferences: data.video_ad_preferences || null,
         version: currentVersion + 1,
         updated_at: new Date().toISOString(),
-        user_id: data.user_id,
         is_migration: data.is_migration || false
       })
       .select('version')
-      .single();
+      .maybeSingle();
 
     if (error) throw error;
     
