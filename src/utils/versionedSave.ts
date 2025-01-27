@@ -1,6 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
 import { WizardData } from "@/types/wizardProgress";
-import { useToast } from "@/hooks/use-toast";
 
 const RETRY_DELAY = 1000; // Base delay in milliseconds
 const MAX_RETRIES = 3;
@@ -34,9 +33,9 @@ export const saveWizardState = async (
           updated_at: new Date().toISOString()
         })
         .eq('user_id', data.user_id)
-        .eq('version', version) // Only update if version matches
+        .eq('version', version)
         .select()
-        .single();
+        .maybeSingle();
 
       if (error) {
         if (error.message === 'Concurrent save detected' && retryCount < MAX_RETRIES) {
@@ -58,6 +57,10 @@ export const saveWizardState = async (
         throw error;
       }
 
+      if (!result) {
+        throw new Error('Failed to update wizard progress');
+      }
+
       return {
         success: true,
         newVersion: result.version
@@ -72,9 +75,13 @@ export const saveWizardState = async (
           current_step: data.current_step || 1
         })
         .select()
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
+      
+      if (!result) {
+        throw new Error('Failed to create wizard progress');
+      }
 
       return {
         success: true,
