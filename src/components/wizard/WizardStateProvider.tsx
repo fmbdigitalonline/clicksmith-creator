@@ -208,65 +208,94 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const { data: existingProgress } = await supabase
-        .from('wizard_progress')
-        .select('*')
-        .eq('user_id', user.id)
+      // First, get the anonymous data
+      const { data: anonymousData } = await supabase
+        .from('anonymous_usage')
+        .select('wizard_data')
+        .eq('session_id', sessionId)
         .single();
 
-      if (!existingProgress || (!existingProgress.business_idea && !existingProgress.target_audience)) {
-        const { data: anonymousData } = await supabase
-          .from('anonymous_usage')
-          .select('wizard_data')
-          .eq('session_id', sessionId)
-          .maybeSingle();
+      if (anonymousData?.wizard_data) {
+        console.log('[WizardStateProvider] Found anonymous data to migrate:', anonymousData.wizard_data);
 
-        if (anonymousData?.wizard_data) {
-          const wizardData = anonymousData.wizard_data as JsonCompatible<WizardData>;
-          
-          await supabase
-            .from('wizard_progress')
-            .upsert({
-              user_id: user.id,
-              business_idea: wizardData.business_idea as Json,
-              target_audience: wizardData.target_audience as Json,
-              audience_analysis: wizardData.audience_analysis as Json,
-              current_step: wizardData.current_step || 1,
-              updated_at: new Date().toISOString()
-            });
+        // Get or create wizard progress
+        const { data: existingProgress } = await supabase
+          .from('wizard_progress')
+          .select('*')
+          .eq('user_id', user.id)
+          .single();
 
-          if (wizardData.business_idea) {
-            state.setBusinessIdea(wizardData.business_idea as BusinessIdea);
-          }
-          if (wizardData.target_audience) {
-            state.setTargetAudience(wizardData.target_audience as TargetAudience);
-          }
-          if (wizardData.audience_analysis) {
-            state.setAudienceAnalysis(wizardData.audience_analysis as AudienceAnalysis);
-          }
+        const wizardData = anonymousData.wizard_data as JsonCompatible<WizardData>;
+        
+        // Prepare the data to be saved
+        const dataToSave = {
+          user_id: user.id,
+          business_idea: wizardData.business_idea || existingProgress?.business_idea || null,
+          target_audience: wizardData.target_audience || existingProgress?.target_audience || null,
+          audience_analysis: wizardData.audience_analysis || existingProgress?.audience_analysis || null,
+          current_step: Math.max(
+            wizardData.current_step || 1,
+            existingProgress?.current_step || 1
+          ),
+          updated_at: new Date().toISOString()
+        };
 
-          const urlStep = getCurrentStepFromUrl();
-          const targetStep = Math.max(
-            urlStep || 1,
-            wizardData.current_step || 1
-          );
+        console.log('[WizardStateProvider] Saving migrated data:', dataToSave);
 
-          if (targetStep > 1) {
-            state.setCurrentStep(targetStep);
-          }
+        // Save the data
+        const { data: savedData, error } = await supabase
+          .from('wizard_progress')
+          .upsert(dataToSave)
+          .select()
+          .single();
 
-          await supabase
-            .from('anonymous_usage')
-            .delete()
-            .eq('session_id', sessionId);
-          
-          localStorage.removeItem('anonymous_session_id');
+        if (error) {
+          throw error;
         }
+
+        // Update local state
+        if (savedData.business_idea) {
+          state.setBusinessIdea(savedData.business_idea as BusinessIdea);
+        }
+        if (savedData.target_audience) {
+          state.setTargetAudience(savedData.target_audience as TargetAudience);
+        }
+        if (savedData.audience_analysis) {
+          state.setAudienceAnalysis(savedData.audience_analysis as AudienceAnalysis);
+        }
+        if (savedData.current_step > 1) {
+          state.setCurrentStep(savedData.current_step);
+        }
+
+        // Clean up anonymous data
+        await supabase
+          .from('anonymous_usage')
+          .delete()
+          .eq('session_id', sessionId);
+        
+        localStorage.removeItem('anonymous_session_id');
+
+        console.log('[WizardStateProvider] Migration completed successfully');
       }
     } catch (error) {
       console.error('[WizardStateProvider] Error syncing anonymous data:', error);
     }
   };
+
+  // Add this effect to trigger migration on auth state change
+  useEffect(() => {
+    const handleAuthStateChange = async (event: string, session: any) => {
+      if (event === 'SIGNED_IN') {
+        await syncAnonymousData();
+      }
+    };
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(handleAuthStateChange);
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
 
   useEffect(() => {
     const debounceTimeout = setTimeout(() => {
