@@ -87,6 +87,11 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const getCurrentStepFromUrl = () => {
+    const match = location.pathname.match(/step-(\d+)/);
+    return match ? parseInt(match[1]) : null;
+  };
+
   useEffect(() => {
     const syncWizardState = async () => {
       try {
