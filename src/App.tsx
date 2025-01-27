@@ -35,32 +35,52 @@ function App() {
   const { toast } = useToast();
 
   useEffect(() => {
+    let mounted = true;
+
     const checkAuth = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        setIsAuthenticated(!!session);
+        console.log('Checking authentication status...');
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) throw error;
+        
+        if (mounted) {
+          console.log('Auth status:', session ? 'authenticated' : 'not authenticated');
+          setIsAuthenticated(!!session);
+          setIsLoading(false);
+        }
       } catch (error) {
         console.error('Auth check error:', error);
-        toast({
-          title: "Authentication Error",
-          description: "There was an error checking your authentication status.",
-          variant: "destructive",
-        });
-      } finally {
-        setIsLoading(false);
+        if (mounted) {
+          setIsAuthenticated(false);
+          setIsLoading(false);
+          toast({
+            title: "Authentication Error",
+            description: "There was an error checking your authentication status.",
+            variant: "destructive",
+          });
+        }
       }
     };
 
     checkAuth();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setIsAuthenticated(!!session);
+      console.log('Auth state changed:', _event);
+      if (mounted) {
+        setIsAuthenticated(!!session);
+        setIsLoading(false);
+      }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, [toast]);
 
   if (isLoading) {
+    console.log('App is loading...');
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900" />
@@ -68,6 +88,8 @@ function App() {
     );
   }
 
+  console.log('Rendering app with auth status:', isAuthenticated);
+  
   return (
     <QueryClientProvider client={queryClient}>
       <SidebarProvider>
