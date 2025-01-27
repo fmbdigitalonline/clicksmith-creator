@@ -181,16 +181,28 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  useEffect(() => {
-    const syncAnonymousData = async () => {
-      console.log('[WizardStateProvider] Starting to sync anonymous data');
-      const sessionId = localStorage.getItem('anonymous_session_id');
-      if (!sessionId) {
-        console.log('[WizardStateProvider] No anonymous session found');
-        return;
-      }
+  const syncAnonymousData = async () => {
+    console.log('[WizardStateProvider] Starting to sync anonymous data');
+    const sessionId = localStorage.getItem('anonymous_session_id');
+    if (!sessionId) {
+      console.log('[WizardStateProvider] No anonymous session found');
+      return;
+    }
 
-      try {
+    try {
+      // Get the current user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Check if user already has progress
+      const { data: existingProgress } = await supabase
+        .from('wizard_progress')
+        .select('*')
+        .eq('user_id', user.id)
+        .single();
+
+      // Only proceed with migration if no existing progress or if existing progress is empty
+      if (!existingProgress || (!existingProgress.business_idea && !existingProgress.target_audience)) {
         const { data: anonymousData } = await supabase
           .from('anonymous_usage')
           .select('wizard_data')
@@ -198,38 +210,55 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
           .maybeSingle();
 
         if (anonymousData?.wizard_data) {
-          console.log('[WizardStateProvider] Found anonymous data:', anonymousData.wizard_data);
+          console.log('[WizardStateProvider] Migrating anonymous data:', anonymousData.wizard_data);
           const wizardData = anonymousData.wizard_data as WizardData;
           
-          if (wizardData.business_idea && typeof wizardData.business_idea === 'object') {
+          // Save the anonymous data to the authenticated user's progress
+          await supabase
+            .from('wizard_progress')
+            .upsert({
+              user_id: user.id,
+              business_idea: wizardData.business_idea,
+              target_audience: wizardData.target_audience,
+              audience_analysis: wizardData.audience_analysis,
+              current_step: wizardData.current_step || 1,
+              updated_at: new Date().toISOString()
+            });
+
+          // Update local state
+          if (wizardData.business_idea) {
             state.setBusinessIdea(wizardData.business_idea as BusinessIdea);
           }
-          if (wizardData.target_audience && typeof wizardData.target_audience === 'object') {
+          if (wizardData.target_audience) {
             state.setTargetAudience(wizardData.target_audience as TargetAudience);
           }
-          if (wizardData.audience_analysis && typeof wizardData.audience_analysis === 'object') {
+          if (wizardData.audience_analysis) {
             state.setAudienceAnalysis(wizardData.audience_analysis as AudienceAnalysis);
           }
 
           const urlStep = getCurrentStepFromUrl();
-          const wizardStep = wizardData.current_step;
-          
           const targetStep = Math.max(
             urlStep || 1,
-            wizardStep || 1
+            wizardData.current_step || 1
           );
 
           if (targetStep > 1) {
             state.setCurrentStep(targetStep);
           }
-        }
-      } catch (error) {
-        console.error('[WizardStateProvider] Error syncing anonymous data:', error);
-      }
-    };
 
-    syncAnonymousData();
-  }, []);
+          // Clean up anonymous data
+          await supabase
+            .from('anonymous_usage')
+            .delete()
+            .eq('session_id', sessionId);
+          
+          localStorage.removeItem('anonymous_session_id');
+        }
+      }
+    } catch (error) {
+      console.error('[WizardStateProvider] Error syncing anonymous data:', error);
+    }
+  };
 
   useEffect(() => {
     const debounceTimeout = setTimeout(() => {
