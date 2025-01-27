@@ -3,9 +3,11 @@ import WizardContent from "./wizard/WizardContent";
 
 const AdWizard = () => {
   return (
-    <WizardStateProvider>
-      <WizardContent />
-    </WizardStateProvider>
+    <div className="min-h-screen bg-gray-50">
+      <WizardStateProvider>
+        <WizardContent />
+      </WizardStateProvider>
+    </div>
   );
 };
 
