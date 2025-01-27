@@ -1,4 +1,4 @@
-import { createContext, useContext, ReactNode, useEffect } from 'react';
+import { createContext, useContext, ReactNode, useEffect, useRef } from 'react';
 import { useAdWizardState } from "@/hooks/useAdWizardState";
 import { supabase } from "@/integrations/supabase/client";
 import { WizardData } from "@/types/wizardProgress";
@@ -22,6 +22,7 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
   const state = useAdWizardState();
   const location = useLocation();
   const { toast } = useToast();
+  const saveInProgress = useRef(false);
 
   const getCurrentStepFromUrl = () => {
     const match = location.pathname.match(/step-(\d+)/);
@@ -29,22 +30,28 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const saveProgress = async (retryCount = 0, maxRetries = 3) => {
+    if (saveInProgress.current) {
+      console.log('[WizardStateProvider] Save already in progress, skipping');
+      return;
+    }
+
     console.log('[WizardStateProvider] Starting to save progress, attempt:', retryCount + 1);
     const sessionId = localStorage.getItem('anonymous_session_id');
     if (!sessionId) return;
 
     try {
+      saveInProgress.current = true;
       const { data: { user } } = await supabase.auth.getUser();
       
       if (user) {
-        // First get the current version
+        // First get the current version with a lock
         const { data: currentData, error: versionError } = await supabase
           .from('wizard_progress')
           .select('version')
           .eq('user_id', user.id)
-          .maybeSingle();
+          .single();
 
-        if (versionError) {
+        if (versionError && !versionError.message.includes('No rows found')) {
           console.error('[WizardStateProvider] Error fetching version:', versionError);
           throw versionError;
         }
@@ -73,6 +80,7 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
             const backoffTime = Math.min(1000 * Math.pow(2, retryCount), 8000);
             console.log(`[WizardStateProvider] Retrying save in ${backoffTime}ms (attempt ${retryCount + 1}/${maxRetries})`);
             await delay(backoffTime);
+            saveInProgress.current = false;
             return saveProgress(retryCount + 1, maxRetries);
           }
           
@@ -85,6 +93,27 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
           }
           throw error;
         }
+      } else {
+        // Handle anonymous user save
+        const { error: anonError } = await supabase
+          .from('anonymous_usage')
+          .upsert({
+            session_id: sessionId,
+            wizard_data: {
+              business_idea: state.businessIdea,
+              target_audience: state.targetAudience,
+              audience_analysis: state.audienceAnalysis,
+              current_step: state.currentStep,
+              updated_at: new Date().toISOString()
+            }
+          }, {
+            onConflict: 'session_id'
+          });
+
+        if (anonError) {
+          console.error('[WizardStateProvider] Error saving anonymous progress:', anonError);
+          throw anonError;
+        }
       }
     } catch (error) {
       console.error('[WizardStateProvider] Unexpected error:', error);
@@ -95,6 +124,8 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
           variant: "destructive",
         });
       }
+    } finally {
+      saveInProgress.current = false;
     }
   };
 
@@ -149,7 +180,13 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   useEffect(() => {
-    saveProgress();
+    const debounceTimeout = setTimeout(() => {
+      saveProgress();
+    }, 1000);
+
+    return () => {
+      clearTimeout(debounceTimeout);
+    };
   }, [state.businessIdea, state.targetAudience, state.audienceAnalysis, state.currentStep]);
   
   return (
