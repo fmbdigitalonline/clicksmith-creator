@@ -3,6 +3,7 @@ import { Navigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { v4 as uuidv4 } from "uuid";
 import { useToast } from "@/hooks/use-toast";
+import { WizardData } from "@/types/wizardProgress";
 
 export const AnonymousRoute = ({ children }: { children: React.ReactNode }) => {
   const [canAccess, setCanAccess] = useState<boolean | null>(null);
@@ -43,23 +44,25 @@ export const AnonymousRoute = ({ children }: { children: React.ReactNode }) => {
           localStorage.setItem('anonymous_session_id', sessionId);
           console.log('[AnonymousRoute] Created new anonymous session:', sessionId);
           
+          const initialWizardData: WizardData = {
+            current_step: 1,
+            business_idea: null,
+            target_audience: null,
+            audience_analysis: null,
+            generated_ads: [],
+            selected_hooks: [],
+            version: 1,
+            last_save_attempt: new Date().toISOString(),
+            ad_format: null,
+            video_ad_preferences: null
+          };
+
           const { error: initError } = await supabase
             .from('anonymous_usage')
             .insert({
               session_id: sessionId,
               used: false,
-              wizard_data: {
-                current_step: 1,
-                business_idea: null,
-                target_audience: null,
-                audience_analysis: null,
-                generated_ads: [],
-                selected_hooks: [],
-                version: 1,
-                last_save_attempt: new Date().toISOString(),
-                ad_format: null,
-                video_ad_preferences: null
-              }
+              wizard_data: initialWizardData
             });
 
           if (initError) {
@@ -88,15 +91,17 @@ export const AnonymousRoute = ({ children }: { children: React.ReactNode }) => {
         }
 
         if (!usage || !usage.used) {
+          const wizardData: WizardData = {
+            ...(usage?.wizard_data as WizardData || {}),
+            last_save_attempt: new Date().toISOString()
+          };
+
           const { error: updateError } = await supabase
             .from('anonymous_usage')
             .update({ 
               updated_at: new Date().toISOString(),
               last_save_attempt: new Date().toISOString(),
-              wizard_data: {
-                ...(usage?.wizard_data || {}),
-                last_save_attempt: new Date().toISOString()
-              }
+              wizard_data: wizardData
             })
             .eq('session_id', sessionId);
 
