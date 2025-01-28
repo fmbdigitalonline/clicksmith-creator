@@ -56,6 +56,14 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       console.log('[ProtectedRoute] Auth state changed:', event);
       
+      // For sign-in events, preserve the current step
+      if (event === 'SIGNED_IN' && location.pathname.includes('ad-wizard')) {
+        const currentStep = location.pathname.match(/step-(\d+)/)?.[1];
+        if (currentStep) {
+          return;
+        }
+      }
+      
       // Only recheck session if it's not an anonymous user in the wizard
       if (!location.pathname.includes('ad-wizard') || session?.user) {
         checkSession();
@@ -82,7 +90,9 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" />;
+    // Save the current step in the state when redirecting to login
+    const currentStep = location.pathname.match(/step-(\d+)/)?.[1];
+    return <Navigate to="/login" state={{ from: location.pathname, step: currentStep }} />;
   }
 
   return <>{children}</>;
