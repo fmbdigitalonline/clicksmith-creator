@@ -103,17 +103,17 @@ const ProtectedRoute = ({ children, allowAnonymous = false }: ProtectedRouteProp
                 .eq('session_id', sessionId)
                 .single();
 
-              if (anonymousData?.wizard_data) {
+              if (anonymousData?.wizard_data && typeof anonymousData.wizard_data === 'object') {
                 const wizardData: WizardData = {
                   user_id: session.user.id,
                   current_step: parseInt(currentStep),
-                  business_idea: anonymousData.wizard_data.business_idea,
-                  target_audience: anonymousData.wizard_data.target_audience,
-                  audience_analysis: anonymousData.wizard_data.audience_analysis,
-                  selected_hooks: anonymousData.wizard_data.selected_hooks,
-                  ad_format: anonymousData.wizard_data.ad_format,
-                  video_ad_preferences: anonymousData.wizard_data.video_ad_preferences,
-                  generated_ads: anonymousData.wizard_data.generated_ads,
+                  business_idea: anonymousData.wizard_data?.business_idea,
+                  target_audience: anonymousData.wizard_data?.target_audience,
+                  audience_analysis: anonymousData.wizard_data?.audience_analysis,
+                  selected_hooks: anonymousData.wizard_data?.selected_hooks,
+                  ad_format: anonymousData.wizard_data?.ad_format,
+                  video_ad_preferences: anonymousData.wizard_data?.video_ad_preferences,
+                  generated_ads: anonymousData.wizard_data?.generated_ads,
                   version: 1,
                   is_migration: true
                 };
