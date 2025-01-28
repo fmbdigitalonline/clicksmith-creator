@@ -695,30 +695,56 @@ export type Database = {
           message: string
         }[]
       }
-      atomic_migration: {
-        Args: {
-          p_user_id: string
-          p_session_id: string
-        }
-        Returns: {
-          ad_format: Json | null
-          audience_analysis: Json | null
-          business_idea: Json | null
-          created_at: string
-          current_step: number | null
-          generated_ads: Json | null
-          id: string
-          is_migration: boolean | null
-          last_save_attempt: string | null
-          migration_token: string | null
-          selected_hooks: Json | null
-          target_audience: Json | null
-          updated_at: string
-          user_id: string
-          version: number | null
-          video_ad_preferences: Json | null
-        }
-      }
+      atomic_migration:
+        | {
+            Args: {
+              p_user_id: string
+              p_session_id: string
+            }
+            Returns: {
+              ad_format: Json | null
+              audience_analysis: Json | null
+              business_idea: Json | null
+              created_at: string
+              current_step: number | null
+              generated_ads: Json | null
+              id: string
+              is_migration: boolean | null
+              last_save_attempt: string | null
+              migration_token: string | null
+              selected_hooks: Json | null
+              target_audience: Json | null
+              updated_at: string
+              user_id: string
+              version: number | null
+              video_ad_preferences: Json | null
+            }
+          }
+        | {
+            Args: {
+              p_user_id: string
+              p_session_id: string
+              p_calculated_step?: number
+            }
+            Returns: {
+              ad_format: Json | null
+              audience_analysis: Json | null
+              business_idea: Json | null
+              created_at: string
+              current_step: number | null
+              generated_ads: Json | null
+              id: string
+              is_migration: boolean | null
+              last_save_attempt: string | null
+              migration_token: string | null
+              selected_hooks: Json | null
+              target_audience: Json | null
+              updated_at: string
+              user_id: string
+              version: number | null
+              video_ad_preferences: Json | null
+            }
+          }
       check_user_credits: {
         Args: {
           p_user_id: string
