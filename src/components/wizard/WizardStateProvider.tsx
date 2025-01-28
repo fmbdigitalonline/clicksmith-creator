@@ -7,9 +7,20 @@ import { useToast } from "@/hooks/use-toast";
 import { saveWizardState } from "@/utils/versionedSave";
 import { BusinessIdea, TargetAudience, AudienceAnalysis } from "@/types/adWizard";
 
-// Define the context type explicitly to prevent recursion
-type WizardContextType = ReturnType<typeof useAdWizardState>;
-const WizardStateContext = createContext<WizardContextType | undefined>(undefined);
+// Define base types to prevent recursion
+type WizardContextBase = {
+  currentStep: number;
+  setCurrentStep: (step: number) => void;
+  businessIdea: BusinessIdea | null;
+  setBusinessIdea: (idea: BusinessIdea | null) => void;
+  targetAudience: TargetAudience | null;
+  setTargetAudience: (audience: TargetAudience | null) => void;
+  audienceAnalysis: AudienceAnalysis | null;
+  setAudienceAnalysis: (analysis: AudienceAnalysis | null) => void;
+  canNavigateToStep: (step: number) => boolean;
+};
+
+const WizardStateContext = createContext<WizardContextBase | undefined>(undefined);
 
 // Type guard functions with explicit type checks
 const isBusinessIdea = (data: unknown): data is BusinessIdea => {
