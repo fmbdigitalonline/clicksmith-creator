@@ -9,6 +9,8 @@ interface ProtectedRouteProps {
 }
 
 interface WizardData {
+  id?: string;
+  user_id: string;
   business_idea?: any;
   target_audience?: any;
   audience_analysis?: any;
@@ -17,6 +19,8 @@ interface WizardData {
   ad_format?: any;
   video_ad_preferences?: any;
   generated_ads?: any;
+  version?: number;
+  is_migration?: boolean;
 }
 
 const ProtectedRoute = ({ children, allowAnonymous = false }: ProtectedRouteProps) => {
@@ -103,7 +107,15 @@ const ProtectedRoute = ({ children, allowAnonymous = false }: ProtectedRouteProp
                 const wizardData: WizardData = {
                   user_id: session.user.id,
                   current_step: parseInt(currentStep),
-                  ...anonymousData.wizard_data as WizardData
+                  business_idea: anonymousData.wizard_data.business_idea,
+                  target_audience: anonymousData.wizard_data.target_audience,
+                  audience_analysis: anonymousData.wizard_data.audience_analysis,
+                  selected_hooks: anonymousData.wizard_data.selected_hooks,
+                  ad_format: anonymousData.wizard_data.ad_format,
+                  video_ad_preferences: anonymousData.wizard_data.video_ad_preferences,
+                  generated_ads: anonymousData.wizard_data.generated_ads,
+                  version: 1,
+                  is_migration: true
                 };
                 
                 await supabase
