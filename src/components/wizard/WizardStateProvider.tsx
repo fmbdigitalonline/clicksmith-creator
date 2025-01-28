@@ -5,47 +5,21 @@ import { WizardData } from "@/types/wizardProgress";
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useToast } from "@/hooks/use-toast";
 import { saveWizardState } from "@/utils/versionedSave";
-import { BusinessIdea, TargetAudience, AudienceAnalysis, AdHook } from "@/types/adWizard";
+import { BusinessIdea, TargetAudience, AudienceAnalysis } from "@/types/adWizard";
+import { Json } from '@/integrations/supabase/types';
 
-// Define base types to prevent recursion
-type WizardContextBase = {
-  currentStep: number;
-  setCurrentStep: (step: number) => void;
-  businessIdea: BusinessIdea | null;
-  setBusinessIdea: (idea: BusinessIdea | null) => void;
-  targetAudience: TargetAudience | null;
-  setTargetAudience: (audience: TargetAudience | null) => void;
-  audienceAnalysis: AudienceAnalysis | null;
-  setAudienceAnalysis: (analysis: AudienceAnalysis | null) => void;
-  selectedHooks: AdHook[];
-  setSelectedHooks: (hooks: AdHook[]) => void;
-  handleIdeaSubmit: (idea: BusinessIdea) => void;
-  handleAudienceSelect: (audience: TargetAudience) => void;
-  handleAnalysisComplete: (analysis: AudienceAnalysis) => void;
-  handleBack: () => void;
-  handleStartOver: () => void;
-  canNavigateToStep: (step: number) => boolean;
+const WizardStateContext = createContext<ReturnType<typeof useAdWizardState> | undefined>(undefined);
+
+const isBusinessIdea = (data: Json): data is BusinessIdea => {
+  return typeof data === 'object' && data !== null && 'description' in data;
 };
 
-const WizardStateContext = createContext<WizardContextBase | undefined>(undefined);
-
-// Type guard functions with explicit type checks
-const isBusinessIdea = (data: unknown): data is BusinessIdea => {
-  if (!data || typeof data !== 'object') return false;
-  const idea = data as Record<string, unknown>;
-  return typeof idea.description === 'string';
+const isTargetAudience = (data: Json): data is TargetAudience => {
+  return typeof data === 'object' && data !== null && 'segments' in data;
 };
 
-const isTargetAudience = (data: unknown): data is TargetAudience => {
-  if (!data || typeof data !== 'object') return false;
-  const audience = data as Record<string, unknown>;
-  return Array.isArray(audience.segments);
-};
-
-const isAudienceAnalysis = (data: unknown): data is AudienceAnalysis => {
-  if (!data || typeof data !== 'object') return false;
-  const analysis = data as Record<string, unknown>;
-  return typeof analysis.marketDesire === 'string';
+const isAudienceAnalysis = (data: Json): data is AudienceAnalysis => {
+  return typeof data === 'object' && data !== null && 'marketDesire' in data;
 };
 
 export const useWizardState = () => {
@@ -67,163 +41,115 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
   const hasInitialized = useRef(false);
   const saveTimeout = useRef<NodeJS.Timeout | null>(null);
   const migrationInProgress = useRef(false);
-  const migrationLockId = useRef<string | null>(null);
-
-  const acquireMigrationLock = async (userId: string): Promise<boolean> => {
-    try {
-      const lockId = crypto.randomUUID();
-      const { data, error } = await supabase
-        .from('migration_locks')
-        .insert({
-          user_id: userId,
-          lock_type: 'wizard_migration',
-          expires_at: new Date(Date.now() + 30000).toISOString(),
-          metadata: { lockId }
-        })
-        .select()
-        .single();
-
-      if (error) {
-        console.error('[WizardStateProvider] Lock acquisition failed:', error);
-        return false;
-      }
-
-      migrationLockId.current = lockId;
-      return true;
-    } catch (error) {
-      console.error('[WizardStateProvider] Lock error:', error);
-      return false;
-    }
-  };
-
-  const releaseMigrationLock = async (userId: string) => {
-    if (migrationLockId.current) {
-      try {
-        await supabase
-          .from('migration_locks')
-          .delete()
-          .eq('user_id', userId)
-          .eq('metadata->lockId', migrationLockId.current);
-      } catch (error) {
-        console.error('[WizardStateProvider] Lock release error:', error);
-      }
-      migrationLockId.current = null;
-    }
-  };
 
   const syncWizardState = async (userId: string | undefined) => {
-    if (!userId || migrationInProgress.current) {
-      console.log('[WizardStateProvider] Skipping sync - no user or migration in progress');
+    if (migrationInProgress.current) {
+      console.log('[WizardStateProvider] Migration already in progress, skipping');
       return;
     }
 
     try {
-      console.log('[WizardStateProvider] Starting sync for user:', userId);
+      console.log('[WizardStateProvider] Starting to sync wizard state for user:', userId);
       setIsLoading(true);
       migrationInProgress.current = true;
 
-      const hasLock = await acquireMigrationLock(userId);
-      if (!hasLock) {
-        console.log('[WizardStateProvider] Could not acquire migration lock');
-        return;
-      }
-
-      const sessionId = localStorage.getItem('anonymous_session_id');
-      const { data: progress } = await supabase
-        .from('wizard_progress')
-        .select('*')
-        .eq('user_id', userId)
-        .maybeSingle();
-
-      if (sessionId && !progress) {
-        console.log('[WizardStateProvider] Found anonymous session:', sessionId);
-        const { data: anonymousData } = await supabase
-          .from('anonymous_usage')
-          .select('wizard_data, last_completed_step')
-          .eq('session_id', sessionId)
+      if (userId) {
+        const { data: progress } = await supabase
+          .from('wizard_progress')
+          .select('*')
+          .eq('user_id', userId)
           .maybeSingle();
 
-        if (anonymousData?.wizard_data) {
-          try {
-            const { data: migratedData } = await supabase
-              .rpc('atomic_migration', { 
-                p_user_id: userId, 
-                p_session_id: sessionId 
-              });
+        const sessionId = localStorage.getItem('anonymous_session_id');
+        if (sessionId && !progress) {
+          console.log('[WizardStateProvider] Found anonymous session:', sessionId);
+          const { data: anonymousData } = await supabase
+            .from('anonymous_usage')
+            .select('wizard_data, last_completed_step')
+            .eq('session_id', sessionId)
+            .maybeSingle();
 
-            if (migratedData) {
-              console.log('[WizardStateProvider] Migration successful:', migratedData);
-              
-              if (isBusinessIdea(migratedData.business_idea)) {
-                state.setBusinessIdea(migratedData.business_idea);
+          if (anonymousData?.wizard_data) {
+            console.log('[WizardStateProvider] Found anonymous data:', anonymousData);
+            try {
+              const { data: migratedData } = await supabase
+                .rpc('atomic_migration', { 
+                  p_user_id: userId, 
+                  p_session_id: sessionId 
+                });
+
+              if (migratedData) {
+                console.log('[WizardStateProvider] Successfully migrated data:', migratedData);
+                
+                if (migratedData.business_idea && isBusinessIdea(migratedData.business_idea)) {
+                  state.setBusinessIdea(migratedData.business_idea);
+                }
+                if (migratedData.target_audience && isTargetAudience(migratedData.target_audience)) {
+                  state.setTargetAudience(migratedData.target_audience);
+                }
+                if (migratedData.audience_analysis && isAudienceAnalysis(migratedData.audience_analysis)) {
+                  state.setAudienceAnalysis(migratedData.audience_analysis);
+                }
+                if (Array.isArray(migratedData.generated_ads)) {
+                  state.setGeneratedAds(migratedData.generated_ads);
+                }
+                
+                const targetStep = Math.max(
+                  migratedData.current_step || 1,
+                  anonymousData.last_completed_step || 1
+                );
+                
+                state.setCurrentStep(targetStep);
+                setStateVersion(migratedData.version || 1);
+                
+                if (targetStep > 1) {
+                  navigate(`/ad-wizard/step-${targetStep}`, { replace: true });
+                }
+                
+                localStorage.removeItem('anonymous_session_id');
+                
+                toast({
+                  title: "Progress Restored",
+                  description: "Your previous work has been saved to your account.",
+                });
               }
-              if (isTargetAudience(migratedData.target_audience)) {
-                state.setTargetAudience(migratedData.target_audience);
-              }
-              if (isAudienceAnalysis(migratedData.audience_analysis)) {
-                state.setAudienceAnalysis(migratedData.audience_analysis);
-              }
-              
-              const targetStep = Math.max(
-                migratedData.current_step || 1,
-                anonymousData.last_completed_step || 1
-              );
-              
-              state.setCurrentStep(targetStep);
-              setStateVersion(migratedData.version || 1);
-              
-              if (targetStep > 1 && location.pathname === '/ad-wizard/new') {
-                navigate(`/ad-wizard/step-${targetStep}`, { replace: true });
-              }
-              
-              localStorage.removeItem('anonymous_session_id');
-              
+            } catch (error) {
+              console.error('[WizardStateProvider] Migration error:', error);
               toast({
-                title: "Progress Restored",
-                description: "Your previous work has been saved to your account.",
+                title: "Error Restoring Progress",
+                description: "There was an error restoring your previous work.",
+                variant: "destructive",
               });
             }
-          } catch (error) {
-            console.error('[WizardStateProvider] Migration error:', error);
-            toast({
-              title: "Error Restoring Progress",
-              description: "There was an error restoring your previous work.",
-              variant: "destructive",
-            });
           }
-        }
-      } else if (progress) {
-        console.log('[WizardStateProvider] Loading existing progress');
-        
-        if (isBusinessIdea(progress.business_idea)) {
-          state.setBusinessIdea(progress.business_idea);
-        }
-        if (isTargetAudience(progress.target_audience)) {
-          state.setTargetAudience(progress.target_audience);
-        }
-        if (isAudienceAnalysis(progress.audience_analysis)) {
-          state.setAudienceAnalysis(progress.audience_analysis);
-        }
-        
-        if (progress.current_step) {
-          state.setCurrentStep(progress.current_step);
-          if (progress.current_step > 1 && location.pathname === '/ad-wizard/new') {
-            navigate(`/ad-wizard/step-${progress.current_step}`, { replace: true });
+        } else if (progress) {
+          console.log('[WizardStateProvider] Found existing progress:', progress);
+          if (progress.business_idea && isBusinessIdea(progress.business_idea)) {
+            state.setBusinessIdea(progress.business_idea);
           }
+          if (progress.target_audience && isTargetAudience(progress.target_audience)) {
+            state.setTargetAudience(progress.target_audience);
+          }
+          if (progress.audience_analysis && isAudienceAnalysis(progress.audience_analysis)) {
+            state.setAudienceAnalysis(progress.audience_analysis);
+          }
+          if (progress.current_step) {
+            state.setCurrentStep(progress.current_step);
+            if (progress.current_step > 1 && location.pathname === '/ad-wizard/new') {
+              navigate(`/ad-wizard/step-${progress.current_step}`, { replace: true });
+            }
+          }
+          setStateVersion(progress.version || 1);
         }
-        setStateVersion(progress.version || 1);
       }
     } catch (error) {
-      console.error('[WizardStateProvider] Sync error:', error);
+      console.error('[WizardStateProvider] Error syncing state:', error);
       toast({
         title: "Error Loading Progress",
         description: "There was an error loading your progress.",
         variant: "destructive",
       });
     } finally {
-      if (userId) {
-        await releaseMigrationLock(userId);
-      }
       setIsLoading(false);
       hasInitialized.current = true;
       migrationInProgress.current = false;
@@ -345,16 +271,18 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
     };
   }, [state.businessIdea, state.targetAudience, state.audienceAnalysis, state.currentStep]);
 
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+        <span className="ml-2">Loading wizard...</span>
+      </div>
+    );
+  }
+
   return (
     <WizardStateContext.Provider value={state}>
-      {isLoading ? (
-        <div className="flex items-center justify-center min-h-screen">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-          <span className="ml-2">Loading wizard...</span>
-        </div>
-      ) : (
-        children
-      )}
+      {children}
     </WizardStateContext.Provider>
   );
 };
