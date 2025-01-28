@@ -1,10 +1,31 @@
 import { supabase } from "@/integrations/supabase/client";
 import { WizardData } from "@/types/wizardProgress";
 
+const calculateHighestStep = (data: any): number => {
+  let highestStep = 1;
+  
+  // Check business idea (Step 1)
+  if (data.business_idea) highestStep = Math.max(highestStep, 1);
+  
+  // Check target audience (Step 2)
+  if (data.target_audience) highestStep = Math.max(highestStep, 2);
+  
+  // Check audience analysis (Step 3)
+  if (data.audience_analysis) highestStep = Math.max(highestStep, 3);
+  
+  // Check generated ads (Step 4)
+  if (data.generated_ads && data.generated_ads.length > 0) {
+    highestStep = Math.max(highestStep, 4);
+  }
+  
+  return highestStep;
+};
+
 export const migrateUserProgress = async (
   user_id: string,
   session_id: string
 ): Promise<WizardData | null> => {
+  const migrationKey = `migration_${user_id}_${session_id}`;
   let isMigrating = false;
 
   if (isMigrating) {
@@ -13,6 +34,7 @@ export const migrateUserProgress = async (
   }
 
   isMigrating = true;
+  
   try {
     console.log('[Migration] Starting migration for user:', user_id);
     
@@ -33,11 +55,15 @@ export const migrateUserProgress = async (
       return null;
     }
 
-    // Update wizard progress with atomic migration
+    // Calculate the highest possible step based on available data
+    const calculatedStep = calculateHighestStep(anonymousData.wizard_data);
+    
+    // Use atomic migration with the calculated step
     const { data, error } = await supabase
       .rpc('atomic_migration', { 
         p_user_id: user_id, 
-        p_session_id: session_id
+        p_session_id: session_id,
+        p_calculated_step: calculatedStep
       });
 
     if (error) {
@@ -58,6 +84,7 @@ export const migrateUserProgress = async (
         completed: true,
         last_completed_step: Math.max(
           data.current_step || 1,
+          calculatedStep,
           anonymousData.last_completed_step || 1
         )
       })
