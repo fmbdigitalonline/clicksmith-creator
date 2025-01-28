@@ -52,9 +52,14 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 
     checkSession();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+    // Subscribe to auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       console.log('[ProtectedRoute] Auth state changed:', event);
-      checkSession();
+      
+      // Only recheck session if it's not an anonymous user in the wizard
+      if (!location.pathname.includes('ad-wizard') || session?.user) {
+        checkSession();
+      }
     });
 
     return () => {
@@ -68,6 +73,11 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 
   // Allow anonymous access to wizard if there's valid anonymous data
   if (location.pathname.includes('ad-wizard') && anonymousData) {
+    // Preserve the current step in the URL
+    const currentStep = location.pathname.match(/step-(\d+)/)?.[1];
+    if (currentStep && location.pathname !== `/ad-wizard/step-${currentStep}`) {
+      return <Navigate to={`/ad-wizard/step-${currentStep}`} replace />;
+    }
     return <>{children}</>;
   }
 
