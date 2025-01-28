@@ -92,6 +92,9 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
                 if (migratedData.audience_analysis && isAudienceAnalysis(migratedData.audience_analysis)) {
                   state.setAudienceAnalysis(migratedData.audience_analysis);
                 }
+                if (Array.isArray(migratedData.generated_ads)) {
+                  state.setGeneratedAds(migratedData.generated_ads);
+                }
                 
                 const targetStep = Math.max(
                   migratedData.current_step || 1,
