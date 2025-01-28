@@ -10,16 +10,17 @@ import { Json } from '@/integrations/supabase/types';
 
 const WizardStateContext = createContext<ReturnType<typeof useAdWizardState> | undefined>(undefined);
 
-const isBusinessIdea = (data: Json): data is BusinessIdea => {
-  return typeof data === 'object' && data !== null && 'description' in data;
+// Type guard functions moved outside component to prevent recursion
+const isBusinessIdea = (data: Json | null): data is BusinessIdea => {
+  return data !== null && typeof data === 'object' && 'description' in data;
 };
 
-const isTargetAudience = (data: Json): data is TargetAudience => {
-  return typeof data === 'object' && data !== null && 'segments' in data;
+const isTargetAudience = (data: Json | null): data is TargetAudience => {
+  return data !== null && typeof data === 'object' && 'segments' in data;
 };
 
-const isAudienceAnalysis = (data: Json): data is AudienceAnalysis => {
-  return typeof data === 'object' && data !== null && 'marketDesire' in data;
+const isAudienceAnalysis = (data: Json | null): data is AudienceAnalysis => {
+  return data !== null && typeof data === 'object' && 'marketDesire' in data;
 };
 
 export const useWizardState = () => {
@@ -128,14 +129,18 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
             if (migratedData) {
               console.log('[WizardStateProvider] Migration successful:', migratedData);
               
-              if (migratedData.business_idea && isBusinessIdea(migratedData.business_idea)) {
-                state.setBusinessIdea(migratedData.business_idea);
+              const businessIdea = migratedData.business_idea as Json;
+              const targetAudience = migratedData.target_audience as Json;
+              const audienceAnalysis = migratedData.audience_analysis as Json;
+              
+              if (isBusinessIdea(businessIdea)) {
+                state.setBusinessIdea(businessIdea);
               }
-              if (migratedData.target_audience && isTargetAudience(migratedData.target_audience)) {
-                state.setTargetAudience(migratedData.target_audience);
+              if (isTargetAudience(targetAudience)) {
+                state.setTargetAudience(targetAudience);
               }
-              if (migratedData.audience_analysis && isAudienceAnalysis(migratedData.audience_analysis)) {
-                state.setAudienceAnalysis(migratedData.audience_analysis);
+              if (isAudienceAnalysis(audienceAnalysis)) {
+                state.setAudienceAnalysis(audienceAnalysis);
               }
               
               const targetStep = Math.max(
@@ -168,14 +173,18 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
         }
       } else if (progress) {
         console.log('[WizardStateProvider] Loading existing progress');
-        if (progress.business_idea && isBusinessIdea(progress.business_idea)) {
-          state.setBusinessIdea(progress.business_idea);
+        const businessIdea = progress.business_idea as Json;
+        const targetAudience = progress.target_audience as Json;
+        const audienceAnalysis = progress.audience_analysis as Json;
+        
+        if (isBusinessIdea(businessIdea)) {
+          state.setBusinessIdea(businessIdea);
         }
-        if (progress.target_audience && isTargetAudience(progress.target_audience)) {
-          state.setTargetAudience(progress.target_audience);
+        if (isTargetAudience(targetAudience)) {
+          state.setTargetAudience(targetAudience);
         }
-        if (progress.audience_analysis && isAudienceAnalysis(progress.audience_analysis)) {
-          state.setAudienceAnalysis(progress.audience_analysis);
+        if (isAudienceAnalysis(audienceAnalysis)) {
+          state.setAudienceAnalysis(audienceAnalysis);
         }
         if (progress.current_step) {
           state.setCurrentStep(progress.current_step);
