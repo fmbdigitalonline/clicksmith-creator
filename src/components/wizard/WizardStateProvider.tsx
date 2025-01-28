@@ -2,7 +2,7 @@ import { createContext, useContext, ReactNode, useEffect, useRef, useState } fro
 import { useAdWizardState } from "@/hooks/useAdWizardState";
 import { supabase } from "@/integrations/supabase/client";
 import { WizardData } from "@/types/wizardProgress";
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useToast } from "@/hooks/use-toast";
 import { saveWizardState } from "@/utils/versionedSave";
 import { BusinessIdea, TargetAudience, AudienceAnalysis } from "@/types/adWizard";
@@ -33,6 +33,7 @@ export const useWizardState = () => {
 export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
   const state = useAdWizardState();
   const location = useLocation();
+  const navigate = useNavigate();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(true);
   const [stateVersion, setStateVersion] = useState(1);
@@ -47,13 +48,6 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
       setIsLoading(true);
 
       if (userId) {
-        // First check for existing progress
-        const { data: progress } = await supabase
-          .from('wizard_progress')
-          .select('*')
-          .eq('user_id', userId)
-          .maybeSingle();
-
         // Get anonymous session data if it exists
         const sessionId = localStorage.getItem('anonymous_session_id');
         if (sessionId) {
@@ -94,6 +88,11 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
                 state.setCurrentStep(targetStep);
                 setStateVersion(migratedData.version || 1);
                 
+                // Important: Navigate to the correct step after migration
+                if (targetStep > 1) {
+                  navigate(`/ad-wizard/step-${targetStep}`, { replace: true });
+                }
+                
                 localStorage.removeItem('anonymous_session_id');
                 
                 toast({
@@ -110,21 +109,6 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
               });
             }
           }
-        } else if (progress) {
-          console.log('[WizardStateProvider] Found existing progress:', progress);
-          if (progress.business_idea && isBusinessIdea(progress.business_idea)) {
-            state.setBusinessIdea(progress.business_idea);
-          }
-          if (progress.target_audience && isTargetAudience(progress.target_audience)) {
-            state.setTargetAudience(progress.target_audience);
-          }
-          if (progress.audience_analysis && isAudienceAnalysis(progress.audience_analysis)) {
-            state.setAudienceAnalysis(progress.audience_analysis);
-          }
-          if (progress.current_step) {
-            state.setCurrentStep(progress.current_step);
-          }
-          setStateVersion(progress.version || 1);
         }
       }
     } catch (error) {
