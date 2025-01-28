@@ -42,6 +42,16 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
   const saveTimeout = useRef<NodeJS.Timeout | null>(null);
   const migrationInProgress = useRef(false);
 
+  // Update URL when step changes
+  useEffect(() => {
+    const currentPathMatch = location.pathname.match(/step-(\d+)/);
+    const currentUrlStep = currentPathMatch ? parseInt(currentPathMatch[1]) : null;
+    
+    if (state.currentStep > 1 && (!currentUrlStep || currentUrlStep !== state.currentStep)) {
+      navigate(`/ad-wizard/step-${state.currentStep}`, { replace: true });
+    }
+  }, [state.currentStep, location.pathname, navigate]);
+
   const syncWizardState = async (userId: string | undefined) => {
     if (migrationInProgress.current) {
       console.log('[WizardStateProvider] Migration already in progress, skipping');
@@ -56,7 +66,6 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
       const sessionId = localStorage.getItem('anonymous_session_id');
       
       if (!userId && sessionId) {
-        // Handle anonymous user with existing session
         const { data: anonymousData } = await supabase
           .from('anonymous_usage')
           .select('wizard_data, last_completed_step')
@@ -64,22 +73,29 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
           .maybeSingle();
 
         if (anonymousData?.wizard_data) {
-          if (anonymousData.wizard_data.business_idea && isBusinessIdea(anonymousData.wizard_data.business_idea)) {
-            state.setBusinessIdea(anonymousData.wizard_data.business_idea);
+          const wizardData = anonymousData.wizard_data as Record<string, Json>;
+          
+          if (wizardData.business_idea && isBusinessIdea(wizardData.business_idea)) {
+            state.setBusinessIdea(wizardData.business_idea);
           }
-          if (anonymousData.wizard_data.target_audience && isTargetAudience(anonymousData.wizard_data.target_audience)) {
-            state.setTargetAudience(anonymousData.wizard_data.target_audience);
+          if (wizardData.target_audience && isTargetAudience(wizardData.target_audience)) {
+            state.setTargetAudience(wizardData.target_audience);
           }
-          if (anonymousData.wizard_data.audience_analysis && isAudienceAnalysis(anonymousData.wizard_data.audience_analysis)) {
-            state.setAudienceAnalysis(anonymousData.wizard_data.audience_analysis);
+          if (wizardData.audience_analysis && isAudienceAnalysis(wizardData.audience_analysis)) {
+            state.setAudienceAnalysis(wizardData.audience_analysis);
           }
           
           const targetStep = Math.max(
-            anonymousData.wizard_data.current_step || 1,
+            wizardData.current_step as number || 1,
             anonymousData.last_completed_step || 1
           );
           
           state.setCurrentStep(targetStep);
+          
+          // Update URL to reflect the correct step
+          if (targetStep > 1) {
+            navigate(`/ad-wizard/step-${targetStep}`, { replace: true });
+          }
         }
       } else if (userId) {
         // Handle authenticated user
@@ -89,42 +105,7 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
           .eq('user_id', userId)
           .maybeSingle();
 
-        if (sessionId && !progress) {
-          console.log('[WizardStateProvider] Found anonymous session:', sessionId);
-          try {
-            const { data: migratedData } = await supabase
-              .rpc('atomic_migration', { 
-                p_user_id: userId, 
-                p_session_id: sessionId 
-              });
-
-            if (migratedData) {
-              console.log('[WizardStateProvider] Successfully migrated data:', migratedData);
-              
-              if (migratedData.business_idea && isBusinessIdea(migratedData.business_idea)) {
-                state.setBusinessIdea(migratedData.business_idea);
-              }
-              if (migratedData.target_audience && isTargetAudience(migratedData.target_audience)) {
-                state.setTargetAudience(migratedData.target_audience);
-              }
-              if (migratedData.audience_analysis && isAudienceAnalysis(migratedData.audience_analysis)) {
-                state.setAudienceAnalysis(migratedData.audience_analysis);
-              }
-              
-              state.setCurrentStep(migratedData.current_step || 1);
-              setStateVersion(migratedData.version || 1);
-              
-              localStorage.removeItem('anonymous_session_id');
-              
-              toast({
-                title: "Progress Restored",
-                description: "Your previous work has been saved to your account.",
-              });
-            }
-          } catch (error) {
-            console.error('[WizardStateProvider] Migration error:', error);
-          }
-        } else if (progress) {
+        if (progress) {
           console.log('[WizardStateProvider] Found existing progress:', progress);
           if (progress.business_idea && isBusinessIdea(progress.business_idea)) {
             state.setBusinessIdea(progress.business_idea);
@@ -137,6 +118,11 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
           }
           state.setCurrentStep(progress.current_step || 1);
           setStateVersion(progress.version || 1);
+          
+          // Update URL to reflect the correct step
+          if (progress.current_step > 1) {
+            navigate(`/ad-wizard/step-${progress.current_step}`, { replace: true });
+          }
         }
       }
     } catch (error) {
