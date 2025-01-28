@@ -19,7 +19,7 @@ export const migrateUserProgress = async (
     // First get the anonymous data
     const { data: anonymousData, error: anonError } = await supabase
       .from('anonymous_usage')
-      .select('wizard_data')
+      .select('wizard_data, last_completed_step')
       .eq('session_id', session_id)
       .maybeSingle();
 
@@ -38,8 +38,7 @@ export const migrateUserProgress = async (
       .rpc('atomic_migration', { 
         p_user_id: user_id, 
         p_session_id: session_id
-      })
-      .maybeSingle();
+      });
 
     if (error) {
       console.error('[Migration] Database error:', error);
@@ -50,6 +49,19 @@ export const migrateUserProgress = async (
       console.log('[Migration] No data to migrate');
       return null;
     }
+
+    // Mark anonymous session as used
+    await supabase
+      .from('anonymous_usage')
+      .update({ 
+        used: true,
+        completed: true,
+        last_completed_step: Math.max(
+          data.current_step || 1,
+          anonymousData.last_completed_step || 1
+        )
+      })
+      .eq('session_id', session_id);
 
     console.log('[Migration] Successfully migrated data:', data);
     return data as WizardData;

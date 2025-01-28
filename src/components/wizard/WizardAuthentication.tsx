@@ -44,7 +44,7 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
   const navigate = useNavigate();
   const location = useLocation();
 
-  const redirectToStep = (step: number) => {
+  const redirectToStep = async (step: number) => {
     console.group('[Auth] Redirecting to step');
     console.log('Step:', step);
     console.log('Current location:', location.pathname);
@@ -79,11 +79,36 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
     const maxRetries = 3;
     let isCheckingUser = false;
 
-    const checkUser = async () => {
-      if (isCheckingUser) {
-        console.log('[Auth] User check already in progress');
-        return;
+    const handleMigration = async (user: any, sessionId: string) => {
+      try {
+        console.log('[Auth] Starting migration for user:', user.id);
+        const migratedData = await migrateUserProgress(user.id, sessionId);
+        
+        if (migratedData) {
+          onAnonymousDataChange(migratedData);
+          localStorage.removeItem('anonymous_session_id');
+          
+          if (migratedData.current_step && migratedData.current_step > 1) {
+            await redirectToStep(migratedData.current_step);
+            
+            toast({
+              title: "Progress Restored",
+              description: "Your previous work has been saved to your account.",
+            });
+          }
+        }
+      } catch (error) {
+        console.error('[Auth] Migration error:', error);
+        toast({
+          title: "Error Restoring Progress",
+          description: "There was an error restoring your previous work.",
+          variant: "destructive",
+        });
       }
+    };
+
+    const checkUser = async () => {
+      if (isCheckingUser) return;
       
       isCheckingUser = true;
       console.group('[Auth] Starting user check');
@@ -95,88 +120,18 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
       try {
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
         
-        if (!isMounted) {
-          console.log('[Auth] Component unmounted, stopping check');
-          return;
-        }
+        if (!isMounted) return;
 
-        if (sessionError) {
-          console.group('[Auth] Session error');
-          console.error('Error:', sessionError);
-          console.log('Retry count:', retryCount);
-          console.groupEnd();
-          throw sessionError;
-        }
+        if (sessionError) throw sessionError;
 
         if (session?.user) {
-          console.group('[Auth] Found authenticated user');
-          console.log('User ID:', session.user.id);
-          console.log('Email:', session.user.email);
-          console.log('Last sign in:', session.user.last_sign_in_at);
-          console.groupEnd();
-          
           onUserChange(session.user);
           
-          const { data: existing } = await supabase
-            .from('wizard_progress')
-            .select('*')
-            .eq('user_id', session.user.id)
-            .maybeSingle();
-
           const sessionId = localStorage.getItem('anonymous_session_id');
           if (sessionId) {
-            const { data: anonymousData } = await supabase
-              .from('anonymous_usage')
-              .select('wizard_data, last_completed_step')
-              .eq('session_id', sessionId)
-              .maybeSingle();
-
-            if (anonymousData?.wizard_data) {
-              const wizardData = convertToWizardData(anonymousData.wizard_data);
-              if (wizardData) {
-                try {
-                  const migratedData = await migrateUserProgress(session.user.id, sessionId);
-                  if (migratedData) {
-                    const convertedData = convertToWizardData(migratedData as Json);
-                    if (convertedData) {
-                      onAnonymousDataChange(convertedData);
-                      localStorage.removeItem('anonymous_session_id');
-                      
-                      const targetStep = Math.max(
-                        convertedData.current_step || 1,
-                        anonymousData.last_completed_step || 1,
-                        existing?.current_step || 1
-                      );
-                      
-                      redirectToStep(targetStep);
-                      
-                      toast({
-                        title: "Progress Restored",
-                        description: "Your previous work has been saved to your account.",
-                      });
-                    }
-                  }
-                } catch (error) {
-                  console.error('[Auth] Migration error:', error);
-                  toast({
-                    title: "Error Restoring Progress",
-                    description: "There was an error restoring your previous work. You may need to start over.",
-                    variant: "destructive",
-                  });
-                }
-              }
-            }
-          } else if (existing) {
-            const convertedData = convertToWizardData(existing as unknown as Json);
-            if (convertedData) {
-              onAnonymousDataChange(convertedData);
-              if (convertedData.current_step && convertedData.current_step > 1) {
-                redirectToStep(convertedData.current_step);
-              }
-            }
+            await handleMigration(session.user, sessionId);
           }
         }
-
       } catch (error) {
         console.error('[Auth] Error in checkUser:', error);
         if (retryCount < maxRetries) {
@@ -207,51 +162,9 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
         
         const sessionId = localStorage.getItem('anonymous_session_id');
         if (sessionId) {
-          try {
-            console.group('[Auth] Starting migration after sign in');
-            console.log('User ID:', session.user.id);
-            console.log('Session ID:', sessionId);
-            console.groupEnd();
-            
-            const { data: anonymousData } = await supabase
-              .from('anonymous_usage')
-              .select('wizard_data, last_completed_step')
-              .eq('session_id', sessionId)
-              .maybeSingle();
-
-            if (anonymousData) {
-              const migratedData = await migrateUserProgress(session.user.id, sessionId);
-              if (migratedData) {
-                const convertedData = convertToWizardData(migratedData as Json);
-                if (convertedData) {
-                  onAnonymousDataChange(convertedData);
-                  localStorage.removeItem('anonymous_session_id');
-                  
-                  const targetStep = Math.max(
-                    convertedData.current_step || 1,
-                    anonymousData.last_completed_step || 1
-                  );
-
-                  redirectToStep(targetStep);
-                  
-                  toast({
-                    title: "Progress Migrated",
-                    description: "Your previous work has been saved to your account.",
-                  });
-                }
-              }
-            }
-          } catch (error) {
-            console.error('[Auth] Migration error:', error);
-            toast({
-              title: "Migration Error",
-              description: "There was an error migrating your progress. You may need to start over.",
-              variant: "destructive",
-            });
-          }
+          await handleMigration(session.user, sessionId);
         }
       } else if (event === 'SIGNED_OUT') {
-        console.log('[Auth] User signed out');
         onUserChange(null);
       }
     });
