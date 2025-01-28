@@ -17,7 +17,6 @@ export const AnonymousRoute = ({ children }: { children: React.ReactNode }) => {
       try {
         console.log('[AnonymousRoute] Starting anonymous access check...');
         
-        // Check if user is already authenticated
         const { data: { session }, error } = await supabase.auth.getSession();
         
         if (error) {
@@ -38,20 +37,17 @@ export const AnonymousRoute = ({ children }: { children: React.ReactNode }) => {
           return;
         }
 
-        // Get or create session ID from localStorage
         let sessionId = localStorage.getItem('anonymous_session_id');
         if (!sessionId) {
           sessionId = uuidv4();
           localStorage.setItem('anonymous_session_id', sessionId);
           console.log('[AnonymousRoute] Created new anonymous session:', sessionId);
           
-          // Initialize anonymous usage record for new sessions
           const { error: initError } = await supabase
             .from('anonymous_usage')
             .insert({
               session_id: sessionId,
               used: false,
-              last_completed_step: 1,
               wizard_data: {
                 current_step: 1,
                 business_idea: null,
@@ -69,14 +65,11 @@ export const AnonymousRoute = ({ children }: { children: React.ReactNode }) => {
             }
             return;
           }
-        } else {
-          console.log('[AnonymousRoute] Found existing anonymous session:', sessionId);
         }
 
-        // Check if this session has been used
         const { data: usage, error: usageError } = await supabase
           .from('anonymous_usage')
-          .select('used, last_completed_step, wizard_data')
+          .select('used, wizard_data')
           .eq('session_id', sessionId)
           .maybeSingle();
 
@@ -89,17 +82,16 @@ export const AnonymousRoute = ({ children }: { children: React.ReactNode }) => {
           return;
         }
 
-        if (!usage || usage.last_completed_step <= 3) {
-          console.log('[AnonymousRoute] Allowing access, step:', usage?.last_completed_step || 1);
+        if (!usage || !usage.used) {
           if (mounted) {
             setCanAccess(true);
             setIsLoading(false);
           }
         } else {
-          console.log('[AnonymousRoute] Access denied, completed step:', usage.last_completed_step);
+          console.log('[AnonymousRoute] Access denied, session used');
           toast({
             title: "Registration Required",
-            description: "Please sign up to continue and see your generated ads.",
+            description: "Please sign up to continue.",
             variant: "default",
           });
           if (mounted) {
@@ -124,7 +116,6 @@ export const AnonymousRoute = ({ children }: { children: React.ReactNode }) => {
   }, [toast, location.pathname]);
 
   if (isLoading) {
-    console.log('[AnonymousRoute] Loading state...');
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900" />
@@ -133,10 +124,8 @@ export const AnonymousRoute = ({ children }: { children: React.ReactNode }) => {
   }
 
   if (!canAccess) {
-    console.log('[AnonymousRoute] Access denied, redirecting to login');
     return <Navigate to="/login" replace state={{ from: location }} />;
   }
 
-  console.log('[AnonymousRoute] Access granted, rendering children');
   return <>{children}</>;
 };
