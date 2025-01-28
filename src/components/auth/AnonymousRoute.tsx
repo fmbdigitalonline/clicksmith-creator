@@ -92,11 +92,10 @@ export const AnonymousRoute = ({ children }: { children: React.ReactNode }) => {
         }
 
         if (!usage || !usage.used) {
-          const existingData = usage?.wizard_data as Json || {};
-          const wizardData: Json = {
-            ...existingData,
+          const wizardData = {
+            ...(usage?.wizard_data as Record<string, unknown> || {}),
             last_save_attempt: new Date().toISOString()
-          };
+          } as Json;
 
           const { error: updateError } = await supabase
             .from('anonymous_usage')
