@@ -6,21 +6,26 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useToast } from "@/hooks/use-toast";
 import { saveWizardState } from "@/utils/versionedSave";
 import { BusinessIdea, TargetAudience, AudienceAnalysis } from "@/types/adWizard";
-import { Json } from '@/integrations/supabase/types';
 
 const WizardStateContext = createContext<ReturnType<typeof useAdWizardState> | undefined>(undefined);
 
-// Type guard functions moved outside component and simplified
+// Simplified type guards with explicit type checks
 const isBusinessIdea = (data: unknown): data is BusinessIdea => {
-  return data !== null && typeof data === 'object' && 'description' in data;
+  if (!data || typeof data !== 'object') return false;
+  const idea = data as Record<string, unknown>;
+  return 'description' in idea && typeof idea.description === 'string';
 };
 
 const isTargetAudience = (data: unknown): data is TargetAudience => {
-  return data !== null && typeof data === 'object' && 'segments' in data;
+  if (!data || typeof data !== 'object') return false;
+  const audience = data as Record<string, unknown>;
+  return 'segments' in audience;
 };
 
 const isAudienceAnalysis = (data: unknown): data is AudienceAnalysis => {
-  return data !== null && typeof data === 'object' && 'marketDesire' in data;
+  if (!data || typeof data !== 'object') return false;
+  const analysis = data as Record<string, unknown>;
+  return 'marketDesire' in analysis;
 };
 
 export const useWizardState = () => {
@@ -129,7 +134,7 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
             if (migratedData) {
               console.log('[WizardStateProvider] Migration successful:', migratedData);
               
-              // Safe type assertions with validation
+              // Type-safe data handling
               if (isBusinessIdea(migratedData.business_idea)) {
                 state.setBusinessIdea(migratedData.business_idea);
               }
@@ -171,7 +176,7 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
       } else if (progress) {
         console.log('[WizardStateProvider] Loading existing progress');
         
-        // Safe type assertions with validation
+        // Type-safe data handling with validation
         if (isBusinessIdea(progress.business_idea)) {
           state.setBusinessIdea(progress.business_idea);
         }
