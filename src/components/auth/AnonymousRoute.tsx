@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { v4 as uuidv4 } from "uuid";
 import { useToast } from "@/hooks/use-toast";
 import { WizardData } from "@/types/wizardProgress";
+import { Json } from "@/integrations/supabase/types";
 
 export const AnonymousRoute = ({ children }: { children: React.ReactNode }) => {
   const [canAccess, setCanAccess] = useState<boolean | null>(null);
@@ -44,7 +45,7 @@ export const AnonymousRoute = ({ children }: { children: React.ReactNode }) => {
           localStorage.setItem('anonymous_session_id', sessionId);
           console.log('[AnonymousRoute] Created new anonymous session:', sessionId);
           
-          const initialWizardData: WizardData = {
+          const initialWizardData: Json = {
             current_step: 1,
             business_idea: null,
             target_audience: null,
@@ -91,8 +92,8 @@ export const AnonymousRoute = ({ children }: { children: React.ReactNode }) => {
         }
 
         if (!usage || !usage.used) {
-          const wizardData: WizardData = {
-            ...(usage?.wizard_data as WizardData || {}),
+          const wizardData: Json = {
+            ...(usage?.wizard_data as Json || {}),
             last_save_attempt: new Date().toISOString()
           };
 
