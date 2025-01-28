@@ -2,55 +2,54 @@ import { supabase } from "@/integrations/supabase/client";
 import { WizardData } from "@/types/wizardProgress";
 
 const calculateHighestStep = (data: any): number => {
-  let highestStep = 1;
-  
-  // Check business idea (Step 1)
-  if (data.business_idea) highestStep = Math.max(highestStep, 1);
-  
-  // Check target audience (Step 2)
-  if (data.target_audience) highestStep = Math.max(highestStep, 2);
-  
-  // Check audience analysis (Step 3)
-  if (data.audience_analysis) highestStep = Math.max(highestStep, 3);
-  
-  // Check generated ads (Step 4)
-  if (data.generated_ads && data.generated_ads.length > 0) {
-    highestStep = Math.max(highestStep, 4);
-  }
-  
-  return highestStep;
+  let step = 1;
+  if (data?.business_idea) step = Math.max(step, 2);
+  if (data?.target_audience) step = Math.max(step, 3);
+  if (data?.audience_analysis) step = Math.max(step, 4);
+  return step;
 };
 
 export const migrateUserProgress = async (
   user_id: string,
   session_id: string
 ): Promise<WizardData | null> => {
-  const migrationKey = `migration_${user_id}_${session_id}`;
-  let isMigrating = false;
+  console.log('[Migration] Starting migration for user:', user_id);
 
-  if (isMigrating) {
-    console.log('[Migration] Already in progress');
-    return null;
-  }
-
-  isMigrating = true;
-  
   try {
-    console.log('[Migration] Starting migration for user:', user_id);
-    
-    // First get the anonymous data
-    const { data: anonymousData, error: anonError } = await supabase
+    // First check if a migration is already in progress
+    const { data: existingLock } = await supabase
+      .from('migration_locks')
+      .select('*')
+      .eq('user_id', user_id)
+      .single();
+
+    if (existingLock) {
+      console.log('[Migration] Migration already in progress');
+      return null;
+    }
+
+    // Create a migration lock
+    const { error: lockError } = await supabase
+      .from('migration_locks')
+      .insert({
+        user_id,
+        lock_type: 'wizard_migration',
+        expires_at: new Date(Date.now() + 5 * 60 * 1000) // 5 minutes
+      });
+
+    if (lockError) {
+      console.error('[Migration] Error creating migration lock:', lockError);
+      return null;
+    }
+
+    // Get anonymous data first to calculate the step
+    const { data: anonymousData } = await supabase
       .from('anonymous_usage')
       .select('wizard_data, last_completed_step')
       .eq('session_id', session_id)
-      .maybeSingle();
+      .single();
 
-    if (anonError) {
-      console.error('[Migration] Error fetching anonymous data:', anonError);
-      throw anonError;
-    }
-
-    if (!anonymousData?.wizard_data) {
+    if (!anonymousData) {
       console.log('[Migration] No anonymous data found');
       return null;
     }
@@ -67,15 +66,10 @@ export const migrateUserProgress = async (
       throw error;
     }
 
-    if (!data) {
-      console.log('[Migration] No data to migrate');
-      return null;
-    }
-
-    // Mark anonymous session as used
-    await supabase
+    // Update the anonymous usage record
+    const { error: updateError } = await supabase
       .from('anonymous_usage')
-      .update({ 
+      .update({
         used: true,
         completed: true,
         last_completed_step: Math.max(
@@ -85,13 +79,29 @@ export const migrateUserProgress = async (
       })
       .eq('session_id', session_id);
 
-    console.log('[Migration] Successfully migrated data:', data);
-    return data as WizardData;
+    if (updateError) {
+      console.error('[Migration] Error updating anonymous usage:', updateError);
+    }
+
+    // Clean up the migration lock
+    const { error: cleanupError } = await supabase
+      .from('migration_locks')
+      .delete()
+      .eq('user_id', user_id);
+
+    if (cleanupError) {
+      console.error('[Migration] Error cleaning up migration lock:', cleanupError);
+    }
+
+    console.log('[Migration] Migration lock released');
+    return data;
   } catch (error) {
     console.error('[Migration] Error:', error);
-    return null;
-  } finally {
-    isMigrating = false;
-    console.log('[Migration] Migration lock released');
+    // Clean up the migration lock in case of error
+    await supabase
+      .from('migration_locks')
+      .delete()
+      .eq('user_id', user_id);
+    throw error;
   }
 };
