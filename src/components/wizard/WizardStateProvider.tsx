@@ -7,25 +7,27 @@ import { useToast } from "@/hooks/use-toast";
 import { saveWizardState } from "@/utils/versionedSave";
 import { BusinessIdea, TargetAudience, AudienceAnalysis } from "@/types/adWizard";
 
-const WizardStateContext = createContext<ReturnType<typeof useAdWizardState> | undefined>(undefined);
+// Define the context type explicitly to prevent recursion
+type WizardContextType = ReturnType<typeof useAdWizardState>;
+const WizardStateContext = createContext<WizardContextType | undefined>(undefined);
 
-// Simplified type guards with explicit type checks
+// Type guard functions with explicit type checks
 const isBusinessIdea = (data: unknown): data is BusinessIdea => {
   if (!data || typeof data !== 'object') return false;
   const idea = data as Record<string, unknown>;
-  return 'description' in idea && typeof idea.description === 'string';
+  return typeof idea.description === 'string';
 };
 
 const isTargetAudience = (data: unknown): data is TargetAudience => {
   if (!data || typeof data !== 'object') return false;
   const audience = data as Record<string, unknown>;
-  return 'segments' in audience;
+  return Array.isArray(audience.segments);
 };
 
 const isAudienceAnalysis = (data: unknown): data is AudienceAnalysis => {
   if (!data || typeof data !== 'object') return false;
   const analysis = data as Record<string, unknown>;
-  return 'marketDesire' in analysis;
+  return typeof analysis.marketDesire === 'string';
 };
 
 export const useWizardState = () => {
@@ -134,7 +136,6 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
             if (migratedData) {
               console.log('[WizardStateProvider] Migration successful:', migratedData);
               
-              // Type-safe data handling
               if (isBusinessIdea(migratedData.business_idea)) {
                 state.setBusinessIdea(migratedData.business_idea);
               }
@@ -176,7 +177,6 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
       } else if (progress) {
         console.log('[WizardStateProvider] Loading existing progress');
         
-        // Type-safe data handling with validation
         if (isBusinessIdea(progress.business_idea)) {
           state.setBusinessIdea(progress.business_idea);
         }
@@ -327,18 +327,16 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
     };
   }, [state.businessIdea, state.targetAudience, state.audienceAnalysis, state.currentStep]);
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-        <span className="ml-2">Loading wizard...</span>
-      </div>
-    );
-  }
-
   return (
     <WizardStateContext.Provider value={state}>
-      {children}
+      {isLoading ? (
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+          <span className="ml-2">Loading wizard...</span>
+        </div>
+      ) : (
+        children
+      )}
     </WizardStateContext.Provider>
   );
 };
