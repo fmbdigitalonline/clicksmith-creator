@@ -41,7 +41,6 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
   const saveTimeout = useRef<NodeJS.Timeout | null>(null);
   const lastAuthEvent = useRef<string | null>(null);
   const isAuthenticating = useRef(false);
-  const lastKnownStep = useRef<number>(1);
 
   const syncWizardState = async (userId: string | undefined) => {
     if (isAuthenticating.current) {
@@ -64,12 +63,6 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
         if (progress) {
           console.log('[WizardStateProvider] Found existing progress:', progress);
           
-          // Store the highest step number we've seen
-          lastKnownStep.current = Math.max(
-            lastKnownStep.current,
-            progress.current_step || 1
-          );
-          
           if (progress.business_idea && isBusinessIdea(progress.business_idea)) {
             state.setBusinessIdea(progress.business_idea);
           }
@@ -82,38 +75,20 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
           
           setStateVersion(progress.version || 1);
           
-          // Only update step if it's higher than current
-          if (progress.current_step && progress.current_step > state.currentStep) {
-            console.log('[WizardStateProvider] Updating step to:', progress.current_step);
+          if (progress.current_step && progress.current_step > 0) {
             state.setCurrentStep(progress.current_step);
           }
         }
 
-        // Handle anonymous data migration after authentication
         const sessionId = localStorage.getItem('anonymous_session_id');
         if (sessionId) {
-          console.log('[WizardStateProvider] Found anonymous session:', sessionId);
           const { data: anonymousData } = await supabase
             .from('anonymous_usage')
-            .select('wizard_data, last_completed_step')
+            .select('wizard_data')
             .eq('session_id', sessionId)
             .maybeSingle();
 
           if (anonymousData?.wizard_data) {
-            console.log('[WizardStateProvider] Found anonymous data:', anonymousData);
-            // Update step to highest value seen across all sources
-            const targetStep = Math.max(
-              lastKnownStep.current,
-              anonymousData.last_completed_step || 1,
-              state.currentStep
-            );
-
-            console.log('[WizardStateProvider] Target step after merge:', targetStep);
-            if (targetStep > 1) {
-              state.setCurrentStep(targetStep);
-            }
-
-            // Mark anonymous session as used
             await supabase
               .from('anonymous_usage')
               .update({ used: true })
@@ -137,12 +112,10 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  // Handle auth state changes with debounce
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('[WizardStateProvider] Auth state changed:', event);
       
-      // Prevent duplicate INITIAL_SESSION handling
       if (event === 'INITIAL_SESSION' && lastAuthEvent.current === 'INITIAL_SESSION') {
         return;
       }
@@ -152,7 +125,6 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
       if (!hasInitialized.current && session?.user) {
         await syncWizardState(session.user.id);
       } else if (event === 'SIGNED_OUT') {
-        // Reset state on sign out
         state.setBusinessIdea(null);
         state.setTargetAudience(null);
         state.setAudienceAnalysis(null);
@@ -165,7 +137,6 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
     };
   }, [state]);
 
-  // Save state changes with version control
   useEffect(() => {
     const saveProgress = async () => {
       if (isSaving.current || !hasInitialized.current) {
