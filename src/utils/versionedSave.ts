@@ -12,7 +12,7 @@ export const saveWizardState = async (
   console.log('[versionedSave] Starting save with version:', version);
   
   try {
-    // First check if a record exists
+    // First check if a record exists and get its current version
     const { data: existing, error: fetchError } = await supabase
       .from('wizard_progress')
       .select('version')
@@ -23,61 +23,8 @@ export const saveWizardState = async (
       throw fetchError;
     }
 
-    if (existing) {
-      // Update existing record with version check
-      const { data: result, error } = await supabase
-        .from('wizard_progress')
-        .update({
-          ...data,
-          version: version + 1,
-          updated_at: new Date().toISOString()
-        })
-        .eq('user_id', data.user_id)
-        .eq('version', version)
-        .select('version')
-        .maybeSingle();
-
-      if (error) {
-        if (error.message.includes('Concurrent save detected') && retryCount < MAX_RETRIES) {
-          console.log(`[versionedSave] Retry attempt ${retryCount + 1}/${MAX_RETRIES}`);
-          // Exponential backoff
-          await new Promise(resolve => 
-            setTimeout(resolve, RETRY_DELAY * Math.pow(2, retryCount))
-          );
-          
-          // Get latest version before retrying
-          const { data: latest } = await supabase
-            .from('wizard_progress')
-            .select('version')
-            .eq('user_id', data.user_id)
-            .maybeSingle();
-            
-          return saveWizardState(data, latest?.version || version, retryCount + 1);
-        }
-        throw error;
-      }
-
-      if (!result) {
-        // If no result, the version didn't match - get current version and retry
-        const { data: current } = await supabase
-          .from('wizard_progress')
-          .select('version')
-          .eq('user_id', data.user_id)
-          .maybeSingle();
-
-        if (current && retryCount < MAX_RETRIES) {
-          return saveWizardState(data, current.version, retryCount + 1);
-        }
-        
-        throw new Error('Failed to update wizard progress - version mismatch');
-      }
-
-      return {
-        success: true,
-        newVersion: result.version
-      };
-    } else {
-      // Insert new record
+    // If no existing record, create new one
+    if (!existing) {
       const { data: result, error } = await supabase
         .from('wizard_progress')
         .insert({
@@ -99,6 +46,48 @@ export const saveWizardState = async (
         newVersion: 1
       };
     }
+
+    // If version mismatch and under retry limit, wait and retry
+    if (existing.version !== version && retryCount < MAX_RETRIES) {
+      console.log(`[versionedSave] Version mismatch, retrying (${retryCount + 1}/${MAX_RETRIES})`);
+      await new Promise(resolve => 
+        setTimeout(resolve, RETRY_DELAY * Math.pow(2, retryCount))
+      );
+      return saveWizardState(data, existing.version, retryCount + 1);
+    }
+
+    // Update existing record with version check
+    const { data: result, error } = await supabase
+      .from('wizard_progress')
+      .update({
+        ...data,
+        version: version + 1,
+        updated_at: new Date().toISOString()
+      })
+      .eq('user_id', data.user_id)
+      .eq('version', version)
+      .select('version')
+      .maybeSingle();
+
+    if (error) {
+      if (error.message.includes('Concurrent save detected') && retryCount < MAX_RETRIES) {
+        console.log(`[versionedSave] Concurrent save detected, retrying (${retryCount + 1}/${MAX_RETRIES})`);
+        await new Promise(resolve => 
+          setTimeout(resolve, RETRY_DELAY * Math.pow(2, retryCount))
+        );
+        return saveWizardState(data, version, retryCount + 1);
+      }
+      throw error;
+    }
+
+    if (!result) {
+      throw new Error('Failed to update wizard progress - version mismatch');
+    }
+
+    return {
+      success: true,
+      newVersion: result.version
+    };
   } catch (error) {
     console.error('[versionedSave] Error saving wizard state:', error);
     throw error;
