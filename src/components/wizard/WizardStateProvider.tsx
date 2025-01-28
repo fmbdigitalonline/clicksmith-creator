@@ -39,11 +39,18 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
   const isSaving = useRef(false);
   const hasInitialized = useRef(false);
   const saveTimeout = useRef<NodeJS.Timeout | null>(null);
-  const authChangeProcessed = useRef(false);
+  const lastAuthEvent = useRef<string | null>(null);
+  const isAuthenticating = useRef(false);
 
   const syncWizardState = async (userId: string | undefined) => {
+    if (isAuthenticating.current) {
+      console.log('[WizardStateProvider] Sync already in progress, skipping');
+      return;
+    }
+
     try {
       console.log('[WizardStateProvider] Starting to sync wizard state for user:', userId);
+      isAuthenticating.current = true;
       setIsLoading(true);
 
       if (userId) {
@@ -73,6 +80,7 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
           }
         }
 
+        // Clear anonymous data only after successful sync
         const sessionId = localStorage.getItem('anonymous_session_id');
         if (sessionId) {
           await supabase
@@ -92,19 +100,25 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
     } finally {
       setIsLoading(false);
       hasInitialized.current = true;
+      isAuthenticating.current = false;
     }
   };
 
-  // Handle auth state changes
+  // Handle auth state changes with debounce
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('[WizardStateProvider] Auth state changed:', event);
       
-      if (!authChangeProcessed.current && session?.user) {
-        authChangeProcessed.current = true;
+      // Prevent duplicate INITIAL_SESSION handling
+      if (event === 'INITIAL_SESSION' && lastAuthEvent.current === 'INITIAL_SESSION') {
+        return;
+      }
+      
+      lastAuthEvent.current = event;
+      
+      if (!hasInitialized.current && session?.user) {
         await syncWizardState(session.user.id);
       } else if (event === 'SIGNED_OUT') {
-        authChangeProcessed.current = false;
         // Reset state on sign out
         state.setBusinessIdea(null);
         state.setTargetAudience(null);
@@ -118,80 +132,13 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
     };
   }, [state]);
 
-  // Initial sync
-  useEffect(() => {
-    const initializeState = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!hasInitialized.current) {
-        await syncWizardState(user?.id);
-      }
-    };
-
-    initializeState();
-  }, []);
-
-  const queueSave = async (data: Partial<WizardData>) => {
-    if (saveTimeout.current) {
-      clearTimeout(saveTimeout.current);
-    }
-
-    if (isSaving.current) {
-      return;
-    }
-
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
-    isSaving.current = true;
-
-    try {
-      const saveData = {
-        ...data,
-        user_id: user.id,
-        last_save_attempt: new Date().toISOString(),
-        current_step: state.currentStep
-      };
-      
-      const result = await saveWizardState(saveData, stateVersion);
-      
-      if (result.success) {
-        setStateVersion(result.newVersion);
-        
-        const sessionId = localStorage.getItem('anonymous_session_id');
-        if (sessionId) {
-          await supabase
-            .from('anonymous_usage')
-            .update({
-              last_completed_step: state.currentStep,
-              wizard_data: saveData
-            })
-            .eq('session_id', sessionId);
-        }
-      }
-    } catch (error) {
-      console.error('[WizardStateProvider] Error in save queue:', error);
-      toast({
-        title: "Save Error",
-        description: "Failed to save changes. Your progress may be lost.",
-        variant: "destructive",
-      });
-    } finally {
-      isSaving.current = false;
-    }
-  };
-
-  const canNavigateToStep = (step: number): boolean => {
-    switch (step) {
-      case 1: return true;
-      case 2: return !!state.businessIdea;
-      case 3: return !!state.businessIdea && !!state.targetAudience;
-      case 4: return !!state.businessIdea && !!state.targetAudience && !!state.audienceAnalysis;
-      default: return false;
-    }
-  };
-
+  // Save state changes with version control
   useEffect(() => {
     const saveProgress = async () => {
+      if (isSaving.current || !hasInitialized.current) {
+        return;
+      }
+
       const { data: { user } } = await supabase.auth.getUser();
       
       if (user) {
@@ -199,14 +146,25 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
           clearTimeout(saveTimeout.current);
         }
         
-        saveTimeout.current = setTimeout(() => {
-          queueSave({
-            user_id: user.id,
-            business_idea: state.businessIdea,
-            target_audience: state.targetAudience,
-            audience_analysis: state.audienceAnalysis,
-            current_step: state.currentStep
-          });
+        saveTimeout.current = setTimeout(async () => {
+          try {
+            isSaving.current = true;
+            const result = await saveWizardState({
+              user_id: user.id,
+              business_idea: state.businessIdea,
+              target_audience: state.targetAudience,
+              audience_analysis: state.audienceAnalysis,
+              current_step: state.currentStep
+            }, stateVersion);
+            
+            if (result.success) {
+              setStateVersion(result.newVersion);
+            }
+          } catch (error) {
+            console.error('[WizardStateProvider] Save error:', error);
+          } finally {
+            isSaving.current = false;
+          }
         }, 1000);
       }
     };
@@ -218,7 +176,7 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
         clearTimeout(saveTimeout.current);
       }
     };
-  }, [state.businessIdea, state.targetAudience, state.audienceAnalysis, state.currentStep]);
+  }, [state.businessIdea, state.targetAudience, state.audienceAnalysis, state.currentStep, stateVersion]);
 
   if (isLoading) {
     return (
