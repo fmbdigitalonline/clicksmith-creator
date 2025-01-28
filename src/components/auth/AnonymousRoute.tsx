@@ -56,7 +56,9 @@ export const AnonymousRoute = ({ children }: { children: React.ReactNode }) => {
                 generated_ads: [],
                 selected_hooks: [],
                 version: 1,
-                last_save_attempt: new Date().toISOString()
+                last_save_attempt: new Date().toISOString(),
+                ad_format: null,
+                video_ad_preferences: null
               }
             });
 
@@ -90,7 +92,11 @@ export const AnonymousRoute = ({ children }: { children: React.ReactNode }) => {
             .from('anonymous_usage')
             .update({ 
               updated_at: new Date().toISOString(),
-              last_save_attempt: new Date().toISOString()
+              last_save_attempt: new Date().toISOString(),
+              wizard_data: {
+                ...(usage?.wizard_data || {}),
+                last_save_attempt: new Date().toISOString()
+              }
             })
             .eq('session_id', sessionId);
 
