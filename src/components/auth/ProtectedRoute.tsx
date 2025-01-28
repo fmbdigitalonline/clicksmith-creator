@@ -8,6 +8,17 @@ interface ProtectedRouteProps {
   allowAnonymous?: boolean;
 }
 
+interface WizardData {
+  business_idea?: any;
+  target_audience?: any;
+  audience_analysis?: any;
+  current_step?: number;
+  selected_hooks?: any;
+  ad_format?: any;
+  video_ad_preferences?: any;
+  generated_ads?: any;
+}
+
 const ProtectedRoute = ({ children, allowAnonymous = false }: ProtectedRouteProps) => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [anonymousSession, setAnonymousSession] = useState<string | null>(null);
@@ -89,10 +100,10 @@ const ProtectedRoute = ({ children, allowAnonymous = false }: ProtectedRouteProp
                 .single();
 
               if (anonymousData?.wizard_data) {
-                const wizardData = {
+                const wizardData: WizardData = {
                   user_id: session.user.id,
                   current_step: parseInt(currentStep),
-                  ...anonymousData.wizard_data
+                  ...anonymousData.wizard_data as WizardData
                 };
                 
                 await supabase
