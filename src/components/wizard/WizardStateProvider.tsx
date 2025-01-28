@@ -54,14 +54,12 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
       migrationInProgress.current = true;
 
       if (userId) {
-        // First check for existing progress
         const { data: progress } = await supabase
           .from('wizard_progress')
           .select('*')
           .eq('user_id', userId)
           .maybeSingle();
 
-        // Get anonymous session data if it exists
         const sessionId = localStorage.getItem('anonymous_session_id');
         if (sessionId && !progress) {
           console.log('[WizardStateProvider] Found anonymous session:', sessionId);
@@ -158,7 +156,6 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  // Handle auth state changes
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('[WizardStateProvider] Auth state changed:', event);
@@ -173,7 +170,6 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
     };
   }, []);
 
-  // Initial sync
   useEffect(() => {
     const initializeState = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -290,3 +286,5 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
     </WizardStateContext.Provider>
   );
 };
+
+export default WizardStateProvider;

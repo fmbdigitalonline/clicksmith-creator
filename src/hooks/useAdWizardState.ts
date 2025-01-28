@@ -1,56 +1,26 @@
-import { useState } from "react";
-import { AdHook, BusinessIdea, TargetAudience, AudienceAnalysis } from "@/types/adWizard";
-import { useParams } from "react-router-dom";
-import { useWizardProgress } from "./wizard/useWizardProgress";
-import { useWizardHandlers } from "./wizard/useWizardHandlers";
+import { useState, Dispatch, SetStateAction } from 'react';
+import { BusinessIdea, TargetAudience, AudienceAnalysis, AdHook } from '@/types/adWizard';
 
 export const useAdWizardState = () => {
+  const [currentStep, setCurrentStep] = useState(1);
+  const [businessIdea, setBusinessIdea] = useState<BusinessIdea | null>(null);
+  const [targetAudience, setTargetAudience] = useState<TargetAudience | null>(null);
+  const [audienceAnalysis, setAudienceAnalysis] = useState<AudienceAnalysis | null>(null);
   const [selectedHooks, setSelectedHooks] = useState<AdHook[]>([]);
-  const { projectId } = useParams();
-
-  const {
-    currentStep,
-    setCurrentStep,
-    businessIdea,
-    setBusinessIdea,
-    targetAudience,
-    setTargetAudience,
-    audienceAnalysis,
-    setAudienceAnalysis,
-    handleBack,
-    canNavigateToStep
-  } = useWizardProgress();
-
-  const {
-    handleIdeaSubmit,
-    handleAudienceSelect,
-    handleAnalysisComplete,
-    handleStartOver
-  } = useWizardHandlers(
-    setBusinessIdea,
-    setTargetAudience,
-    setAudienceAnalysis,
-    setCurrentStep,
-    projectId
-  );
+  const [generatedAds, setGeneratedAds] = useState<any[]>([]);
 
   return {
     currentStep,
-    businessIdea,
-    targetAudience,
-    audienceAnalysis,
-    selectedHooks,
-    handleIdeaSubmit,
-    handleAudienceSelect,
-    handleAnalysisComplete,
-    handleBack,
-    handleStartOver,
-    canNavigateToStep,
     setCurrentStep,
+    businessIdea,
     setBusinessIdea,
+    targetAudience,
     setTargetAudience,
+    audienceAnalysis,
     setAudienceAnalysis,
+    selectedHooks,
+    setSelectedHooks,
+    generatedAds,
+    setGeneratedAds
   };
 };
-
-export default useAdWizardState;
