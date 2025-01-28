@@ -48,6 +48,13 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
       setIsLoading(true);
 
       if (userId) {
+        // First check for existing progress
+        const { data: progress } = await supabase
+          .from('wizard_progress')
+          .select('*')
+          .eq('user_id', userId)
+          .maybeSingle();
+
         // Get anonymous session data if it exists
         const sessionId = localStorage.getItem('anonymous_session_id');
         if (sessionId) {
@@ -109,6 +116,25 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
               });
             }
           }
+        } else if (progress) {
+          console.log('[WizardStateProvider] Found existing progress:', progress);
+          if (progress.business_idea && isBusinessIdea(progress.business_idea)) {
+            state.setBusinessIdea(progress.business_idea);
+          }
+          if (progress.target_audience && isTargetAudience(progress.target_audience)) {
+            state.setTargetAudience(progress.target_audience);
+          }
+          if (progress.audience_analysis && isAudienceAnalysis(progress.audience_analysis)) {
+            state.setAudienceAnalysis(progress.audience_analysis);
+          }
+          if (progress.current_step) {
+            state.setCurrentStep(progress.current_step);
+            // Navigate to the correct step for existing progress
+            if (progress.current_step > 1 && location.pathname === '/ad-wizard/new') {
+              navigate(`/ad-wizard/step-${progress.current_step}`, { replace: true });
+            }
+          }
+          setStateVersion(progress.version || 1);
         }
       }
     } catch (error) {
