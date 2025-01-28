@@ -5,7 +5,7 @@ import { WizardData } from "@/types/wizardProgress";
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useToast } from "@/hooks/use-toast";
 import { saveWizardState } from "@/utils/versionedSave";
-import { BusinessIdea, TargetAudience, AudienceAnalysis } from "@/types/adWizard";
+import { BusinessIdea, TargetAudience, AudienceAnalysis, AdHook } from "@/types/adWizard";
 
 // Define base types to prevent recursion
 type WizardContextBase = {
@@ -17,6 +17,13 @@ type WizardContextBase = {
   setTargetAudience: (audience: TargetAudience | null) => void;
   audienceAnalysis: AudienceAnalysis | null;
   setAudienceAnalysis: (analysis: AudienceAnalysis | null) => void;
+  selectedHooks: AdHook[];
+  setSelectedHooks: (hooks: AdHook[]) => void;
+  handleIdeaSubmit: (idea: BusinessIdea) => void;
+  handleAudienceSelect: (audience: TargetAudience) => void;
+  handleAnalysisComplete: (analysis: AudienceAnalysis) => void;
+  handleBack: () => void;
+  handleStartOver: () => void;
   canNavigateToStep: (step: number) => boolean;
 };
 
