@@ -41,115 +41,161 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
   const hasInitialized = useRef(false);
   const saveTimeout = useRef<NodeJS.Timeout | null>(null);
   const migrationInProgress = useRef(false);
+  const migrationLockId = useRef<string | null>(null);
+
+  const acquireMigrationLock = async (userId: string): Promise<boolean> => {
+    try {
+      const lockId = crypto.randomUUID();
+      const { data, error } = await supabase
+        .from('migration_locks')
+        .insert({
+          user_id: userId,
+          lock_type: 'wizard_migration',
+          expires_at: new Date(Date.now() + 30000).toISOString(),
+          metadata: { lockId }
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('[WizardStateProvider] Lock acquisition failed:', error);
+        return false;
+      }
+
+      migrationLockId.current = lockId;
+      return true;
+    } catch (error) {
+      console.error('[WizardStateProvider] Lock error:', error);
+      return false;
+    }
+  };
+
+  const releaseMigrationLock = async (userId: string) => {
+    if (migrationLockId.current) {
+      try {
+        await supabase
+          .from('migration_locks')
+          .delete()
+          .eq('user_id', userId)
+          .eq('metadata->lockId', migrationLockId.current);
+      } catch (error) {
+        console.error('[WizardStateProvider] Lock release error:', error);
+      }
+      migrationLockId.current = null;
+    }
+  };
 
   const syncWizardState = async (userId: string | undefined) => {
-    if (migrationInProgress.current) {
-      console.log('[WizardStateProvider] Migration already in progress, skipping');
+    if (!userId || migrationInProgress.current) {
+      console.log('[WizardStateProvider] Skipping sync - no user or migration in progress');
       return;
     }
 
     try {
-      console.log('[WizardStateProvider] Starting to sync wizard state for user:', userId);
+      console.log('[WizardStateProvider] Starting sync for user:', userId);
       setIsLoading(true);
       migrationInProgress.current = true;
 
-      if (userId) {
-        const { data: progress } = await supabase
-          .from('wizard_progress')
-          .select('*')
-          .eq('user_id', userId)
+      const hasLock = await acquireMigrationLock(userId);
+      if (!hasLock) {
+        console.log('[WizardStateProvider] Could not acquire migration lock');
+        return;
+      }
+
+      const sessionId = localStorage.getItem('anonymous_session_id');
+      const { data: progress } = await supabase
+        .from('wizard_progress')
+        .select('*')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (sessionId && !progress) {
+        console.log('[WizardStateProvider] Found anonymous session:', sessionId);
+        const { data: anonymousData } = await supabase
+          .from('anonymous_usage')
+          .select('wizard_data, last_completed_step')
+          .eq('session_id', sessionId)
           .maybeSingle();
 
-        const sessionId = localStorage.getItem('anonymous_session_id');
-        if (sessionId && !progress) {
-          console.log('[WizardStateProvider] Found anonymous session:', sessionId);
-          const { data: anonymousData } = await supabase
-            .from('anonymous_usage')
-            .select('wizard_data, last_completed_step')
-            .eq('session_id', sessionId)
-            .maybeSingle();
+        if (anonymousData?.wizard_data) {
+          try {
+            const { data: migratedData } = await supabase
+              .rpc('atomic_migration', { 
+                p_user_id: userId, 
+                p_session_id: sessionId 
+              });
 
-          if (anonymousData?.wizard_data) {
-            console.log('[WizardStateProvider] Found anonymous data:', anonymousData);
-            try {
-              const { data: migratedData } = await supabase
-                .rpc('atomic_migration', { 
-                  p_user_id: userId, 
-                  p_session_id: sessionId 
-                });
-
-              if (migratedData) {
-                console.log('[WizardStateProvider] Successfully migrated data:', migratedData);
-                
-                if (migratedData.business_idea && isBusinessIdea(migratedData.business_idea)) {
-                  state.setBusinessIdea(migratedData.business_idea);
-                }
-                if (migratedData.target_audience && isTargetAudience(migratedData.target_audience)) {
-                  state.setTargetAudience(migratedData.target_audience);
-                }
-                if (migratedData.audience_analysis && isAudienceAnalysis(migratedData.audience_analysis)) {
-                  state.setAudienceAnalysis(migratedData.audience_analysis);
-                }
-                if (Array.isArray(migratedData.generated_ads)) {
-                  state.setGeneratedAds(migratedData.generated_ads);
-                }
-                
-                const targetStep = Math.max(
-                  migratedData.current_step || 1,
-                  anonymousData.last_completed_step || 1
-                );
-                
-                state.setCurrentStep(targetStep);
-                setStateVersion(migratedData.version || 1);
-                
-                if (targetStep > 1) {
-                  navigate(`/ad-wizard/step-${targetStep}`, { replace: true });
-                }
-                
-                localStorage.removeItem('anonymous_session_id');
-                
-                toast({
-                  title: "Progress Restored",
-                  description: "Your previous work has been saved to your account.",
-                });
+            if (migratedData) {
+              console.log('[WizardStateProvider] Migration successful:', migratedData);
+              
+              if (migratedData.business_idea && isBusinessIdea(migratedData.business_idea)) {
+                state.setBusinessIdea(migratedData.business_idea);
               }
-            } catch (error) {
-              console.error('[WizardStateProvider] Migration error:', error);
+              if (migratedData.target_audience && isTargetAudience(migratedData.target_audience)) {
+                state.setTargetAudience(migratedData.target_audience);
+              }
+              if (migratedData.audience_analysis && isAudienceAnalysis(migratedData.audience_analysis)) {
+                state.setAudienceAnalysis(migratedData.audience_analysis);
+              }
+              
+              const targetStep = Math.max(
+                migratedData.current_step || 1,
+                anonymousData.last_completed_step || 1
+              );
+              
+              state.setCurrentStep(targetStep);
+              setStateVersion(migratedData.version || 1);
+              
+              if (targetStep > 1 && location.pathname === '/ad-wizard/new') {
+                navigate(`/ad-wizard/step-${targetStep}`, { replace: true });
+              }
+              
+              localStorage.removeItem('anonymous_session_id');
+              
               toast({
-                title: "Error Restoring Progress",
-                description: "There was an error restoring your previous work.",
-                variant: "destructive",
+                title: "Progress Restored",
+                description: "Your previous work has been saved to your account.",
               });
             }
+          } catch (error) {
+            console.error('[WizardStateProvider] Migration error:', error);
+            toast({
+              title: "Error Restoring Progress",
+              description: "There was an error restoring your previous work.",
+              variant: "destructive",
+            });
           }
-        } else if (progress) {
-          console.log('[WizardStateProvider] Found existing progress:', progress);
-          if (progress.business_idea && isBusinessIdea(progress.business_idea)) {
-            state.setBusinessIdea(progress.business_idea);
-          }
-          if (progress.target_audience && isTargetAudience(progress.target_audience)) {
-            state.setTargetAudience(progress.target_audience);
-          }
-          if (progress.audience_analysis && isAudienceAnalysis(progress.audience_analysis)) {
-            state.setAudienceAnalysis(progress.audience_analysis);
-          }
-          if (progress.current_step) {
-            state.setCurrentStep(progress.current_step);
-            if (progress.current_step > 1 && location.pathname === '/ad-wizard/new') {
-              navigate(`/ad-wizard/step-${progress.current_step}`, { replace: true });
-            }
-          }
-          setStateVersion(progress.version || 1);
         }
+      } else if (progress) {
+        console.log('[WizardStateProvider] Loading existing progress');
+        if (progress.business_idea && isBusinessIdea(progress.business_idea)) {
+          state.setBusinessIdea(progress.business_idea);
+        }
+        if (progress.target_audience && isTargetAudience(progress.target_audience)) {
+          state.setTargetAudience(progress.target_audience);
+        }
+        if (progress.audience_analysis && isAudienceAnalysis(progress.audience_analysis)) {
+          state.setAudienceAnalysis(progress.audience_analysis);
+        }
+        if (progress.current_step) {
+          state.setCurrentStep(progress.current_step);
+          if (progress.current_step > 1 && location.pathname === '/ad-wizard/new') {
+            navigate(`/ad-wizard/step-${progress.current_step}`, { replace: true });
+          }
+        }
+        setStateVersion(progress.version || 1);
       }
     } catch (error) {
-      console.error('[WizardStateProvider] Error syncing state:', error);
+      console.error('[WizardStateProvider] Sync error:', error);
       toast({
         title: "Error Loading Progress",
         description: "There was an error loading your progress.",
         variant: "destructive",
       });
     } finally {
+      if (userId) {
+        await releaseMigrationLock(userId);
+      }
       setIsLoading(false);
       hasInitialized.current = true;
       migrationInProgress.current = false;
