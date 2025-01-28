@@ -10,16 +10,16 @@ import { Json } from '@/integrations/supabase/types';
 
 const WizardStateContext = createContext<ReturnType<typeof useAdWizardState> | undefined>(undefined);
 
-// Type guard functions moved outside component to prevent recursion
-const isBusinessIdea = (data: Json | null): data is BusinessIdea => {
+// Type guard functions moved outside component and simplified
+const isBusinessIdea = (data: unknown): data is BusinessIdea => {
   return data !== null && typeof data === 'object' && 'description' in data;
 };
 
-const isTargetAudience = (data: Json | null): data is TargetAudience => {
+const isTargetAudience = (data: unknown): data is TargetAudience => {
   return data !== null && typeof data === 'object' && 'segments' in data;
 };
 
-const isAudienceAnalysis = (data: Json | null): data is AudienceAnalysis => {
+const isAudienceAnalysis = (data: unknown): data is AudienceAnalysis => {
   return data !== null && typeof data === 'object' && 'marketDesire' in data;
 };
 
@@ -129,18 +129,15 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
             if (migratedData) {
               console.log('[WizardStateProvider] Migration successful:', migratedData);
               
-              const businessIdea = migratedData.business_idea as Json;
-              const targetAudience = migratedData.target_audience as Json;
-              const audienceAnalysis = migratedData.audience_analysis as Json;
-              
-              if (isBusinessIdea(businessIdea)) {
-                state.setBusinessIdea(businessIdea);
+              // Safe type assertions with validation
+              if (isBusinessIdea(migratedData.business_idea)) {
+                state.setBusinessIdea(migratedData.business_idea);
               }
-              if (isTargetAudience(targetAudience)) {
-                state.setTargetAudience(targetAudience);
+              if (isTargetAudience(migratedData.target_audience)) {
+                state.setTargetAudience(migratedData.target_audience);
               }
-              if (isAudienceAnalysis(audienceAnalysis)) {
-                state.setAudienceAnalysis(audienceAnalysis);
+              if (isAudienceAnalysis(migratedData.audience_analysis)) {
+                state.setAudienceAnalysis(migratedData.audience_analysis);
               }
               
               const targetStep = Math.max(
@@ -173,19 +170,18 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
         }
       } else if (progress) {
         console.log('[WizardStateProvider] Loading existing progress');
-        const businessIdea = progress.business_idea as Json;
-        const targetAudience = progress.target_audience as Json;
-        const audienceAnalysis = progress.audience_analysis as Json;
         
-        if (isBusinessIdea(businessIdea)) {
-          state.setBusinessIdea(businessIdea);
+        // Safe type assertions with validation
+        if (isBusinessIdea(progress.business_idea)) {
+          state.setBusinessIdea(progress.business_idea);
         }
-        if (isTargetAudience(targetAudience)) {
-          state.setTargetAudience(targetAudience);
+        if (isTargetAudience(progress.target_audience)) {
+          state.setTargetAudience(progress.target_audience);
         }
-        if (isAudienceAnalysis(audienceAnalysis)) {
-          state.setAudienceAnalysis(audienceAnalysis);
+        if (isAudienceAnalysis(progress.audience_analysis)) {
+          state.setAudienceAnalysis(progress.audience_analysis);
         }
+        
         if (progress.current_step) {
           state.setCurrentStep(progress.current_step);
           if (progress.current_step > 1 && location.pathname === '/ad-wizard/new') {
