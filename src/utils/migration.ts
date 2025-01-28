@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { WizardData } from "@/types/wizardProgress";
+import { Json } from "@/integrations/supabase/types";
 
 const calculateHighestStep = (data: any): number => {
   let step = 1;
@@ -96,10 +97,18 @@ export const migrateUserProgress = async (
 
     console.log('[Migration] Migration lock released');
     
-    // Convert the data to match WizardData type
+    // Convert the data to match WizardData type with proper type handling
     const wizardData: WizardData = {
       ...data,
-      generated_ads: Array.isArray(data.generated_ads) ? data.generated_ads : []
+      generated_ads: Array.isArray(data.generated_ads) ? data.generated_ads : [],
+      selected_hooks: Array.isArray(data.selected_hooks) ? data.selected_hooks : [],
+      business_idea: data.business_idea || null,
+      target_audience: data.target_audience || null,
+      audience_analysis: data.audience_analysis || null,
+      ad_format: data.ad_format || null,
+      video_ad_preferences: data.video_ad_preferences || null,
+      current_step: data.current_step || 1,
+      version: data.version || 1
     };
 
     return wizardData;
