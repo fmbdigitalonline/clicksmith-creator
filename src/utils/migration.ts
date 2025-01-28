@@ -101,7 +101,9 @@ export const migrateUserProgress = async (
     const wizardData: WizardData = {
       ...data,
       generated_ads: Array.isArray(data.generated_ads) ? data.generated_ads : [],
-      selected_hooks: Array.isArray(data.selected_hooks) ? data.selected_hooks : [],
+      selected_hooks: Array.isArray(data.selected_hooks) 
+        ? data.selected_hooks.map((hook: Json) => typeof hook === 'object' ? hook : {})
+        : [],
       business_idea: data.business_idea || null,
       target_audience: data.target_audience || null,
       audience_analysis: data.audience_analysis || null,
