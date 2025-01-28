@@ -79,7 +79,6 @@ const ProtectedRoute = ({ children, allowAnonymous = false }: ProtectedRouteProp
       if (event === 'SIGNED_IN') {
         const currentStep = location.pathname.match(/step-(\d+)/)?.[1];
         if (currentStep) {
-          // Preserve wizard progress after sign in
           const sessionId = localStorage.getItem('anonymous_session_id');
           if (sessionId) {
             try {
@@ -90,17 +89,20 @@ const ProtectedRoute = ({ children, allowAnonymous = false }: ProtectedRouteProp
                 .single();
 
               if (anonymousData?.wizard_data) {
-                await supabase.from('wizard_progress').upsert({
+                const wizardData = {
                   user_id: session.user.id,
-                  ...anonymousData.wizard_data,
-                  current_step: parseInt(currentStep)
-                });
+                  current_step: parseInt(currentStep),
+                  ...anonymousData.wizard_data
+                };
+                
+                await supabase
+                  .from('wizard_progress')
+                  .upsert(wizardData);
               }
             } catch (error) {
               console.error('[ProtectedRoute] Error migrating wizard data:', error);
             }
           }
-          return;
         }
       }
       
