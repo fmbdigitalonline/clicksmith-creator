@@ -58,12 +58,11 @@ export const migrateUserProgress = async (
     // Calculate the highest possible step based on available data
     const calculatedStep = calculateHighestStep(anonymousData.wizard_data);
     
-    // Use atomic migration with the calculated step
+    // Use atomic migration with existing parameters
     const { data, error } = await supabase
       .rpc('atomic_migration', { 
         p_user_id: user_id, 
-        p_session_id: session_id,
-        p_calculated_step: calculatedStep
+        p_session_id: session_id
       });
 
     if (error) {
@@ -74,6 +73,14 @@ export const migrateUserProgress = async (
     if (!data) {
       console.log('[Migration] No data to migrate');
       return null;
+    }
+
+    // Update the current_step after migration if needed
+    if (calculatedStep > (data.current_step || 1)) {
+      await supabase
+        .from('wizard_progress')
+        .update({ current_step: calculatedStep })
+        .eq('user_id', user_id);
     }
 
     // Mark anonymous session as used
