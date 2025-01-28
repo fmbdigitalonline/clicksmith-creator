@@ -28,13 +28,14 @@ export const migrateUserProgress = async (
       return null;
     }
 
-    // Create a migration lock
+    // Create a migration lock with proper date format
     const { error: lockError } = await supabase
       .from('migration_locks')
       .insert({
         user_id,
         lock_type: 'wizard_migration',
-        expires_at: new Date(Date.now() + 5 * 60 * 1000) // 5 minutes
+        expires_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+        metadata: {}
       });
 
     if (lockError) {
@@ -94,7 +95,14 @@ export const migrateUserProgress = async (
     }
 
     console.log('[Migration] Migration lock released');
-    return data;
+    
+    // Convert the data to match WizardData type
+    const wizardData: WizardData = {
+      ...data,
+      generated_ads: Array.isArray(data.generated_ads) ? data.generated_ads : []
+    };
+
+    return wizardData;
   } catch (error) {
     console.error('[Migration] Error:', error);
     // Clean up the migration lock in case of error
