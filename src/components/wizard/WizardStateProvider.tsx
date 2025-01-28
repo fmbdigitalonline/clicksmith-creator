@@ -40,12 +40,18 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
   const isSaving = useRef(false);
   const hasInitialized = useRef(false);
   const saveTimeout = useRef<NodeJS.Timeout | null>(null);
-  const authChangeProcessed = useRef(false);
+  const migrationInProgress = useRef(false);
 
   const syncWizardState = async (userId: string | undefined) => {
+    if (migrationInProgress.current) {
+      console.log('[WizardStateProvider] Migration already in progress, skipping');
+      return;
+    }
+
     try {
       console.log('[WizardStateProvider] Starting to sync wizard state for user:', userId);
       setIsLoading(true);
+      migrationInProgress.current = true;
 
       if (userId) {
         // First check for existing progress
@@ -57,7 +63,7 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
 
         // Get anonymous session data if it exists
         const sessionId = localStorage.getItem('anonymous_session_id');
-        if (sessionId) {
+        if (sessionId && !progress) {
           console.log('[WizardStateProvider] Found anonymous session:', sessionId);
           const { data: anonymousData } = await supabase
             .from('anonymous_usage')
@@ -95,7 +101,6 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
                 state.setCurrentStep(targetStep);
                 setStateVersion(migratedData.version || 1);
                 
-                // Important: Navigate to the correct step after migration
                 if (targetStep > 1) {
                   navigate(`/ad-wizard/step-${targetStep}`, { replace: true });
                 }
@@ -129,7 +134,6 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
           }
           if (progress.current_step) {
             state.setCurrentStep(progress.current_step);
-            // Navigate to the correct step for existing progress
             if (progress.current_step > 1 && location.pathname === '/ad-wizard/new') {
               navigate(`/ad-wizard/step-${progress.current_step}`, { replace: true });
             }
@@ -147,6 +151,7 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
     } finally {
       setIsLoading(false);
       hasInitialized.current = true;
+      migrationInProgress.current = false;
     }
   };
 
@@ -155,8 +160,7 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('[WizardStateProvider] Auth state changed:', event);
       
-      if (!authChangeProcessed.current && session?.user) {
-        authChangeProcessed.current = true;
+      if (session?.user && !hasInitialized.current) {
         await syncWizardState(session.user.id);
       }
     });
