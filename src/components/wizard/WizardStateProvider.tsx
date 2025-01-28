@@ -5,8 +5,22 @@ import { WizardData } from "@/types/wizardProgress";
 import { useLocation } from 'react-router-dom';
 import { useToast } from "@/hooks/use-toast";
 import { saveWizardState } from "@/utils/versionedSave";
+import { BusinessIdea, TargetAudience, AudienceAnalysis } from "@/types/adWizard";
+import { Json } from '@/integrations/supabase/types';
 
 const WizardStateContext = createContext<ReturnType<typeof useAdWizardState> | undefined>(undefined);
+
+const isBusinessIdea = (data: Json): data is BusinessIdea => {
+  return typeof data === 'object' && data !== null && 'description' in data;
+};
+
+const isTargetAudience = (data: Json): data is TargetAudience => {
+  return typeof data === 'object' && data !== null && 'segments' in data;
+};
+
+const isAudienceAnalysis = (data: Json): data is AudienceAnalysis => {
+  return typeof data === 'object' && data !== null && 'marketDesire' in data;
+};
 
 export const useWizardState = () => {
   const context = useContext(WizardStateContext);
@@ -42,19 +56,23 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
         if (progress) {
           console.log('[WizardStateProvider] Found existing progress:', progress);
           
-          if (progress.business_idea) state.setBusinessIdea(progress.business_idea);
-          if (progress.target_audience) state.setTargetAudience(progress.target_audience);
-          if (progress.audience_analysis) state.setAudienceAnalysis(progress.audience_analysis);
+          if (progress.business_idea && isBusinessIdea(progress.business_idea)) {
+            state.setBusinessIdea(progress.business_idea);
+          }
+          if (progress.target_audience && isTargetAudience(progress.target_audience)) {
+            state.setTargetAudience(progress.target_audience);
+          }
+          if (progress.audience_analysis && isAudienceAnalysis(progress.audience_analysis)) {
+            state.setAudienceAnalysis(progress.audience_analysis);
+          }
           
           setStateVersion(progress.version || 1);
           
-          // Only update step if it's greater than current
           if (progress.current_step && progress.current_step > state.currentStep) {
             state.setCurrentStep(progress.current_step);
           }
         }
 
-        // Clear anonymous data after successful sync
         const sessionId = localStorage.getItem('anonymous_session_id');
         if (sessionId) {
           await supabase

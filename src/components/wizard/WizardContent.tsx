@@ -12,6 +12,20 @@ import WizardSteps from "./WizardSteps";
 import CreateProjectDialog from "../projects/CreateProjectDialog";
 import { Button } from "../ui/button";
 import { Save } from "lucide-react";
+import { BusinessIdea, TargetAudience, AudienceAnalysis } from "@/types/adWizard";
+import { Json } from "@/integrations/supabase/types";
+
+const isBusinessIdea = (data: Json): data is BusinessIdea => {
+  return typeof data === 'object' && data !== null && 'description' in data;
+};
+
+const isTargetAudience = (data: Json): data is TargetAudience => {
+  return typeof data === 'object' && data !== null && 'segments' in data;
+};
+
+const isAudienceAnalysis = (data: Json): data is AudienceAnalysis => {
+  return typeof data === 'object' && data !== null && 'marketDesire' in data;
+};
 
 const WizardContent = () => {
   const [showCreateProject, setShowCreateProject] = useState(false);
@@ -62,18 +76,17 @@ const WizardContent = () => {
               currentUrlStep || 1
             );
             
-            if (anonymousData.business_idea || existingProgress.business_idea) {
-              setBusinessIdea(anonymousData.business_idea || existingProgress.business_idea);
+            if (anonymousData.business_idea && isBusinessIdea(anonymousData.business_idea)) {
+              setBusinessIdea(anonymousData.business_idea);
             }
-            if (anonymousData.target_audience || existingProgress.target_audience) {
-              setTargetAudience(anonymousData.target_audience || existingProgress.target_audience);
+            if (anonymousData.target_audience && isTargetAudience(anonymousData.target_audience)) {
+              setTargetAudience(anonymousData.target_audience);
             }
-            if (anonymousData.audience_analysis || existingProgress.audience_analysis) {
-              setAudienceAnalysis(anonymousData.audience_analysis || existingProgress.audience_analysis);
+            if (anonymousData.audience_analysis && isAudienceAnalysis(anonymousData.audience_analysis)) {
+              setAudienceAnalysis(anonymousData.audience_analysis);
             }
-            if (anonymousData.generated_ads || existingProgress.generated_ads) {
-              const mergedAds = [...(existingProgress.generated_ads || []), ...(anonymousData.generated_ads || [])];
-              setGeneratedAds(mergedAds);
+            if (Array.isArray(anonymousData.generated_ads)) {
+              setGeneratedAds(anonymousData.generated_ads);
             }
             
             if (targetStep > 1 && canNavigateToStep(targetStep)) {
