@@ -92,8 +92,9 @@ export const AnonymousRoute = ({ children }: { children: React.ReactNode }) => {
         }
 
         if (!usage || !usage.used) {
+          const existingData = usage?.wizard_data as Json || {};
           const wizardData: Json = {
-            ...(usage?.wizard_data as Json || {}),
+            ...existingData,
             last_save_attempt: new Date().toISOString()
           };
 
