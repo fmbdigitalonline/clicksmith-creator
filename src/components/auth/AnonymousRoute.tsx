@@ -43,6 +43,7 @@ export const AnonymousRoute = ({ children }: { children: React.ReactNode }) => {
           localStorage.setItem('anonymous_session_id', sessionId);
           console.log('[AnonymousRoute] Created new anonymous session:', sessionId);
           
+          // Initialize anonymous usage with empty wizard data
           const { error: initError } = await supabase
             .from('anonymous_usage')
             .insert({
@@ -53,7 +54,9 @@ export const AnonymousRoute = ({ children }: { children: React.ReactNode }) => {
                 business_idea: null,
                 target_audience: null,
                 audience_analysis: null,
-                generated_ads: []
+                generated_ads: [],
+                version: 1,
+                last_save_attempt: new Date().toISOString()
               }
             });
 
@@ -67,9 +70,10 @@ export const AnonymousRoute = ({ children }: { children: React.ReactNode }) => {
           }
         }
 
+        // Check if this anonymous session has been used
         const { data: usage, error: usageError } = await supabase
           .from('anonymous_usage')
-          .select('used, wizard_data')
+          .select('used, wizard_data, last_completed_step')
           .eq('session_id', sessionId)
           .maybeSingle();
 
@@ -83,6 +87,19 @@ export const AnonymousRoute = ({ children }: { children: React.ReactNode }) => {
         }
 
         if (!usage || !usage.used) {
+          // Update last access time
+          const { error: updateError } = await supabase
+            .from('anonymous_usage')
+            .update({ 
+              updated_at: new Date().toISOString(),
+              last_save_attempt: new Date().toISOString()
+            })
+            .eq('session_id', sessionId);
+
+          if (updateError) {
+            console.error('[AnonymousRoute] Error updating usage:', updateError);
+          }
+
           if (mounted) {
             setCanAccess(true);
             setIsLoading(false);
