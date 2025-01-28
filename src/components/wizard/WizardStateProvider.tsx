@@ -75,27 +75,19 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
           
           setStateVersion(progress.version || 1);
           
-          if (progress.current_step && progress.current_step > 0) {
+          if (progress.current_step && progress.current_step > state.currentStep) {
             state.setCurrentStep(progress.current_step);
           }
         }
 
+        // Clear anonymous data only after successful sync
         const sessionId = localStorage.getItem('anonymous_session_id');
         if (sessionId) {
-          const { data: anonymousData } = await supabase
+          await supabase
             .from('anonymous_usage')
-            .select('wizard_data')
-            .eq('session_id', sessionId)
-            .maybeSingle();
-
-          if (anonymousData?.wizard_data) {
-            await supabase
-              .from('anonymous_usage')
-              .update({ used: true })
-              .eq('session_id', sessionId);
-
-            localStorage.removeItem('anonymous_session_id');
-          }
+            .update({ used: true })
+            .eq('session_id', sessionId);
+          localStorage.removeItem('anonymous_session_id');
         }
       }
     } catch (error) {
@@ -112,10 +104,12 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  // Handle auth state changes with debounce
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('[WizardStateProvider] Auth state changed:', event);
       
+      // Prevent duplicate INITIAL_SESSION handling
       if (event === 'INITIAL_SESSION' && lastAuthEvent.current === 'INITIAL_SESSION') {
         return;
       }
@@ -125,6 +119,7 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
       if (!hasInitialized.current && session?.user) {
         await syncWizardState(session.user.id);
       } else if (event === 'SIGNED_OUT') {
+        // Reset state on sign out
         state.setBusinessIdea(null);
         state.setTargetAudience(null);
         state.setAudienceAnalysis(null);
@@ -137,6 +132,7 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
     };
   }, [state]);
 
+  // Save state changes with version control
   useEffect(() => {
     const saveProgress = async () => {
       if (isSaving.current || !hasInitialized.current) {
