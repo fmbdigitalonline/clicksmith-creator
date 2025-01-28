@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
+import { Json } from "@/integrations/supabase/types";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -21,6 +22,17 @@ interface WizardData {
   generated_ads?: any;
   version?: number;
   is_migration?: boolean;
+}
+
+interface AnonymousWizardData {
+  business_idea?: Json;
+  target_audience?: Json;
+  audience_analysis?: Json;
+  selected_hooks?: Json;
+  ad_format?: Json;
+  video_ad_preferences?: Json;
+  generated_ads?: Json;
+  current_step?: number;
 }
 
 const ProtectedRoute = ({ children, allowAnonymous = false }: ProtectedRouteProps) => {
@@ -103,17 +115,17 @@ const ProtectedRoute = ({ children, allowAnonymous = false }: ProtectedRouteProp
                 .eq('session_id', sessionId)
                 .single();
 
-              if (anonymousData?.wizard_data && typeof anonymousData.wizard_data === 'object') {
+              if (anonymousData?.wizard_data && typeof anonymousData.wizard_data === 'object' && !Array.isArray(anonymousData.wizard_data)) {
                 const wizardData: WizardData = {
                   user_id: session.user.id,
                   current_step: parseInt(currentStep),
-                  business_idea: anonymousData.wizard_data?.business_idea,
-                  target_audience: anonymousData.wizard_data?.target_audience,
-                  audience_analysis: anonymousData.wizard_data?.audience_analysis,
-                  selected_hooks: anonymousData.wizard_data?.selected_hooks,
-                  ad_format: anonymousData.wizard_data?.ad_format,
-                  video_ad_preferences: anonymousData.wizard_data?.video_ad_preferences,
-                  generated_ads: anonymousData.wizard_data?.generated_ads,
+                  business_idea: (anonymousData.wizard_data as AnonymousWizardData).business_idea,
+                  target_audience: (anonymousData.wizard_data as AnonymousWizardData).target_audience,
+                  audience_analysis: (anonymousData.wizard_data as AnonymousWizardData).audience_analysis,
+                  selected_hooks: (anonymousData.wizard_data as AnonymousWizardData).selected_hooks,
+                  ad_format: (anonymousData.wizard_data as AnonymousWizardData).ad_format,
+                  video_ad_preferences: (anonymousData.wizard_data as AnonymousWizardData).video_ad_preferences,
+                  generated_ads: (anonymousData.wizard_data as AnonymousWizardData).generated_ads,
                   version: 1,
                   is_migration: true
                 };
