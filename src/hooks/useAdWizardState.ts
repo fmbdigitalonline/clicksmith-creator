@@ -1,13 +1,39 @@
-import { useState, Dispatch, SetStateAction } from 'react';
+import { useState } from 'react';
 import { BusinessIdea, TargetAudience, AudienceAnalysis, AdHook } from '@/types/adWizard';
+import { useParams } from "react-router-dom";
+import { useWizardProgress } from "./wizard/useWizardProgress";
+import { useWizardHandlers } from "./wizard/useWizardHandlers";
 
 export const useAdWizardState = () => {
-  const [currentStep, setCurrentStep] = useState(1);
-  const [businessIdea, setBusinessIdea] = useState<BusinessIdea | null>(null);
-  const [targetAudience, setTargetAudience] = useState<TargetAudience | null>(null);
-  const [audienceAnalysis, setAudienceAnalysis] = useState<AudienceAnalysis | null>(null);
   const [selectedHooks, setSelectedHooks] = useState<AdHook[]>([]);
   const [generatedAds, setGeneratedAds] = useState<any[]>([]);
+  const { projectId } = useParams();
+
+  const {
+    currentStep,
+    setCurrentStep,
+    businessIdea,
+    setBusinessIdea,
+    targetAudience,
+    setTargetAudience,
+    audienceAnalysis,
+    setAudienceAnalysis,
+    handleBack,
+    canNavigateToStep
+  } = useWizardProgress();
+
+  const {
+    handleIdeaSubmit,
+    handleAudienceSelect,
+    handleAnalysisComplete,
+    handleStartOver
+  } = useWizardHandlers(
+    setBusinessIdea,
+    setTargetAudience,
+    setAudienceAnalysis,
+    setCurrentStep,
+    projectId
+  );
 
   return {
     currentStep,
@@ -21,6 +47,14 @@ export const useAdWizardState = () => {
     selectedHooks,
     setSelectedHooks,
     generatedAds,
-    setGeneratedAds
+    setGeneratedAds,
+    handleIdeaSubmit,
+    handleAudienceSelect,
+    handleAnalysisComplete,
+    handleBack,
+    handleStartOver,
+    canNavigateToStep
   };
 };
+
+export default useAdWizardState;
