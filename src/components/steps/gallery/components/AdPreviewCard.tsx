@@ -1,12 +1,18 @@
 import { useState } from "react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Download, Save } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useParams } from "react-router-dom";
-import { Card, CardContent } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import MediaPreview from "./MediaPreview";
-import AdDetails from "./AdDetails";
-import DownloadControls from "./DownloadControls";
-import { AdFeedbackControls } from "./AdFeedbackControls";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { convertImage } from "@/utils/imageUtils";
 
 interface AdPreviewCardProps {
@@ -37,7 +43,6 @@ const AdPreviewCard = ({ variant, onCreateProject, isVideo = false, selectedForm
   const [isSaving, setSaving] = useState(false);
   const { toast } = useToast();
   const { projectId } = useParams();
-
   const format = selectedFormat || variant.size;
 
   const getImageUrl = () => {
@@ -100,13 +105,11 @@ const AdPreviewCard = ({ variant, onCreateProject, isVideo = false, selectedForm
         throw new Error('User must be logged in to save ad');
       }
 
-      // Check if projectId is "new" and handle accordingly
       if (projectId === "new" && onCreateProject) {
         onCreateProject();
         return;
       }
 
-      // Validate UUID format if projectId exists and isn't "new"
       const isValidUUID = projectId && 
                          /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(projectId);
 
@@ -153,7 +156,7 @@ const AdPreviewCard = ({ variant, onCreateProject, isVideo = false, selectedForm
         {/* Image Preview - Second */}
         <div 
           style={{ 
-            aspectRatio: `${format.width} / ${format.height}`,
+            aspectRatio: `${format.width}/${format.height}`,
             maxHeight: '600px',
             transition: 'aspect-ratio 0.3s ease-in-out'
           }} 
@@ -167,7 +170,7 @@ const AdPreviewCard = ({ variant, onCreateProject, isVideo = false, selectedForm
         </div>
 
         <CardContent className="p-4 space-y-4">
-          {/* Headline Section - Third */}
+          {/* Headline Section */}
           <div className="space-y-2">
             <p className="text-sm font-medium text-gray-600">Headline:</p>
             <h3 className="text-lg font-semibold text-facebook">
@@ -175,20 +178,50 @@ const AdPreviewCard = ({ variant, onCreateProject, isVideo = false, selectedForm
             </h3>
           </div>
 
-          {/* Download Controls - Fourth */}
-          <DownloadControls
-            downloadFormat={downloadFormat}
-            onFormatChange={(value) => setDownloadFormat(value as "jpg" | "png" | "pdf" | "docx")}
-            onSave={handleSave}
-            onDownload={handleDownload}
-            isSaving={isSaving}
-          />
+          {/* Download Controls */}
+          <div className="space-y-2">
+            <div className="flex gap-2">
+              <Select
+                value={downloadFormat}
+                onValueChange={(value) => setDownloadFormat(value as "jpg" | "png" | "pdf" | "docx")}
+              >
+                <SelectTrigger className="w-24">
+                  <SelectValue placeholder="Format" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="jpg">JPG</SelectItem>
+                  <SelectItem value="png">PNG</SelectItem>
+                  <SelectItem value="pdf">PDF</SelectItem>
+                  <SelectItem value="docx">Word</SelectItem>
+                </SelectContent>
+              </Select>
 
-          {/* Feedback Controls - Last */}
-          <AdFeedbackControls
-            adId={variant.id}
-            projectId={projectId}
-          />
+              <Button
+                onClick={handleDownload}
+                variant="outline"
+                className="flex-1"
+                disabled={isSaving}
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Download
+              </Button>
+            </div>
+            
+            <Button
+              onClick={handleSave}
+              className="w-full bg-facebook hover:bg-facebook/90"
+              disabled={isSaving}
+            >
+              {isSaving ? (
+                "Saving..."
+              ) : (
+                <>
+                  <Save className="w-4 h-4 mr-2" />
+                  Save Ad
+                </>
+              )}
+            </Button>
+          </div>
         </CardContent>
       </div>
     </Card>
