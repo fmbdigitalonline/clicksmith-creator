@@ -74,16 +74,16 @@ const WizardContent = () => {
             }
             if (Array.isArray(anonymousData.generated_ads)) {
               setGeneratedAds(anonymousData.generated_ads);
+              setHasLoadedInitialAds(true);
             }
             
             if (targetStep > 1 && canNavigateToStep(targetStep)) {
               setCurrentStep(targetStep);
               
-              // Only navigate if we're not already on the correct path
+              // Only navigate if we're not already on the correct path and not in a new wizard
               const currentPath = window.location.pathname;
-              const targetPath = `/ad-wizard/step-${targetStep}`;
-              if (currentPath !== targetPath && currentPath !== '/ad-wizard/new') {
-                navigate(targetPath, { replace: true });
+              if (!currentPath.includes('/ad-wizard/new') && currentPath !== `/ad-wizard/step-${targetStep}`) {
+                navigate(`/ad-wizard/step-${targetStep}`, { replace: true });
               }
             }
           }
@@ -212,7 +212,7 @@ const WizardContent = () => {
 
       <WizardControls
         videoAdsEnabled={videoAdsEnabled}
-        onVideoAdsToggle={setVideoAdsEnabled}
+        onVideoAdsToggle={handleVideoAdsToggle}
       />
 
       <WizardSteps 
