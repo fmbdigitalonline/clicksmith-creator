@@ -293,7 +293,7 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
   }, [state.businessIdea, state.targetAudience, state.audienceAnalysis, state.currentStep, state.generatedAds]);
 
   useEffect(() => {
-    const { data: subscription } = supabase.auth.onAuthStateChange(async (event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('[WizardStateProvider] Auth state changed:', event);
 
       if (session?.user && !hasInitialized.current) {

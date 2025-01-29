@@ -26,8 +26,9 @@ const Login = () => {
       }
     });
 
-    // Store the unsubscribe function directly
-    const unsubscribe = supabase.auth.onAuthStateChange(async (event, session) => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_IN') {
         // Wait a moment for migration to complete
         setTimeout(() => {
@@ -60,8 +61,7 @@ const Login = () => {
     });
 
     return () => {
-      // Call the unsubscribe function directly
-      unsubscribe();
+      subscription.unsubscribe();
     };
   }, [navigate, location.pathname, toast]);
 

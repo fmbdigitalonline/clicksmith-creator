@@ -65,8 +65,9 @@ function App() {
 
     checkAuth();
 
-    // Store the unsubscribe function directly
-    const unsubscribe = supabase.auth.onAuthStateChange((_event, session) => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
       console.log('Auth state changed:', _event);
       if (mounted) {
         setIsAuthenticated(!!session);
@@ -76,8 +77,7 @@ function App() {
 
     return () => {
       mounted = false;
-      // Call the unsubscribe function directly
-      unsubscribe();
+      subscription.unsubscribe();
     };
   }, [toast]);
 
