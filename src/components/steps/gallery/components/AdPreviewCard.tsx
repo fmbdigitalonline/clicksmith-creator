@@ -1,20 +1,14 @@
 import { useState } from "react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Download, Save } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useParams } from "react-router-dom";
+import { Card, CardContent } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import MediaPreview from "./MediaPreview";
 import { AdSizeSelector } from "./AdSizeSelector";
 import { AdFeedbackControls } from "../components/AdFeedbackControls";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { PrimaryText } from "./preview/PrimaryText";
+import { HeadlineSection } from "./preview/HeadlineSection";
+import { DownloadSection } from "./preview/DownloadSection";
 import { convertImage } from "@/utils/imageUtils";
 
 interface AdPreviewCardProps {
@@ -44,7 +38,7 @@ interface AdPreviewCardProps {
 const AdPreviewCard = ({ 
   variant, 
   onCreateProject, 
-  isVideo = false, 
+  isVideo = false,
   selectedFormat,
   onFormatChange 
 }: AdPreviewCardProps) => {
@@ -78,16 +72,13 @@ const AdPreviewCard = ({
     try {
       const response = await fetch(imageUrl);
       const blob = await response.blob();
-      
       const convertedBlob = await convertImage(URL.createObjectURL(blob), downloadFormat, variant);
-      
       const url = URL.createObjectURL(convertedBlob);
       const link = document.createElement('a');
       link.href = url;
       link.download = `${variant.platform}-${isVideo ? 'video' : 'ad'}-${format.width}x${format.height}.${downloadFormat}`;
       document.body.appendChild(link);
       link.click();
-      
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
 
@@ -157,7 +148,6 @@ const AdPreviewCard = ({
   return (
     <Card className="overflow-hidden">
       <div className="p-4 space-y-4">
-        {/* Format Selector */}
         {onFormatChange && (
           <AdSizeSelector
             selectedFormat={format}
@@ -165,13 +155,8 @@ const AdPreviewCard = ({
           />
         )}
 
-        {/* Primary Text Section */}
-        <div className="space-y-2">
-          <p className="text-sm font-medium text-gray-600">Primary Text:</p>
-          <p className="text-gray-800">{variant.description}</p>
-        </div>
+        <PrimaryText description={variant.description} />
 
-        {/* Image Preview */}
         <div 
           style={{ 
             aspectRatio: `${format.width}/${format.height}`,
@@ -188,60 +173,16 @@ const AdPreviewCard = ({
         </div>
 
         <CardContent className="p-4 space-y-4">
-          {/* Headline Section */}
-          <div className="space-y-2">
-            <p className="text-sm font-medium text-gray-600">Headline:</p>
-            <h3 className="text-lg font-semibold text-facebook">
-              {variant.headline}
-            </h3>
-          </div>
+          <HeadlineSection headline={variant.headline} />
 
-          {/* Download Controls */}
-          <div className="space-y-2">
-            <div className="flex gap-2">
-              <Select
-                value={downloadFormat}
-                onValueChange={(value) => setDownloadFormat(value as "jpg" | "png" | "pdf" | "docx")}
-              >
-                <SelectTrigger className="w-24">
-                  <SelectValue placeholder="Format" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="jpg">JPG</SelectItem>
-                  <SelectItem value="png">PNG</SelectItem>
-                  <SelectItem value="pdf">PDF</SelectItem>
-                  <SelectItem value="docx">Word</SelectItem>
-                </SelectContent>
-              </Select>
+          <DownloadSection
+            downloadFormat={downloadFormat}
+            onFormatChange={setDownloadFormat}
+            onSave={handleSave}
+            onDownload={handleDownload}
+            isSaving={isSaving}
+          />
 
-              <Button
-                onClick={handleDownload}
-                variant="outline"
-                className="flex-1"
-                disabled={isSaving}
-              >
-                <Download className="w-4 h-4 mr-2" />
-                Download
-              </Button>
-            </div>
-            
-            <Button
-              onClick={handleSave}
-              className="w-full bg-facebook hover:bg-facebook/90"
-              disabled={isSaving}
-            >
-              {isSaving ? (
-                "Saving..."
-              ) : (
-                <>
-                  <Save className="w-4 h-4 mr-2" />
-                  Save Ad
-                </>
-              )}
-            </Button>
-          </div>
-
-          {/* Feedback Controls */}
           <AdFeedbackControls
             adId={variant.id}
             projectId={projectId}
