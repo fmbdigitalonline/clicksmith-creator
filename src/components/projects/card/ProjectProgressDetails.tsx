@@ -7,7 +7,14 @@ interface ProjectProgressDetailsProps {
     description: string;
     valueProposition: string;
   };
-  targetAudience?: any;
+  targetAudience?: {
+    ageRange?: string;
+    gender?: string;
+    location?: string;
+    incomeLevel?: string;
+    audienceAnalysis?: any;
+    [key: string]: any;
+  };
   audienceAnalysis?: any;
 }
 
@@ -17,6 +24,16 @@ const ProjectProgressDetails = ({
   audienceAnalysis 
 }: ProjectProgressDetailsProps) => {
   if (!businessIdea && !targetAudience && !audienceAnalysis) return null;
+
+  const renderTargetAudienceField = (key: string, value: any) => {
+    if (typeof value === 'object' || key === 'audienceAnalysis') return null;
+    return (
+      <div key={key} className="text-sm">
+        <span className="text-gray-600 capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}: </span>
+        <span className="text-gray-700">{String(value)}</span>
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-4">
@@ -43,14 +60,9 @@ const ProjectProgressDetails = ({
             <h3 className="font-medium">Target Audience</h3>
           </div>
           <div className="space-y-2">
-            {Object.entries(targetAudience).map(([key, value]) => (
-              key !== 'audienceAnalysis' && (
-                <div key={key} className="text-sm">
-                  <span className="text-gray-600 capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}: </span>
-                  <span className="text-gray-700">{String(value)}</span>
-                </div>
-              )
-            ))}
+            {Object.entries(targetAudience).map(([key, value]) => 
+              renderTargetAudienceField(key, value)
+            )}
           </div>
         </div>
       )}
