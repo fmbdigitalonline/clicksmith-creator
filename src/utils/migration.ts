@@ -56,11 +56,19 @@ export const migrateUserProgress = async (
       return null;
     }
 
-    // Call atomic_migration with the correct parameters
+    // Calculate the highest step based on data
+    const calculatedStep = calculateHighestStep(anonymousData.wizard_data);
+    const finalStep = Math.max(
+      calculatedStep,
+      anonymousData.last_completed_step || 1
+    );
+
+    // Call atomic_migration with explicit parameters
     const { data, error } = await supabase
       .rpc('atomic_migration', { 
         p_user_id: user_id, 
-        p_session_id: session_id
+        p_session_id: session_id,
+        p_calculated_step: finalStep
       });
 
     if (error) {
