@@ -1,14 +1,13 @@
 import { BusinessIdea, TargetAudience, AudienceAnalysis } from "@/types/adWizard";
-import { Json } from "@/integrations/supabase/types";
 
-export const isBusinessIdea = (data: Json): data is BusinessIdea => {
-  return typeof data === 'object' && data !== null && 'description' in data;
+export const isBusinessIdea = (data: any): data is BusinessIdea => {
+  return data && typeof data === 'object' && 'description' in data;
 };
 
-export const isTargetAudience = (data: Json): data is TargetAudience => {
-  return typeof data === 'object' && data !== null && 'segments' in data;
+export const isTargetAudience = (data: any): data is TargetAudience => {
+  return data && typeof data === 'object' && 'description' in data;
 };
 
-export const isAudienceAnalysis = (data: Json): data is AudienceAnalysis => {
-  return typeof data === 'object' && data !== null && 'marketDesire' in data;
+export const isAudienceAnalysis = (data: any): data is AudienceAnalysis => {
+  return data && typeof data === 'object' && 'marketDesire' in data;
 };

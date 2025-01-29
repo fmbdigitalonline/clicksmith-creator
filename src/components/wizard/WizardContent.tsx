@@ -12,7 +12,6 @@ import WizardSteps from "./WizardSteps";
 import CreateProjectDialog from "../projects/CreateProjectDialog";
 import { Button } from "../ui/button";
 import { Save } from "lucide-react";
-import { useWizardNavigation } from "@/hooks/wizard/useWizardNavigation";
 import { isBusinessIdea, isTargetAudience, isAudienceAnalysis } from "@/utils/typeGuards";
 
 const WizardContent = () => {
@@ -35,9 +34,6 @@ const WizardContent = () => {
     setCurrentStep,
     canNavigateToStep
   } = useWizardState();
-
-  // Add URL synchronization
-  useWizardNavigation(currentStep, projectId);
 
   useEffect(() => {
     const loadProgress = async () => {
@@ -83,9 +79,11 @@ const WizardContent = () => {
             if (targetStep > 1 && canNavigateToStep(targetStep)) {
               setCurrentStep(targetStep);
               
-              if (window.location.pathname === '/ad-wizard/new' || 
-                  (currentUrlStep && currentUrlStep !== targetStep)) {
-                navigate(`/ad-wizard/step-${targetStep}`, { replace: true });
+              // Only navigate if we're not already on the correct path
+              const currentPath = window.location.pathname;
+              const targetPath = `/ad-wizard/step-${targetStep}`;
+              if (currentPath !== targetPath && currentPath !== '/ad-wizard/new') {
+                navigate(targetPath, { replace: true });
               }
             }
           }
