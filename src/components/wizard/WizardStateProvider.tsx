@@ -56,6 +56,7 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
       if (!user) {
         const sessionId = localStorage.getItem('anonymous_session_id');
         if (sessionId) {
+          // Ensure all fields are included in the save
           const completeData = {
             ...nextSave,
             business_idea: state.businessIdea,
@@ -79,6 +80,7 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
           if (error) throw error;
         }
       } else {
+        // Include all fields in the save data
         const saveData = {
           ...nextSave,
           user_id: user.id,
@@ -87,7 +89,8 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
           business_idea: state.businessIdea,
           target_audience: state.targetAudience,
           audience_analysis: state.audienceAnalysis,
-          generated_ads: state.generatedAds || []
+          generated_ads: state.generatedAds || [],
+          selected_hooks: state.selectedHooks || []
         };
         
         const result = await saveWizardState(saveData, stateVersion);
@@ -121,7 +124,17 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
       clearTimeout(saveTimeout.current);
     }
 
-    saveQueue.current.push(data);
+    // Ensure complete data is included
+    const completeData = {
+      ...data,
+      business_idea: state.businessIdea,
+      target_audience: state.targetAudience,
+      audience_analysis: state.audienceAnalysis,
+      generated_ads: state.generatedAds || [],
+      current_step: state.currentStep
+    };
+
+    saveQueue.current.push(completeData);
     
     // Debounce processing queue
     saveTimeout.current = setTimeout(() => {
@@ -275,7 +288,10 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
       }
     };
 
-    saveProgress();
+    // Only save if we have meaningful changes
+    if (state.businessIdea || state.targetAudience || state.audienceAnalysis || state.generatedAds?.length > 0) {
+      saveProgress();
+    }
 
     return () => {
       if (saveTimeout.current) {
