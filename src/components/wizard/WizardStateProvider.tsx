@@ -39,33 +39,25 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
   const [stateVersion, setStateVersion] = useState(1);
   const isSaving = useRef(false);
   const hasInitialized = useRef(false);
+  const saveQueue = useRef<Array<Partial<WizardData>>>([]);
   const saveTimeout = useRef<NodeJS.Timeout | null>(null);
   const migrationInProgress = useRef(false);
 
-  const calculateHighestStep = (data: WizardData): number => {
-    let step = 1;
-    if (data.business_idea) step = Math.max(step, 2);
-    if (data.target_audience) step = Math.max(step, 3);
-    if (data.audience_analysis) step = Math.max(step, 4);
-    return step;
-  };
+  const processQueue = async () => {
+    if (isSaving.current || saveQueue.current.length === 0) return;
+    
+    isSaving.current = true;
+    console.log('[WizardStateProvider] Processing save queue, items:', saveQueue.current.length);
 
-  const queueSave = async (data: Partial<WizardData>) => {
-    if (saveTimeout.current) {
-      clearTimeout(saveTimeout.current);
-    }
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const nextSave = saveQueue.current[0];
 
-    if (isSaving.current) {
-      return;
-    }
-
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      const sessionId = localStorage.getItem('anonymous_session_id');
-      if (sessionId) {
-        try {
+      if (!user) {
+        const sessionId = localStorage.getItem('anonymous_session_id');
+        if (sessionId) {
           const completeData = {
-            ...data,
+            ...nextSave,
             business_idea: state.businessIdea,
             target_audience: state.targetAudience,
             audience_analysis: state.audienceAnalysis,
@@ -80,56 +72,35 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
             .update({
               wizard_data: completeData,
               last_completed_step: state.currentStep,
-              last_save_attempt: new Date().toISOString(),
-              save_count: 0
+              last_save_attempt: new Date().toISOString()
             })
             .eq('session_id', sessionId);
 
           if (error) throw error;
-        } catch (error) {
-          console.error('[WizardStateProvider] Error saving anonymous state:', error);
-          toast({
-            title: "Save Error",
-            description: "Failed to save your progress. Please try again.",
-            variant: "destructive",
-          });
         }
-      }
-      return;
-    }
-
-    isSaving.current = true;
-
-    try {
-      const saveData = {
-        ...data,
-        user_id: user.id,
-        last_save_attempt: new Date().toISOString(),
-        current_step: state.currentStep,
-        business_idea: state.businessIdea,
-        target_audience: state.targetAudience,
-        audience_analysis: state.audienceAnalysis,
-        generated_ads: state.generatedAds || []
-      };
-      
-      const result = await saveWizardState(saveData, stateVersion);
-      
-      if (result.success) {
-        setStateVersion(result.newVersion);
+      } else {
+        const saveData = {
+          ...nextSave,
+          user_id: user.id,
+          last_save_attempt: new Date().toISOString(),
+          current_step: state.currentStep,
+          business_idea: state.businessIdea,
+          target_audience: state.targetAudience,
+          audience_analysis: state.audienceAnalysis,
+          generated_ads: state.generatedAds || []
+        };
         
-        const sessionId = localStorage.getItem('anonymous_session_id');
-        if (sessionId) {
-          await supabase
-            .from('anonymous_usage')
-            .update({
-              last_completed_step: state.currentStep,
-              wizard_data: saveData
-            })
-            .eq('session_id', sessionId);
+        const result = await saveWizardState(saveData, stateVersion);
+        if (result.success) {
+          setStateVersion(result.newVersion);
         }
       }
+
+      // Remove processed item from queue
+      saveQueue.current.shift();
+      
     } catch (error) {
-      console.error('[WizardStateProvider] Error in save queue:', error);
+      console.error('[WizardStateProvider] Error processing save queue:', error);
       toast({
         title: "Save Error",
         description: "Failed to save changes. Your progress may be lost.",
@@ -137,7 +108,33 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
       });
     } finally {
       isSaving.current = false;
+      
+      // Process next item if queue not empty
+      if (saveQueue.current.length > 0) {
+        setTimeout(processQueue, 1000); // Add delay between saves
+      }
     }
+  };
+
+  const queueSave = (data: Partial<WizardData>) => {
+    if (saveTimeout.current) {
+      clearTimeout(saveTimeout.current);
+    }
+
+    saveQueue.current.push(data);
+    
+    // Debounce processing queue
+    saveTimeout.current = setTimeout(() => {
+      processQueue();
+    }, 1000);
+  };
+
+  const calculateHighestStep = (data: WizardData): number => {
+    let step = 1;
+    if (data.business_idea) step = Math.max(step, 2);
+    if (data.target_audience) step = Math.max(step, 3);
+    if (data.audience_analysis) step = Math.max(step, 4);
+    return step;
   };
 
   const syncWizardState = async (userId: string | undefined) => {
@@ -263,6 +260,31 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
   };
 
   useEffect(() => {
+    const saveProgress = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (user) {
+        queueSave({
+          user_id: user.id,
+          business_idea: state.businessIdea,
+          target_audience: state.targetAudience,
+          audience_analysis: state.audienceAnalysis,
+          current_step: state.currentStep,
+          generated_ads: state.generatedAds || []
+        });
+      }
+    };
+
+    saveProgress();
+
+    return () => {
+      if (saveTimeout.current) {
+        clearTimeout(saveTimeout.current);
+      }
+    };
+  }, [state.businessIdea, state.targetAudience, state.audienceAnalysis, state.currentStep, state.generatedAds]);
+
+  useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('[WizardStateProvider] Auth state changed:', event);
       
@@ -286,37 +308,6 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
 
     initializeState();
   }, []);
-
-  useEffect(() => {
-    const saveProgress = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (user) {
-        if (saveTimeout.current) {
-          clearTimeout(saveTimeout.current);
-        }
-        
-        saveTimeout.current = setTimeout(() => {
-          queueSave({
-            user_id: user.id,
-            business_idea: state.businessIdea,
-            target_audience: state.targetAudience,
-            audience_analysis: state.audienceAnalysis,
-            current_step: state.currentStep,
-            generated_ads: state.generatedAds || []
-          });
-        }, 1000);
-      }
-    };
-
-    saveProgress();
-
-    return () => {
-      if (saveTimeout.current) {
-        clearTimeout(saveTimeout.current);
-      }
-    };
-  }, [state.businessIdea, state.targetAudience, state.audienceAnalysis, state.currentStep, state.generatedAds]);
 
   if (isLoading) {
     return (
