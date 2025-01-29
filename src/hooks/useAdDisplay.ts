@@ -8,7 +8,17 @@ export const useAdDisplay = (generatedAds: any[] = []) => {
   useEffect(() => {
     if (Array.isArray(generatedAds) && generatedAds.length > 0) {
       console.log('[useAdDisplay] Setting display ads:', generatedAds);
-      setDisplayAds(generatedAds);
+      try {
+        setDisplayAds(generatedAds.map(ad => ({
+          ...ad,
+          id: ad.id || crypto.randomUUID()
+        })));
+      } catch (error) {
+        console.error('[useAdDisplay] Error processing ads:', error);
+        handleAdError(error as Error);
+      }
+    } else {
+      console.log('[useAdDisplay] No ads to display or invalid format:', generatedAds);
     }
   }, [generatedAds]);
 

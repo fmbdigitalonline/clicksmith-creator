@@ -59,10 +59,12 @@ const AdGalleryContent = ({
   } = useAdDisplay(generatedAds);
 
   const handleFormatChange = (format: typeof AD_FORMATS[0]) => {
+    console.log('[AdGalleryContent] Format changed:', format);
     setSelectedFormat(format);
   };
 
   const handlePlatformTabChange = (value: string) => {
+    console.log('[AdGalleryContent] Platform tab changed:', value);
     const hasExistingAds = Array.isArray(displayAds) && displayAds.length > 0;
     handlePlatformChange(value as any, hasExistingAds);
   };
