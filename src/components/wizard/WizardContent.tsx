@@ -13,6 +13,7 @@ import CreateProjectDialog from "../projects/CreateProjectDialog";
 import { Button } from "../ui/button";
 import { Save } from "lucide-react";
 import { useWizardNavigation } from "@/hooks/wizard/useWizardNavigation";
+import { isBusinessIdea, isTargetAudience, isAudienceAnalysis } from "@/utils/typeGuards";
 
 const WizardContent = () => {
   const [showCreateProject, setShowCreateProject] = useState(false);
