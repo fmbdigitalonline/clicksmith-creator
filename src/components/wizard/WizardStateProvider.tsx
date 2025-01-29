@@ -37,7 +37,6 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(true);
   const [stateVersion, setStateVersion] = useState(1);
-  const [authState, setAuthState] = useState<'INITIAL' | 'SIGNED_IN' | 'SIGNED_OUT'>('INITIAL');
   const isSaving = useRef(false);
   const hasInitialized = useRef(false);
   const saveTimeout = useRef<NodeJS.Timeout | null>(null);
@@ -52,11 +51,8 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const syncWizardState = async (userId: string | undefined) => {
-    if (migrationInProgress.current || authState !== 'SIGNED_IN') {
-      console.log('[WizardStateProvider] Migration skipped - Status:', { 
-        inProgress: migrationInProgress.current, 
-        authState 
-      });
+    if (migrationInProgress.current) {
+      console.log('[WizardStateProvider] Migration already in progress, skipping');
       return;
     }
 
@@ -180,13 +176,8 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('[WizardStateProvider] Auth state changed:', event);
       
-      if (event === 'SIGNED_IN') {
-        setAuthState('SIGNED_IN');
-        if (session?.user && !hasInitialized.current) {
-          await syncWizardState(session.user.id);
-        }
-      } else if (event === 'SIGNED_OUT') {
-        setAuthState('SIGNED_OUT');
+      if (session?.user && !hasInitialized.current) {
+        await syncWizardState(session.user.id);
       }
     });
 
@@ -198,13 +189,13 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const initializeState = async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!hasInitialized.current && authState === 'SIGNED_IN') {
+      if (!hasInitialized.current) {
         await syncWizardState(user?.id);
       }
     };
 
     initializeState();
-  }, [authState]);
+  }, []);
 
   const queueSave = async (data: Partial<WizardData>) => {
     if (saveTimeout.current) {
