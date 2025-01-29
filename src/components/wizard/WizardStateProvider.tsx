@@ -40,7 +40,8 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
   const isSaving = useRef(false);
   const hasInitialized = useRef(false);
   const saveTimeout = useRef<NodeJS.Timeout | null>(null);
-  const migrationInProgress = useRef(false);
+  const migrationLock = useRef<string | null>(null);
+  const lastSyncTimestamp = useRef<number>(0);
 
   const calculateHighestStep = (data: WizardData): number => {
     let step = 1;
@@ -51,7 +52,14 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const syncWizardState = async (userId: string | undefined) => {
-    if (migrationInProgress.current) {
+    const now = Date.now();
+    if (now - lastSyncTimestamp.current < 1000) {
+      console.log('[WizardStateProvider] Debouncing sync request');
+      return;
+    }
+    lastSyncTimestamp.current = now;
+
+    if (migrationLock.current) {
       console.log('[WizardStateProvider] Migration already in progress, skipping');
       return;
     }
@@ -59,7 +67,7 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
     try {
       console.log('[WizardStateProvider] Starting to sync wizard state for user:', userId);
       setIsLoading(true);
-      migrationInProgress.current = true;
+      migrationLock.current = crypto.randomUUID();
 
       if (userId) {
         const { data: progress } = await supabase
@@ -92,10 +100,7 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
                   p_calculated_step: calculatedStep
                 });
 
-              if (error) {
-                console.error('[WizardStateProvider] Migration error:', error);
-                throw error;
-              }
+              if (error) throw error;
 
               if (migratedData) {
                 console.log('[WizardStateProvider] Successfully migrated data:', migratedData);
@@ -168,7 +173,7 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
     } finally {
       setIsLoading(false);
       hasInitialized.current = true;
-      migrationInProgress.current = false;
+      migrationLock.current = null;
     }
   };
 
