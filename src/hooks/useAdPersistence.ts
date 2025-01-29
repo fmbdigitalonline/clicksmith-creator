@@ -24,13 +24,29 @@ export const useAdPersistence = () => {
     if (!userId) return;
 
     try {
+      // First, get the current version
+      const { data: currentData, error: fetchError } = await supabase
+        .from('wizard_progress')
+        .select('version')
+        .eq('user_id', userId)
+        .single();
+
+      if (fetchError && fetchError.code !== 'PGRST116') {
+        throw fetchError;
+      }
+
+      const currentVersion = currentData?.version || 0;
+
+      // Then perform the upsert with the incremented version
       const { error } = await supabase
         .from('wizard_progress')
         .upsert({
           user_id: userId,
           generated_ads: ads as unknown as Json,
           updated_at: new Date().toISOString(),
-          version: 1
+          version: currentVersion + 1
+        }, {
+          onConflict: 'user_id'
         });
 
       if (error) throw error;
