@@ -12,20 +12,7 @@ import WizardSteps from "./WizardSteps";
 import CreateProjectDialog from "../projects/CreateProjectDialog";
 import { Button } from "../ui/button";
 import { Save } from "lucide-react";
-import { BusinessIdea, TargetAudience, AudienceAnalysis } from "@/types/adWizard";
-import { Json } from "@/integrations/supabase/types";
-
-const isBusinessIdea = (data: Json): data is BusinessIdea => {
-  return typeof data === 'object' && data !== null && 'description' in data;
-};
-
-const isTargetAudience = (data: Json): data is TargetAudience => {
-  return typeof data === 'object' && data !== null && 'segments' in data;
-};
-
-const isAudienceAnalysis = (data: Json): data is AudienceAnalysis => {
-  return typeof data === 'object' && data !== null && 'marketDesire' in data;
-};
+import { useWizardNavigation } from "@/hooks/wizard/useWizardNavigation";
 
 const WizardContent = () => {
   const [showCreateProject, setShowCreateProject] = useState(false);
@@ -47,6 +34,9 @@ const WizardContent = () => {
     setCurrentStep,
     canNavigateToStep
   } = useWizardState();
+
+  // Add URL synchronization
+  useWizardNavigation(currentStep, projectId);
 
   useEffect(() => {
     const loadProgress = async () => {
