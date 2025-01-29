@@ -11,6 +11,8 @@ import { useState, useEffect } from "react";
 import AdGenerationControls from "./AdGenerationControls";
 import { AdSizeSelector, AD_FORMATS } from "./components/AdSizeSelector";
 import { useToast } from "@/hooks/use-toast";
+import { useAdPersistence } from "@/hooks/useAdPersistence";
+import { supabase } from "@/integrations/supabase/client";
 
 interface AdGalleryContentProps {
   businessIdea: BusinessIdea;
@@ -38,6 +40,7 @@ const AdGalleryContent = ({
   const [selectedFormat, setSelectedFormat] = useState(AD_FORMATS[0]);
   const [currentAds, setCurrentAds] = useState<any[]>([]);
   const { toast } = useToast();
+  const { savedAds, saveGeneratedAds, loadSavedAds } = useAdPersistence();
 
   const {
     platform,
@@ -62,9 +65,34 @@ const AdGalleryContent = ({
     handleAdError
   } = useAdDisplay(currentAds);
 
+  // Load saved ads on mount
   useEffect(() => {
-    console.log('[AdGalleryContent] Current display ads:', displayAds);
-  }, [displayAds]);
+    const loadAds = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        const savedAds = await loadSavedAds(user?.id);
+        if (savedAds.length > 0) {
+          setCurrentAds(savedAds);
+        }
+      } catch (error) {
+        console.error('[AdGalleryContent] Error loading saved ads:', error);
+      }
+    };
+
+    loadAds();
+  }, []);
+
+  // Save ads when they're generated
+  useEffect(() => {
+    const saveAds = async () => {
+      if (currentAds.length > 0) {
+        const { data: { user } } = await supabase.auth.getUser();
+        await saveGeneratedAds(currentAds, user?.id);
+      }
+    };
+
+    saveAds();
+  }, [currentAds]);
 
   const handleFormatChange = (format: typeof AD_FORMATS[0]) => {
     console.log('[AdGalleryContent] Format changed:', format);
@@ -83,6 +111,8 @@ const AdGalleryContent = ({
         const newAds = await generateAds(value);
         if (newAds && Array.isArray(newAds)) {
           setCurrentAds(newAds);
+          const { data: { user } } = await supabase.auth.getUser();
+          await saveGeneratedAds(newAds, user?.id);
           toast({
             title: "Ads Generated",
             description: `Successfully generated ${value} ads.`,
@@ -112,6 +142,8 @@ const AdGalleryContent = ({
       const newAds = await generateAds(confirmedPlatform);
       if (newAds && Array.isArray(newAds)) {
         setCurrentAds(newAds);
+        const { data: { user } } = await supabase.auth.getUser();
+        await saveGeneratedAds(newAds, user?.id);
         toast({
           title: "Ads Generated",
           description: `Successfully generated ${confirmedPlatform} ads.`,
@@ -138,6 +170,8 @@ const AdGalleryContent = ({
       const newAds = await generateAds(platform);
       if (newAds && Array.isArray(newAds)) {
         setCurrentAds(newAds);
+        const { data: { user } } = await supabase.auth.getUser();
+        await saveGeneratedAds(newAds, user?.id);
         toast({
           title: "Ads Regenerated",
           description: `Successfully regenerated ${platform} ads.`,
