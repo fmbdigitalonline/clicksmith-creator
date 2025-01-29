@@ -176,9 +176,15 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
             if (error) throw error;
 
             if (migratedData) {
-              if (migratedData.business_idea) state.setBusinessIdea(migratedData.business_idea);
-              if (migratedData.target_audience) state.setTargetAudience(migratedData.target_audience);
-              if (migratedData.audience_analysis) state.setAudienceAnalysis(migratedData.audience_analysis);
+              if (migratedData.business_idea && isBusinessIdea(migratedData.business_idea)) {
+                state.setBusinessIdea(migratedData.business_idea);
+              }
+              if (migratedData.target_audience && isTargetAudience(migratedData.target_audience)) {
+                state.setTargetAudience(migratedData.target_audience);
+              }
+              if (migratedData.audience_analysis && isAudienceAnalysis(migratedData.audience_analysis)) {
+                state.setAudienceAnalysis(migratedData.audience_analysis);
+              }
               state.setCurrentStep(Math.max(migratedData.current_step || 1, 1));
               setStateVersion(migratedData.version || 1);
               navigate(`/ad-wizard/step-${migratedData.current_step || 1}`, { replace: true });

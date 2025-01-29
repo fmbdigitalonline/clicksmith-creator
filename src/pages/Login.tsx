@@ -6,52 +6,23 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
 const Login = () => {
-  const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        navigate("/dashboard");
-      } else {
-        setIsLoading(false);
-      }
-    };
-
-    checkSession();
-
-    const unsubscribe = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_IN') {
-        // Wait a moment for migration to complete
-        setTimeout(() => {
-          const redirectPath = location.pathname === '/login' ? '/dashboard' : location.pathname;
-          navigate(redirectPath, { state: { from: '/login' } });
-        }, 500);
-      } else if (event === 'SIGNED_OUT') {
-        navigate('/login');
-      } else if (event === 'USER_UPDATED') {
-        console.log('User updated:', session?.user);
-      } else if (event === 'USER_DELETED') {
-        navigate('/login');
-        toast({
-          title: "Account Deleted",
-          description: "Your account has been successfully deleted.",
-        });
-      } else if (event === 'PASSWORD_RECOVERY') {
-        toast({
-          title: "Password Recovery",
-          description: "Check your email for password reset instructions.",
-        });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session) {
+        const from = location.state?.from?.pathname || '/dashboard';
+        navigate(from, { replace: true });
       }
     });
 
     return () => {
-      unsubscribe.data.subscription.unsubscribe();
+      subscription.unsubscribe();
     };
-  }, [navigate, location.pathname, toast]);
+  }, [navigate, location]);
 
   if (isLoading) {
     return (

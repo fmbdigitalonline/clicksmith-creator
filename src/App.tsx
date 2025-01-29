@@ -3,7 +3,7 @@ import { Routes, Route } from "react-router-dom";
 import { Toaster } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import AppLayout from "@/components/layout/AppLayout";
+import { AppLayout } from "@/components/layout/AppLayout";
 import Dashboard from "@/pages/Dashboard";
 import Projects from "@/pages/Projects";
 import Settings from "@/pages/Settings";
@@ -11,8 +11,8 @@ import Login from "@/pages/Login";
 import Index from "@/pages/Index";
 import Pricing from "@/pages/Pricing";
 import AdWizard from "@/components/AdWizard";
-import ProtectedRoute from "@/components/auth/ProtectedRoute";
-import AnonymousRoute from "@/components/auth/AnonymousRoute";
+import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { AnonymousRoute } from "@/components/auth/AnonymousRoute";
 
 const App = () => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
@@ -42,7 +42,7 @@ const App = () => {
 
     checkAuth();
 
-    const unsubscribe = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       console.log('Auth state changed:', _event);
       if (mounted) {
         setIsAuthenticated(!!session);
@@ -51,7 +51,7 @@ const App = () => {
 
     return () => {
       mounted = false;
-      unsubscribe.data.subscription.unsubscribe();
+      subscription.unsubscribe();
     };
   }, [toast]);
 
@@ -69,7 +69,7 @@ const App = () => {
           <Route
             path="/dashboard"
             element={
-              <ProtectedRoute isAuthenticated={isAuthenticated}>
+              <ProtectedRoute>
                 <Dashboard />
               </ProtectedRoute>
             }
@@ -77,7 +77,7 @@ const App = () => {
           <Route
             path="/projects"
             element={
-              <ProtectedRoute isAuthenticated={isAuthenticated}>
+              <ProtectedRoute>
                 <Projects />
               </ProtectedRoute>
             }
@@ -85,19 +85,19 @@ const App = () => {
           <Route
             path="/settings"
             element={
-              <ProtectedRoute isAuthenticated={isAuthenticated}>
+              <ProtectedRoute>
                 <Settings />
               </ProtectedRoute>
             }
           />
           <Route
             path="/ad-wizard/*"
-            element={<AdWizard isAuthenticated={isAuthenticated} />}
+            element={<AdWizard />}
           />
           <Route
             path="/login"
             element={
-              <AnonymousRoute isAuthenticated={isAuthenticated}>
+              <AnonymousRoute>
                 <Login />
               </AnonymousRoute>
             }
