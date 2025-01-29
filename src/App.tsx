@@ -63,46 +63,44 @@ const App = () => {
     <>
       <Toaster />
       <Routes>
-        <Route element={<AppLayout />}>
-          <Route path="/" element={<Index />} />
-          <Route path="/pricing" element={<Pricing />} />
-          <Route
-            path="/dashboard"
-            element={
-              <ProtectedRoute>
-                <Dashboard />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/projects"
-            element={
-              <ProtectedRoute>
-                <Projects />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/settings"
-            element={
-              <ProtectedRoute>
-                <Settings />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/ad-wizard/*"
-            element={<AdWizard />}
-          />
-          <Route
-            path="/login"
-            element={
-              <AnonymousRoute>
-                <Login />
-              </AnonymousRoute>
-            }
-          />
-        </Route>
+        <Route path="/" element={<AppLayout><Index /></AppLayout>} />
+        <Route path="/pricing" element={<AppLayout><Pricing /></AppLayout>} />
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute>
+              <AppLayout><Dashboard /></AppLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/projects"
+          element={
+            <ProtectedRoute>
+              <AppLayout><Projects /></AppLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/settings"
+          element={
+            <ProtectedRoute>
+              <AppLayout><Settings /></AppLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/ad-wizard/*"
+          element={<AdWizard />}
+        />
+        <Route
+          path="/login"
+          element={
+            <AnonymousRoute>
+              <AppLayout><Login /></AppLayout>
+            </AnonymousRoute>
+          }
+        />
       </Routes>
     </>
   );
