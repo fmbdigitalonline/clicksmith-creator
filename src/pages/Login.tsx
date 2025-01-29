@@ -1,31 +1,46 @@
 import { Auth } from "@supabase/auth-ui-react";
 import { ThemeSupa } from "@supabase/auth-ui-shared";
 import { supabase } from "@/integrations/supabase/client";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 
 const Login = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
 
   useEffect(() => {
+    // Store the current path if coming from the wizard
+    if (location.pathname.includes('/ad-wizard')) {
+      sessionStorage.setItem('redirectUrl', location.pathname);
+    }
+
     // Check if user is already logged in
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
-        navigate('/');
+        const redirectUrl = sessionStorage.getItem('redirectUrl') || '/';
+        sessionStorage.removeItem('redirectUrl'); // Clean up
+        navigate(redirectUrl);
       }
     });
 
     // Listen for auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_IN') {
-        toast({
-          title: "Welcome back!",
-          description: "You have successfully logged in.",
-        });
-        navigate('/');
+        // Wait a moment for migration to complete
+        setTimeout(() => {
+          const redirectUrl = sessionStorage.getItem('redirectUrl') || '/';
+          sessionStorage.removeItem('redirectUrl'); // Clean up
+          
+          toast({
+            title: "Welcome back!",
+            description: "You have successfully logged in.",
+          });
+          
+          navigate(redirectUrl);
+        }, 1000); // Small delay to ensure migration completes
       } else if (event === 'SIGNED_OUT') {
         toast({
           title: "Signed out",
@@ -47,7 +62,7 @@ const Login = () => {
     return () => {
       subscription.unsubscribe();
     };
-  }, [navigate, toast]);
+  }, [navigate, location.pathname, toast]);
 
   return (
     <div className="container mx-auto flex items-center justify-center min-h-screen py-8">
