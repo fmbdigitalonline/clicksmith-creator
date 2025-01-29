@@ -50,6 +50,96 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
     return step;
   };
 
+  const queueSave = async (data: Partial<WizardData>) => {
+    if (saveTimeout.current) {
+      clearTimeout(saveTimeout.current);
+    }
+
+    if (isSaving.current) {
+      return;
+    }
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      const sessionId = localStorage.getItem('anonymous_session_id');
+      if (sessionId) {
+        try {
+          const completeData = {
+            ...data,
+            business_idea: state.businessIdea,
+            target_audience: state.targetAudience,
+            audience_analysis: state.audienceAnalysis,
+            generated_ads: state.generatedAds || [],
+            current_step: state.currentStep,
+            last_save_attempt: new Date().toISOString(),
+            version: stateVersion
+          };
+
+          const { error } = await supabase
+            .from('anonymous_usage')
+            .update({
+              wizard_data: completeData,
+              last_completed_step: state.currentStep,
+              last_save_attempt: new Date().toISOString(),
+              save_count: 0
+            })
+            .eq('session_id', sessionId);
+
+          if (error) throw error;
+        } catch (error) {
+          console.error('[WizardStateProvider] Error saving anonymous state:', error);
+          toast({
+            title: "Save Error",
+            description: "Failed to save your progress. Please try again.",
+            variant: "destructive",
+          });
+        }
+      }
+      return;
+    }
+
+    isSaving.current = true;
+
+    try {
+      const saveData = {
+        ...data,
+        user_id: user.id,
+        last_save_attempt: new Date().toISOString(),
+        current_step: state.currentStep,
+        business_idea: state.businessIdea,
+        target_audience: state.targetAudience,
+        audience_analysis: state.audienceAnalysis,
+        generated_ads: state.generatedAds || []
+      };
+      
+      const result = await saveWizardState(saveData, stateVersion);
+      
+      if (result.success) {
+        setStateVersion(result.newVersion);
+        
+        const sessionId = localStorage.getItem('anonymous_session_id');
+        if (sessionId) {
+          await supabase
+            .from('anonymous_usage')
+            .update({
+              last_completed_step: state.currentStep,
+              wizard_data: saveData
+            })
+            .eq('session_id', sessionId);
+        }
+      }
+    } catch (error) {
+      console.error('[WizardStateProvider] Error in save queue:', error);
+      toast({
+        title: "Save Error",
+        description: "Failed to save changes. Your progress may be lost.",
+        variant: "destructive",
+      });
+    } finally {
+      isSaving.current = false;
+    }
+  };
+
   const syncWizardState = async (userId: string | undefined) => {
     if (migrationInProgress.current) {
       console.log('[WizardStateProvider] Migration already in progress, skipping');
@@ -197,66 +287,6 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
     initializeState();
   }, []);
 
-  const queueSave = async (data: Partial<WizardData>) => {
-    if (saveTimeout.current) {
-      clearTimeout(saveTimeout.current);
-    }
-
-    if (isSaving.current) {
-      return;
-    }
-
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
-    isSaving.current = true;
-
-    try {
-      const saveData = {
-        ...data,
-        user_id: user.id,
-        last_save_attempt: new Date().toISOString(),
-        current_step: state.currentStep
-      };
-      
-      const result = await saveWizardState(saveData, stateVersion);
-      
-      if (result.success) {
-        setStateVersion(result.newVersion);
-        
-        const sessionId = localStorage.getItem('anonymous_session_id');
-        if (sessionId) {
-          await supabase
-            .from('anonymous_usage')
-            .update({
-              last_completed_step: state.currentStep,
-              wizard_data: saveData
-            })
-            .eq('session_id', sessionId);
-        }
-      }
-    } catch (error) {
-      console.error('[WizardStateProvider] Error in save queue:', error);
-      toast({
-        title: "Save Error",
-        description: "Failed to save changes. Your progress may be lost.",
-        variant: "destructive",
-      });
-    } finally {
-      isSaving.current = false;
-    }
-  };
-
-  const canNavigateToStep = (step: number): boolean => {
-    switch (step) {
-      case 1: return true;
-      case 2: return !!state.businessIdea;
-      case 3: return !!state.businessIdea && !!state.targetAudience;
-      case 4: return !!state.businessIdea && !!state.targetAudience && !!state.audienceAnalysis;
-      default: return false;
-    }
-  };
-
   useEffect(() => {
     const saveProgress = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -272,7 +302,8 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
             business_idea: state.businessIdea,
             target_audience: state.targetAudience,
             audience_analysis: state.audienceAnalysis,
-            current_step: state.currentStep
+            current_step: state.currentStep,
+            generated_ads: state.generatedAds || []
           });
         }, 1000);
       }
@@ -285,7 +316,7 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
         clearTimeout(saveTimeout.current);
       }
     };
-  }, [state.businessIdea, state.targetAudience, state.audienceAnalysis, state.currentStep]);
+  }, [state.businessIdea, state.targetAudience, state.audienceAnalysis, state.currentStep, state.generatedAds]);
 
   if (isLoading) {
     return (
