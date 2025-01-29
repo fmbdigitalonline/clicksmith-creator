@@ -3,11 +3,24 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Json } from "@/integrations/supabase/types";
 
+interface GeneratedAd {
+  id: string;
+  platform: string;
+  headline: string;
+  description: string;
+  imageUrl: string;
+  size?: {
+    width: number;
+    height: number;
+    label: string;
+  };
+}
+
 export const useAdPersistence = () => {
-  const [savedAds, setSavedAds] = useState<any[]>([]);
+  const [savedAds, setSavedAds] = useState<GeneratedAd[]>([]);
   const { toast } = useToast();
 
-  const saveGeneratedAds = async (ads: any[], userId: string | undefined) => {
+  const saveGeneratedAds = async (ads: GeneratedAd[], userId: string) => {
     if (!userId) return;
 
     try {
@@ -33,7 +46,7 @@ export const useAdPersistence = () => {
     }
   };
 
-  const loadSavedAds = async (userId: string | undefined) => {
+  const loadSavedAds = async (userId: string): Promise<GeneratedAd[]> => {
     if (!userId) return [];
 
     try {
@@ -45,8 +58,7 @@ export const useAdPersistence = () => {
 
       if (error) throw error;
 
-      // Ensure we're returning an array
-      const adsArray = Array.isArray(data?.generated_ads) ? data.generated_ads : [];
+      const adsArray = Array.isArray(data?.generated_ads) ? data.generated_ads as GeneratedAd[] : [];
       setSavedAds(adsArray);
       return adsArray;
 

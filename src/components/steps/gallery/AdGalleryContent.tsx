@@ -87,7 +87,7 @@ const AdGalleryContent = ({
   // Save ads when they're generated
   useEffect(() => {
     const saveAds = async () => {
-      if (currentAds.length > 0) {
+      if (Array.isArray(currentAds) && currentAds.length > 0) {
         const { data: { user } } = await supabase.auth.getUser();
         if (user?.id) {
           await saveGeneratedAds(currentAds, user.id);
@@ -149,7 +149,9 @@ const AdGalleryContent = ({
       if (newAds && Array.isArray(newAds)) {
         setCurrentAds(newAds);
         const { data: { user } } = await supabase.auth.getUser();
-        await saveGeneratedAds(newAds, user?.id);
+        if (user?.id) {
+          await saveGeneratedAds(newAds, user.id);
+        }
         toast({
           title: "Ads Generated",
           description: `Successfully generated ${confirmedPlatform} ads.`,
