@@ -7,6 +7,7 @@ import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import MediaPreview from "./MediaPreview";
 import { AdSizeSelector } from "./AdSizeSelector";
+import { AdFeedbackControls } from "./feedback/AdFeedbackControls";
 import {
   Select,
   SelectContent,
@@ -119,6 +120,7 @@ const AdPreviewCard = ({
       }
 
       const isValidUUID = projectId && 
+                         projectId !== "new" && 
                          /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(projectId);
 
       if (isValidUUID) {
@@ -238,6 +240,12 @@ const AdPreviewCard = ({
               )}
             </Button>
           </div>
+
+          {/* Feedback Controls */}
+          <AdFeedbackControls
+            adId={variant.id}
+            projectId={projectId}
+          />
         </CardContent>
       </div>
     </Card>
