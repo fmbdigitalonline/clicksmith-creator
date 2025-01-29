@@ -7,8 +7,8 @@ import PlatformChangeDialog from "./PlatformChangeDialog";
 import { usePlatformSwitch } from "@/hooks/usePlatformSwitch";
 import { useAdGeneration } from "./useAdGeneration";
 import { useAdDisplay } from "@/hooks/useAdDisplay";
-import AdGenerationControls from "./AdGenerationControls";
 import { useState, useEffect } from "react";
+import AdGenerationControls from "./AdGenerationControls";
 import { AdSizeSelector, AD_FORMATS } from "./components/AdSizeSelector";
 
 interface AdGalleryContentProps {
@@ -35,6 +35,7 @@ const AdGalleryContent = ({
   hasLoadedInitialAds = false,
 }: AdGalleryContentProps) => {
   const [selectedFormat, setSelectedFormat] = useState(AD_FORMATS[0]);
+  const [currentAds, setCurrentAds] = useState<any[]>([]);
 
   const {
     platform,
@@ -56,7 +57,7 @@ const AdGalleryContent = ({
     isLoading,
     setIsLoading,
     handleAdError
-  } = useAdDisplay(generatedAds);
+  } = useAdDisplay(currentAds);
 
   useEffect(() => {
     console.log('[AdGalleryContent] Current display ads:', displayAds);
@@ -67,10 +68,26 @@ const AdGalleryContent = ({
     setSelectedFormat(format);
   };
 
-  const handlePlatformTabChange = (value: string) => {
+  const handlePlatformTabChange = async (value: string) => {
     console.log('[AdGalleryContent] Platform tab changed:', value);
     const hasExistingAds = Array.isArray(displayAds) && displayAds.length > 0;
-    handlePlatformChange(value as any, hasExistingAds);
+    
+    if (hasExistingAds) {
+      handlePlatformChange(value as any, hasExistingAds);
+    } else {
+      // Generate new ads for the platform
+      setIsLoading(true);
+      const newAds = await generateAds(value);
+      setCurrentAds(newAds);
+      setIsLoading(false);
+    }
+  };
+
+  const handleRegenerate = async () => {
+    setIsLoading(true);
+    const newAds = await generateAds(platform);
+    setCurrentAds(newAds);
+    setIsLoading(false);
   };
 
   const renderPlatformContent = (platformName: string) => {
@@ -100,7 +117,7 @@ const AdGalleryContent = ({
       <AdGenerationControls
         onBack={onBack}
         onStartOver={onStartOver}
-        onRegenerate={() => generateAds(platform)}
+        onRegenerate={handleRegenerate}
         isGenerating={isGenerating}
         generationStatus={generationStatus}
       />

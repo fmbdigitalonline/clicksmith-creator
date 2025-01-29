@@ -12,9 +12,10 @@ export const useAdDisplay = (generatedAds: any[] = []) => {
         const processedAds = generatedAds.map(ad => ({
           ...ad,
           id: ad.id || crypto.randomUUID(),
-          platform: ad.platform?.toLowerCase() || 'facebook', // Ensure platform is set and lowercase
-          imageUrl: ad.imageUrl || ad.image?.url, // Handle both image formats
-          description: ad.description || ad.primaryText // Handle both text formats
+          platform: ad.platform?.toLowerCase() || 'facebook',
+          imageUrl: ad.imageUrl || ad.image?.url,
+          description: ad.description || ad.primaryText,
+          headline: ad.headline || ad.hook?.text || 'Untitled Ad'
         }));
         
         console.log('[useAdDisplay] Processed ads:', processedAds);
