@@ -45,7 +45,7 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
 
   const processQueue = async () => {
     if (isSaving.current || saveQueue.current.length === 0) return;
-    
+
     isSaving.current = true;
     console.log('[WizardStateProvider] Processing save queue, items:', saveQueue.current.length);
 
@@ -56,7 +56,6 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
       if (!user) {
         const sessionId = localStorage.getItem('anonymous_session_id');
         if (sessionId) {
-          // Ensure all fields are included in the save
           const completeData = {
             ...nextSave,
             business_idea: state.businessIdea,
@@ -80,7 +79,6 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
           if (error) throw error;
         }
       } else {
-        // Include all fields in the save data
         const saveData = {
           ...nextSave,
           user_id: user.id,
@@ -92,16 +90,15 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
           generated_ads: state.generatedAds || [],
           selected_hooks: state.selectedHooks || []
         };
-        
+
         const result = await saveWizardState(saveData, stateVersion);
         if (result.success) {
           setStateVersion(result.newVersion);
         }
       }
 
-      // Remove processed item from queue
       saveQueue.current.shift();
-      
+
     } catch (error) {
       console.error('[WizardStateProvider] Error processing save queue:', error);
       toast({
@@ -111,10 +108,8 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
       });
     } finally {
       isSaving.current = false;
-      
-      // Process next item if queue not empty
       if (saveQueue.current.length > 0) {
-        setTimeout(processQueue, 1000); // Add delay between saves
+        setTimeout(processQueue, 1500); // Increased delay to prevent race conditions
       }
     }
   };
@@ -124,7 +119,6 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
       clearTimeout(saveTimeout.current);
     }
 
-    // Ensure complete data is included
     const completeData = {
       ...data,
       business_idea: state.businessIdea,
@@ -135,8 +129,7 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
     };
 
     saveQueue.current.push(completeData);
-    
-    // Debounce processing queue
+
     saveTimeout.current = setTimeout(() => {
       processQueue();
     }, 1000);
@@ -199,7 +192,7 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
 
               if (migratedData) {
                 console.log('[WizardStateProvider] Successfully migrated data:', migratedData);
-                
+
                 if (migratedData.business_idea && isBusinessIdea(migratedData.business_idea)) {
                   state.setBusinessIdea(migratedData.business_idea);
                 }
@@ -209,21 +202,21 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
                 if (migratedData.audience_analysis && isAudienceAnalysis(migratedData.audience_analysis)) {
                   state.setAudienceAnalysis(migratedData.audience_analysis);
                 }
-                
+
                 const targetStep = Math.max(
                   migratedData.current_step || 1,
                   calculatedStep
                 );
-                
+
                 state.setCurrentStep(targetStep);
                 setStateVersion(migratedData.version || 1);
-                
+
                 if (targetStep > 1) {
                   navigate(`/ad-wizard/step-${targetStep}`, { replace: true });
                 }
-                
+
                 localStorage.removeItem('anonymous_session_id');
-                
+
                 toast({
                   title: "Progress Restored",
                   description: "Your previous work has been saved to your account.",
@@ -275,7 +268,7 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const saveProgress = async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      
+
       if (user) {
         queueSave({
           user_id: user.id,
@@ -288,7 +281,6 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
       }
     };
 
-    // Only save if we have meaningful changes
     if (state.businessIdea || state.targetAudience || state.audienceAnalysis || state.generatedAds?.length > 0) {
       saveProgress();
     }
@@ -301,9 +293,9 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
   }, [state.businessIdea, state.targetAudience, state.audienceAnalysis, state.currentStep, state.generatedAds]);
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+    const { data: subscription } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('[WizardStateProvider] Auth state changed:', event);
-      
+
       if (session?.user && !hasInitialized.current) {
         await syncWizardState(session.user.id);
       }
