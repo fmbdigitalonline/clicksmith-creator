@@ -70,9 +70,11 @@ const AdGalleryContent = ({
     const loadAds = async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
-        const savedAds = await loadSavedAds(user?.id);
-        if (savedAds.length > 0) {
-          setCurrentAds(savedAds);
+        if (user?.id) {
+          const savedAdsData = await loadSavedAds(user.id);
+          if (Array.isArray(savedAdsData) && savedAdsData.length > 0) {
+            setCurrentAds(savedAdsData);
+          }
         }
       } catch (error) {
         console.error('[AdGalleryContent] Error loading saved ads:', error);
@@ -87,7 +89,9 @@ const AdGalleryContent = ({
     const saveAds = async () => {
       if (currentAds.length > 0) {
         const { data: { user } } = await supabase.auth.getUser();
-        await saveGeneratedAds(currentAds, user?.id);
+        if (user?.id) {
+          await saveGeneratedAds(currentAds, user.id);
+        }
       }
     };
 
@@ -112,7 +116,9 @@ const AdGalleryContent = ({
         if (newAds && Array.isArray(newAds)) {
           setCurrentAds(newAds);
           const { data: { user } } = await supabase.auth.getUser();
-          await saveGeneratedAds(newAds, user?.id);
+          if (user?.id) {
+            await saveGeneratedAds(newAds, user.id);
+          }
           toast({
             title: "Ads Generated",
             description: `Successfully generated ${value} ads.`,

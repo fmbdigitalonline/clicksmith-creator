@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { Json } from "@/integrations/supabase/types";
 
 export const useAdPersistence = () => {
   const [savedAds, setSavedAds] = useState<any[]>([]);
@@ -44,12 +45,11 @@ export const useAdPersistence = () => {
 
       if (error) throw error;
 
-      if (data?.generated_ads) {
-        setSavedAds(data.generated_ads);
-        return data.generated_ads;
-      }
+      // Ensure we're returning an array
+      const adsArray = Array.isArray(data?.generated_ads) ? data.generated_ads : [];
+      setSavedAds(adsArray);
+      return adsArray;
 
-      return [];
     } catch (error) {
       console.error('[useAdPersistence] Error loading ads:', error);
       return [];
