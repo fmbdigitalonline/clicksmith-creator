@@ -72,6 +72,7 @@ export const AnonymousRoute = ({ children }: { children: React.ReactNode }) => {
               session_id: sessionId,
               used: false,
               wizard_data: initialWizardData,
+              last_completed_step: 1,
               last_save_attempt: new Date().toISOString(),
               save_count: 0
             });
@@ -104,7 +105,11 @@ export const AnonymousRoute = ({ children }: { children: React.ReactNode }) => {
         if (!usage || !usage.used) {
           const wizardData = {
             ...(usage?.wizard_data as Record<string, unknown> || {}),
-            last_save_attempt: new Date().toISOString()
+            last_save_attempt: new Date().toISOString(),
+            current_step: Math.max(
+              (usage?.wizard_data as WizardData)?.current_step || 1,
+              usage?.last_completed_step || 1
+            )
           } as Json;
 
           const { error: updateError } = await supabase
@@ -113,6 +118,10 @@ export const AnonymousRoute = ({ children }: { children: React.ReactNode }) => {
               updated_at: new Date().toISOString(),
               last_save_attempt: new Date().toISOString(),
               wizard_data: wizardData,
+              last_completed_step: Math.max(
+                (usage?.wizard_data as WizardData)?.current_step || 1,
+                usage?.last_completed_step || 1
+              ),
               save_count: ((usage as AnonymousUsage)?.save_count || 0) + 1
             })
             .eq('session_id', sessionId);
