@@ -110,11 +110,15 @@ export async function generateWithReplicate(
         
         const result = await replicate.run(modelId, {
           input: {
-            prompt,
+            prompt: `Professional business advertisement, ${prompt}`,
             width: scaledDimensions.width,
             height: scaledDimensions.height,
             num_outputs: config.numOutputs,
             prompt_upsampling: true,
+            negative_prompt: "nsfw, inappropriate content, offensive content, controversial content, adult content, violence, gore, text, watermarks",
+            safety_checker: true,
+            num_inference_steps: 30,
+            guidance_scale: 7.5
           }
         });
 
