@@ -17,8 +17,13 @@ const PlatformContent = ({
 }: PlatformContentProps) => {
   console.log(`[PlatformContent] Rendering ${platformName} variants:`, adVariants);
 
+  // Ensure case-insensitive platform matching and handle null/undefined values
   const filteredVariants = adVariants.filter(variant => 
-    variant && variant.platform && variant.platform.toLowerCase() === platformName.toLowerCase()
+    variant && 
+    variant.platform && 
+    variant.platform.toLowerCase() === platformName.toLowerCase() &&
+    variant.headline && // Ensure required fields exist
+    (variant.imageUrl || variant.image?.url)
   );
 
   console.log(`[PlatformContent] Filtered ${platformName} variants:`, filteredVariants);
