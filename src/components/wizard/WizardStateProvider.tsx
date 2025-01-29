@@ -196,16 +196,29 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     const { data: unsubscribe } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('[WizardStateProvider] Auth state changed:', event);
+
       if (session?.user && !hasInitialized.current) {
         await syncWizardState(session.user.id);
       }
     });
 
     return () => {
-      if (unsubscribe) {
-        unsubscribe(); // Correct cleanup for subscription
+      if (unsubscribe) unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    const initializeState = async () => {
+      console.log('[WizardStateProvider] Initializing wizard...');
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!hasInitialized.current) {
+        console.log('[WizardStateProvider] Syncing wizard state for user:', user?.id);
+        await syncWizardState(user?.id);
       }
     };
+
+    initializeState();
   }, []);
 
   if (isLoading) {
