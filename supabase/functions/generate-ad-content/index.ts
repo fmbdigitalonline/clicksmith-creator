@@ -17,7 +17,6 @@ const PLATFORM_FORMATS = {
 serve(async (req) => {
   console.log('[generate-ad-content] Function started');
   
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     console.log('[generate-ad-content] Handling OPTIONS request');
     return new Response(null, { 
@@ -25,6 +24,7 @@ serve(async (req) => {
       headers: {
         ...corsHeaders,
         'Access-Control-Max-Age': '86400',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
       }
     });
   }
@@ -59,6 +59,7 @@ serve(async (req) => {
             'X-Client-Info': 'generate-ad-content-edge-function',
             'X-Initial-Auth': 'service_role'
           },
+          fetch: fetch
         }
       }
     );
@@ -72,6 +73,11 @@ serve(async (req) => {
     } catch (e) {
       console.error('[generate-ad-content] Error parsing request body:', e);
       throw new Error(`Invalid JSON in request body: ${e.message}`);
+    }
+
+    if (!body) {
+      console.error('[generate-ad-content] Empty request body');
+      throw new Error('Empty request body');
     }
 
     const { type, businessIdea, targetAudience, platform = 'facebook', userId, sessionId, isAnonymous, numVariants = 10 } = body;
