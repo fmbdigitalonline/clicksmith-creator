@@ -97,7 +97,7 @@ serve(async (req) => {
     console.log('[generate-ad-content] Successfully generated response');
     return createSuccessResponse(responseData);
   } catch (error) {
-    if (error.message.includes('No credits available')) {
+    if (error.message?.includes('No credits available')) {
       return createErrorResponse(error, 402);
     }
     return createErrorResponse(error);
