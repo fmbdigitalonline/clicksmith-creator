@@ -8,10 +8,57 @@ import { corsHeaders } from "../_shared/cors.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1';
 
 const PLATFORM_FORMATS = {
-  facebook: { width: 1200, height: 628, label: "Facebook Feed" },
-  google: { width: 1200, height: 628, label: "Google Display" },
-  linkedin: { width: 1200, height: 627, label: "LinkedIn Feed" },
-  tiktok: { width: 1080, height: 1920, label: "TikTok Feed", vertical: true }
+  facebook: { 
+    width: 1200, 
+    height: 628, 
+    label: "Facebook Feed",
+    imageStyle: "social media advertisement optimized for Facebook feed"
+  },
+  google: { 
+    width: 1200, 
+    height: 628, 
+    label: "Google Display",
+    imageStyle: "professional display advertisement optimized for Google Ads"
+  },
+  linkedin: { 
+    width: 1200, 
+    height: 627, 
+    label: "LinkedIn Feed",
+    imageStyle: "professional business advertisement optimized for LinkedIn"
+  },
+  tiktok: { 
+    width: 1080, 
+    height: 1920, 
+    label: "TikTok Feed", 
+    vertical: true,
+    imageStyle: "vertical social media content optimized for TikTok"
+  }
+};
+
+const generatePlatformSpecificContent = async (platform: string, businessIdea: any, targetAudience: any, campaignData: any) => {
+  console.log(`[generate-ad-content] Generating ${platform}-specific content`);
+  
+  const format = PLATFORM_FORMATS[platform as keyof typeof PLATFORM_FORMATS];
+  if (!format) {
+    throw new Error(`Unsupported platform: ${platform}`);
+  }
+
+  // Generate platform-specific image prompts
+  const imagePromptOptions = {
+    vertical: format.vertical || false,
+    style: format.imageStyle,
+    width: format.width,
+    height: format.height
+  };
+
+  const imageData = await generateImagePrompts(
+    businessIdea, 
+    targetAudience, 
+    campaignData.campaign, 
+    imagePromptOptions
+  );
+
+  return { imageData, format };
 };
 
 serve(async (req) => {
@@ -53,13 +100,6 @@ serve(async (req) => {
           persistSession: false,
           detectSessionInUrl: false,
           flowType: 'pkce'
-        },
-        global: {
-          headers: { 
-            'X-Client-Info': 'generate-ad-content-edge-function',
-            'X-Initial-Auth': 'service_role'
-          },
-          fetch: fetch
         }
       }
     );
@@ -160,19 +200,14 @@ serve(async (req) => {
       case 'complete_ads':
       case 'video_ads': {
         console.log('[generate-ad-content] Generating campaign for platform:', platform);
-        const campaignData = await generateCampaign(businessIdea, targetAudience);
+        const campaignData = await generateCampaign(businessIdea, targetAudience, platform);
         
-        // Adjust image prompts based on platform
-        const imagePromptOptions = platform === 'tiktok' ? 
-          { vertical: true, style: 'vertical social media content optimized for TikTok' } : 
-          {};
-        
-        const imageData = await generateImagePrompts(businessIdea, targetAudience, campaignData.campaign, imagePromptOptions);
-        
-        const format = PLATFORM_FORMATS[platform as keyof typeof PLATFORM_FORMATS];
-        if (!format) {
-          throw new Error(`Unsupported platform: ${platform}`);
-        }
+        const { imageData, format } = await generatePlatformSpecificContent(
+          platform,
+          businessIdea,
+          targetAudience,
+          campaignData
+        );
 
         const variants = Array.from({ length: numVariants }, (_, index) => ({
           id: crypto.randomUUID(),
