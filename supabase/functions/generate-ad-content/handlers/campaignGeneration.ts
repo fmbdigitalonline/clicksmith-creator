@@ -15,7 +15,7 @@ ${platformSpecificPrompt}
 
 Create a complete marketing campaign with:
 1. 3 Marketing angles with hooks
-2. 3 Ad copies (different versions)
+2. EXACTLY 10 unique Ad copies (completely different versions)
 3. EXACTLY 10 unique Headlines (6 words max)
 
 Marketing Angles Guidelines:
@@ -26,14 +26,13 @@ Marketing Angles Guidelines:
 - Optimize for ${platform}'s specific audience expectations
 
 Ad Copy Guidelines:
-- Create 3 different versions:
-  1. "story": Longer, storytelling-based version
-  2. "short": Short, impactful version
-  3. "aida": AIDA framework version
-- Each version should be different
+- Create EXACTLY 10 unique ad copies
+- Each copy MUST be completely different in content and approach
+- Each version should have a distinct value proposition or angle
 - Must attract attention in first sentence
 - Talk directly to the reader using "you"
 - Follow ${platform}'s best practices for ad copy
+- Ensure each copy has a unique selling point or hook
 
 Headline Guidelines:
 - MUST generate EXACTLY 10 unique headlines
@@ -78,11 +77,11 @@ Return ONLY a valid JSON object with these fields:
         messages: [
           {
             role: 'system',
-            content: `You are an expert ${platform} marketing copywriter. Always respond with raw JSON only, no markdown. Always generate EXACTLY 10 unique headlines.`
+            content: `You are an expert ${platform} marketing copywriter. Always respond with raw JSON only, no markdown. Always generate EXACTLY 10 unique ad copies and headlines with no duplicates.`
           },
           { role: 'user', content: prompt }
         ],
-        temperature: 0.7,
+        temperature: 0.8,
         max_tokens: 2000,
       }),
     });
@@ -105,15 +104,21 @@ Return ONLY a valid JSON object with these fields:
 
     const campaign = JSON.parse(content);
     
-    // Validate response format
+    // Validate response format and uniqueness
     if (!campaign.angles || !Array.isArray(campaign.angles) || campaign.angles.length === 0) {
       throw new Error('Invalid angles in response');
     }
-    if (!campaign.adCopies || !Array.isArray(campaign.adCopies) || campaign.adCopies.length === 0) {
-      throw new Error('Invalid ad copies in response');
+    if (!campaign.adCopies || !Array.isArray(campaign.adCopies) || campaign.adCopies.length !== 10) {
+      throw new Error('Invalid ad copies in response - must have exactly 10 unique copies');
     }
     if (!campaign.headlines || !Array.isArray(campaign.headlines) || campaign.headlines.length !== 10) {
       throw new Error('Invalid headlines in response - must have exactly 10 headlines');
+    }
+
+    // Validate uniqueness of ad copies
+    const uniqueAdCopies = new Set(campaign.adCopies.map(copy => copy.content));
+    if (uniqueAdCopies.size !== campaign.adCopies.length) {
+      throw new Error('Duplicate ad copies detected - all copies must be unique');
     }
     
     console.log('[generateCampaign] Parsed and validated campaign:', campaign);
