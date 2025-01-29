@@ -6,6 +6,7 @@ import PlatformContent from "./PlatformContent";
 import PlatformChangeDialog from "./PlatformChangeDialog";
 import { usePlatformSwitch } from "@/hooks/usePlatformSwitch";
 import { useAdGeneration } from "./useAdGeneration";
+import { useAdDisplay } from "@/hooks/useAdDisplay";
 import AdGenerationControls from "./AdGenerationControls";
 import { useState } from "react";
 import { AdSizeSelector, AD_FORMATS } from "./components/AdSizeSelector";
@@ -50,19 +51,28 @@ const AdGalleryContent = ({
     generateAds,
   } = useAdGeneration(businessIdea, targetAudience, adHooks);
 
+  const {
+    displayAds,
+    isLoading,
+    setIsLoading,
+    handleAdError
+  } = useAdDisplay(generatedAds);
+
   const handleFormatChange = (format: typeof AD_FORMATS[0]) => {
     setSelectedFormat(format);
   };
 
   const handlePlatformTabChange = (value: string) => {
-    const hasExistingAds = Array.isArray(generatedAds) && generatedAds.length > 0;
+    const hasExistingAds = Array.isArray(displayAds) && displayAds.length > 0;
     handlePlatformChange(value as any, hasExistingAds);
   };
 
   const renderPlatformContent = (platformName: string) => {
-    const platformAds = Array.isArray(generatedAds) 
-      ? generatedAds.filter(ad => ad.platform === platformName)
+    const platformAds = Array.isArray(displayAds) 
+      ? displayAds.filter(ad => ad.platform === platformName)
       : [];
+    
+    console.log(`[AdGalleryContent] Rendering ${platformName} ads:`, platformAds);
     
     return (
       <TabsContent value={platformName} className="space-y-4">
@@ -93,7 +103,7 @@ const AdGalleryContent = ({
         generationStatus={generationStatus}
       />
 
-      {isGenerating ? (
+      {isGenerating || isLoading ? (
         <LoadingState />
       ) : (
         <PlatformTabs 
