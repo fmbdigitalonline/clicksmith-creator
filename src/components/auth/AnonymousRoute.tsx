@@ -63,7 +63,9 @@ export const AnonymousRoute = ({ children }: { children: React.ReactNode }) => {
             .insert({
               session_id: sessionId,
               used: false,
-              wizard_data: initialWizardData
+              wizard_data: initialWizardData,
+              last_save_attempt: new Date().toISOString(),
+              save_count: 0
             });
 
           if (initError) {
@@ -102,7 +104,8 @@ export const AnonymousRoute = ({ children }: { children: React.ReactNode }) => {
             .update({ 
               updated_at: new Date().toISOString(),
               last_save_attempt: new Date().toISOString(),
-              wizard_data: wizardData
+              wizard_data: wizardData,
+              save_count: (usage?.save_count || 0) + 1
             })
             .eq('session_id', sessionId);
 
