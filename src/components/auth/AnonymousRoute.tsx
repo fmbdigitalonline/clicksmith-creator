@@ -6,6 +6,14 @@ import { useToast } from "@/hooks/use-toast";
 import { WizardData } from "@/types/wizardProgress";
 import { Json } from "@/integrations/supabase/types";
 
+interface AnonymousUsage {
+  used: boolean;
+  wizard_data: Json;
+  last_completed_step: number;
+  save_count?: number;
+  last_save_attempt?: string;
+}
+
 export const AnonymousRoute = ({ children }: { children: React.ReactNode }) => {
   const [canAccess, setCanAccess] = useState<boolean | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -80,7 +88,7 @@ export const AnonymousRoute = ({ children }: { children: React.ReactNode }) => {
 
         const { data: usage, error: usageError } = await supabase
           .from('anonymous_usage')
-          .select('used, wizard_data, last_completed_step')
+          .select('used, wizard_data, last_completed_step, save_count, last_save_attempt')
           .eq('session_id', sessionId)
           .maybeSingle();
 
@@ -105,7 +113,7 @@ export const AnonymousRoute = ({ children }: { children: React.ReactNode }) => {
               updated_at: new Date().toISOString(),
               last_save_attempt: new Date().toISOString(),
               wizard_data: wizardData,
-              save_count: (usage?.save_count || 0) + 1
+              save_count: ((usage as AnonymousUsage)?.save_count || 0) + 1
             })
             .eq('session_id', sessionId);
 
