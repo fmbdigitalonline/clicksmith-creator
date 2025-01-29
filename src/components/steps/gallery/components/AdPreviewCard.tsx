@@ -6,6 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import MediaPreview from "./MediaPreview";
+import { AdSizeSelector } from "./AdSizeSelector";
 import {
   Select,
   SelectContent,
@@ -36,9 +37,16 @@ interface AdPreviewCardProps {
   onCreateProject: () => void;
   isVideo?: boolean;
   selectedFormat?: { width: number; height: number; label: string };
+  onFormatChange?: (format: { width: number; height: number; label: string }) => void;
 }
 
-const AdPreviewCard = ({ variant, onCreateProject, isVideo = false, selectedFormat }: AdPreviewCardProps) => {
+const AdPreviewCard = ({ 
+  variant, 
+  onCreateProject, 
+  isVideo = false, 
+  selectedFormat,
+  onFormatChange 
+}: AdPreviewCardProps) => {
   const [downloadFormat, setDownloadFormat] = useState<"jpg" | "png" | "pdf" | "docx">("jpg");
   const [isSaving, setSaving] = useState(false);
   const { toast } = useToast();
@@ -147,13 +155,21 @@ const AdPreviewCard = ({ variant, onCreateProject, isVideo = false, selectedForm
   return (
     <Card className="overflow-hidden">
       <div className="p-4 space-y-4">
-        {/* Primary Text Section - First */}
+        {/* Format Selector */}
+        {onFormatChange && (
+          <AdSizeSelector
+            selectedFormat={format}
+            onFormatChange={onFormatChange}
+          />
+        )}
+
+        {/* Primary Text Section */}
         <div className="space-y-2">
           <p className="text-sm font-medium text-gray-600">Primary Text:</p>
           <p className="text-gray-800">{variant.description}</p>
         </div>
 
-        {/* Image Preview - Second */}
+        {/* Image Preview */}
         <div 
           style={{ 
             aspectRatio: `${format.width}/${format.height}`,
