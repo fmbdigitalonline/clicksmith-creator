@@ -10,6 +10,7 @@ import { useAdDisplay } from "@/hooks/useAdDisplay";
 import { useState, useEffect } from "react";
 import AdGenerationControls from "./AdGenerationControls";
 import { AdSizeSelector, AD_FORMATS } from "./components/AdSizeSelector";
+import { useToast } from "@/hooks/use-toast";
 
 interface AdGalleryContentProps {
   businessIdea: BusinessIdea;
@@ -36,6 +37,7 @@ const AdGalleryContent = ({
 }: AdGalleryContentProps) => {
   const [selectedFormat, setSelectedFormat] = useState(AD_FORMATS[0]);
   const [currentAds, setCurrentAds] = useState<any[]>([]);
+  const { toast } = useToast();
 
   const {
     platform,
@@ -75,20 +77,77 @@ const AdGalleryContent = ({
     if (hasExistingAds) {
       handlePlatformChange(value as any, hasExistingAds);
     } else {
-      // Generate new ads for the platform
-      setIsLoading(true);
-      const newAds = await generateAds(value);
-      setCurrentAds(newAds);
-      setIsLoading(false);
+      try {
+        setIsLoading(true);
+        const newAds = await generateAds(value);
+        if (newAds && Array.isArray(newAds)) {
+          setCurrentAds(newAds);
+          toast({
+            title: "Ads Generated",
+            description: `Successfully generated ${value} ads.`,
+          });
+        } else {
+          throw new Error('Failed to generate ads');
+        }
+      } catch (error) {
+        console.error('[AdGalleryContent] Error generating ads:', error);
+        toast({
+          title: "Error",
+          description: "Failed to generate ads. Please try again.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
+      }
     }
   };
 
   const handleRegenerate = async () => {
-    setIsLoading(true);
-    const newAds = await generateAds(platform);
-    setCurrentAds(newAds);
-    setIsLoading(false);
+    try {
+      setIsLoading(true);
+      const newAds = await generateAds(platform);
+      if (newAds && Array.isArray(newAds)) {
+        setCurrentAds(newAds);
+        toast({
+          title: "Ads Regenerated",
+          description: `Successfully regenerated ${platform} ads.`,
+        });
+      } else {
+        throw new Error('Failed to regenerate ads');
+      }
+    } catch (error) {
+      console.error('[AdGalleryContent] Error regenerating ads:', error);
+      toast({
+        title: "Error",
+        description: "Failed to regenerate ads. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
+
+  // Initial ad generation for the first platform
+  useEffect(() => {
+    const generateInitialAds = async () => {
+      if (!currentAds.length && !isLoading && !isGenerating) {
+        console.log('[AdGalleryContent] Generating initial ads for platform:', platform);
+        try {
+          setIsLoading(true);
+          const newAds = await generateAds(platform);
+          if (newAds && Array.isArray(newAds)) {
+            setCurrentAds(newAds);
+          }
+        } catch (error) {
+          console.error('[AdGalleryContent] Error generating initial ads:', error);
+        } finally {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    generateInitialAds();
+  }, [platform, currentAds.length, isLoading, isGenerating, generateAds]);
 
   const renderPlatformContent = (platformName: string) => {
     console.log(`[AdGalleryContent] Rendering ${platformName} ads:`, displayAds);
