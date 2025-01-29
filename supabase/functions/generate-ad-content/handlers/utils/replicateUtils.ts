@@ -108,17 +108,23 @@ export async function generateWithReplicate(
         const modelId = MODELS[config.model as keyof typeof MODELS];
         console.log(`Using model: ${modelId}`);
         
+        const enhancedPrompt = `Professional corporate marketing advertisement, business focused content: ${prompt}`;
+        console.log('Enhanced prompt:', enhancedPrompt);
+
         const result = await replicate.run(modelId, {
           input: {
-            prompt: `Professional business advertisement, ${prompt}`,
+            prompt: enhancedPrompt,
             width: scaledDimensions.width,
             height: scaledDimensions.height,
             num_outputs: config.numOutputs,
             prompt_upsampling: true,
-            negative_prompt: "nsfw, inappropriate content, offensive content, controversial content, adult content, violence, gore, text, watermarks",
+            negative_prompt: "nsfw, inappropriate content, offensive content, controversial content, adult content, violence, gore, text, watermarks, nudity, suggestive content, drugs, weapons",
             safety_checker: true,
-            num_inference_steps: 30,
-            guidance_scale: 7.5
+            num_inference_steps: 50,
+            guidance_scale: 8.5,
+            seed: Math.floor(Math.random() * 1000000),
+            scheduler: "K_EULER",
+            clip_skip: 2
           }
         });
 
