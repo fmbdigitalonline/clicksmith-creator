@@ -7,7 +7,7 @@ import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import MediaPreview from "./MediaPreview";
 import { AdSizeSelector } from "./AdSizeSelector";
-import { AdFeedbackControls } from "./feedback/AdFeedbackControls";
+import { AdFeedbackControls } from "../components/AdFeedbackControls";
 import {
   Select,
   SelectContent,
