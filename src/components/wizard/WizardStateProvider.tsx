@@ -195,7 +195,7 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
   };
 
   useEffect(() => {
-    const { data: unsubscribe } = supabase.auth.onAuthStateChange(async (event, session) => {
+    const unsubscribe = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('[WizardStateProvider] Auth state changed:', event);
 
       if (session?.user && !hasInitialized.current) {
@@ -204,7 +204,9 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
     });
 
     return () => {
-      if (unsubscribe) unsubscribe();
+      if (unsubscribe?.data?.subscription) {
+        unsubscribe.data.subscription.unsubscribe();
+      }
     };
   }, []);
 
