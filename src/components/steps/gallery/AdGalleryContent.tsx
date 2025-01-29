@@ -45,7 +45,8 @@ const AdGalleryContent = ({
     handlePlatformChange,
     confirmPlatformChange,
     cancelPlatformChange,
-    setShowPlatformChangeDialog
+    setShowPlatformChangeDialog,
+    pendingPlatform
   } = usePlatformSwitch();
 
   const {
@@ -99,6 +100,35 @@ const AdGalleryContent = ({
       } finally {
         setIsLoading(false);
       }
+    }
+  };
+
+  const handleConfirmPlatformChange = async () => {
+    try {
+      setIsLoading(true);
+      const confirmedPlatform = confirmPlatformChange();
+      console.log('[AdGalleryContent] Confirmed platform change to:', confirmedPlatform);
+      
+      const newAds = await generateAds(confirmedPlatform);
+      if (newAds && Array.isArray(newAds)) {
+        setCurrentAds(newAds);
+        toast({
+          title: "Ads Generated",
+          description: `Successfully generated ${confirmedPlatform} ads.`,
+        });
+      } else {
+        throw new Error('Failed to generate ads');
+      }
+    } catch (error) {
+      console.error('[AdGalleryContent] Error generating ads after platform change:', error);
+      toast({
+        title: "Error",
+        description: "Failed to generate ads. Please try again.",
+        variant: "destructive",
+      });
+      cancelPlatformChange();
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -198,7 +228,7 @@ const AdGalleryContent = ({
       <PlatformChangeDialog
         open={showPlatformChangeDialog}
         onOpenChange={setShowPlatformChangeDialog}
-        onConfirm={confirmPlatformChange}
+        onConfirm={handleConfirmPlatformChange}
         onCancel={cancelPlatformChange}
       />
     </div>
