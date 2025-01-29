@@ -10,37 +10,47 @@ Target Audience:
 ${JSON.stringify(targetAudience, null, 2)}
 
 Create a complete marketing campaign with:
-1. 3 Ad copies (different versions)
-2. EXACTLY 10 unique Headlines (6 words max)
+1. 3 Marketing angles with hooks
+2. 3 Ad copies (different versions)
+3. EXACTLY 10 unique Headlines (6 words max)
+
+Marketing Angles Guidelines:
+- Create 3 different marketing angles
+- Each angle should have a description and a hook
+- Focus on different aspects of the value proposition
+- Address different pain points
 
 Ad Copy Guidelines:
-- Create 10 different versions and rotate:
-  1. "Longer story": Longer, storytelling-based use pain point one from audience analysis
-  2. "personal emotional story": personal emotional story use pain point two from audience analysis
-  3. "AIDA version": Middle-length with bullet points use pain point three from audience analysis
-- Should be addressing about audience analysis painpoints
-- Some ad copies must also address the benefits of the products based on the positive experience the product provides
-- Must attract attention in first sentence
+- Create 3 different versions:
+  1. "story": Longer, storytelling-based version
+  2. "short": Short, impactful version
+  3. "aida": AIDA framework version
 - Each version should be different
-- Never use names and always talk directly to the reader, use words like you
+- Must attract attention in first sentence
+- Talk directly to the reader using "you"
 
 Headline Guidelines:
 - MUST generate EXACTLY 10 unique headlines
 - Maximum 6 words each
 - Each headline must be completely different
 - Straight to the point
-- Highlight the result of using this product, the benefitial experience, or goal that is going te be achieved when using this product
-- Based on market awareness/sophistication
+- Highlight benefits or results
 
 Return ONLY a valid JSON object with these fields:
 {
+  "angles": [
+    {
+      "description": "string",
+      "hook": "string"
+    }
+  ],
   "adCopies": [
     {
       "type": "story|short|aida",
       "content": "string"
     }
   ],
-  "headlines": ["string", "string", "string", "string", "string", "string", "string", "string", "string", "string"]
+  "headlines": ["string"]
 }`;
 
   try {
@@ -88,14 +98,18 @@ Return ONLY a valid JSON object with these fields:
 
     const campaign = JSON.parse(content);
     
-    // Validate that we have exactly 10 unique headlines
-    if (!campaign.headlines || campaign.headlines.length !== 10 || 
-        new Set(campaign.headlines).size !== 10) {
-      console.error('[generateCampaign] Did not receive 10 unique headlines:', campaign.headlines);
-      throw new Error('Failed to generate 10 unique headlines');
+    // Validate response format
+    if (!campaign.angles || !Array.isArray(campaign.angles) || campaign.angles.length === 0) {
+      throw new Error('Invalid angles in response');
+    }
+    if (!campaign.adCopies || !Array.isArray(campaign.adCopies) || campaign.adCopies.length === 0) {
+      throw new Error('Invalid ad copies in response');
+    }
+    if (!campaign.headlines || !Array.isArray(campaign.headlines) || campaign.headlines.length !== 10) {
+      throw new Error('Invalid headlines in response - must have exactly 10 headlines');
     }
     
-    console.log('[generateCampaign] Parsed campaign:', campaign);
+    console.log('[generateCampaign] Parsed and validated campaign:', campaign);
 
     return { campaign };
   } catch (error) {
