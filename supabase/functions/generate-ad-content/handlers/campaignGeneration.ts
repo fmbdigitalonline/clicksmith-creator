@@ -3,48 +3,36 @@ import { BusinessIdea, TargetAudience } from "../types.ts";
 export async function generateCampaign(businessIdea: any, targetAudience: any, platform: string = 'facebook') {
   const platformSpecificPrompt = getPlatformSpecificPrompt(platform);
   
-  // Create a focused audience context for the prompt
-  const audienceContext = `
-Target Audience Details:
-- Persona: ${targetAudience.name}
-- Pain Points: ${targetAudience.painPoints.join(', ')}
-- Ideal Customer Profile: ${targetAudience.icp}
-- Core Message: ${targetAudience.coreMessage}
-- Positioning: ${targetAudience.positioning}
-- Marketing Angle: ${targetAudience.marketingAngle}
-- Messaging Approach: ${targetAudience.messagingApproach}`;
-  
   const prompt = `Create a marketing campaign for this business and target audience, specifically optimized for ${platform}:
 
 Business:
 ${JSON.stringify(businessIdea, null, 2)}
 
-${audienceContext}
+Target Audience:
+${JSON.stringify(targetAudience, null, 2)}
 
 ${platformSpecificPrompt}
 
 Create a complete marketing campaign with:
 1. 3 Marketing angles with hooks
-2. EXACTLY 10 unique Ad copies (completely different versions, each addressing different pain points and aspects of the target audience)
+2. EXACTLY 10 unique Ad copies (completely different versions)
 3. EXACTLY 10 unique Headlines (6 words max)
 
 Marketing Angles Guidelines:
 - Create 3 different marketing angles
 - Each angle should have a description and a hook
 - Focus on different aspects of the value proposition
-- Address different pain points from the target audience
+- Address different pain points
 - Optimize for ${platform}'s specific audience expectations
 
 Ad Copy Guidelines:
 - Create EXACTLY 10 unique ad copies
 - Each copy MUST be completely different in content and approach
-- Each version should address a different pain point or desire from the target audience
+- Each version should have a distinct value proposition or angle
 - Must attract attention in first sentence
 - Talk directly to the reader using "you"
 - Follow ${platform}'s best practices for ad copy
 - Ensure each copy has a unique selling point or hook
-- Use the specified messaging approach and positioning
-- Incorporate the core message in different ways
 
 Headline Guidelines:
 - MUST generate EXACTLY 10 unique headlines
@@ -72,7 +60,7 @@ Return ONLY a valid JSON object with these fields:
 }`;
 
   try {
-    console.log('[generateCampaign] Starting campaign generation with audience context...');
+    console.log('[generateCampaign] Sending request to OpenAI...');
     const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
     if (!openAIApiKey) {
       throw new Error('OpenAI API key is not configured');
@@ -89,9 +77,7 @@ Return ONLY a valid JSON object with these fields:
         messages: [
           {
             role: 'system',
-            content: `You are an expert ${platform} marketing copywriter specializing in persona-based marketing. 
-            Always generate EXACTLY 10 unique ad copies and headlines with no duplicates. 
-            Each ad copy must address different aspects of the target audience's needs and pain points.`
+            content: `You are an expert ${platform} marketing copywriter. Always respond with raw JSON only, no markdown. Always generate EXACTLY 10 unique ad copies and headlines with no duplicates.`
           },
           { role: 'user', content: prompt }
         ],
@@ -129,23 +115,10 @@ Return ONLY a valid JSON object with these fields:
       throw new Error('Invalid headlines in response - must have exactly 10 headlines');
     }
 
-    // Validate uniqueness of ad copies and ensure they use audience information
+    // Validate uniqueness of ad copies
     const uniqueAdCopies = new Set(campaign.adCopies.map(copy => copy.content));
     if (uniqueAdCopies.size !== campaign.adCopies.length) {
       throw new Error('Duplicate ad copies detected - all copies must be unique');
-    }
-    
-    // Additional validation to ensure audience context is used
-    const requiredTerms = [
-      targetAudience.coreMessage.toLowerCase(),
-      ...targetAudience.painPoints.map(point => point.toLowerCase())
-    ];
-    
-    const adCopiesText = campaign.adCopies.map(copy => copy.content.toLowerCase()).join(' ');
-    const missingTerms = requiredTerms.filter(term => !adCopiesText.includes(term));
-    
-    if (missingTerms.length > 0) {
-      console.warn('[generateCampaign] Warning: Some audience context terms are not used:', missingTerms);
     }
     
     console.log('[generateCampaign] Parsed and validated campaign:', campaign);
