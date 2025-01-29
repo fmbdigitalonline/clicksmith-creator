@@ -109,7 +109,7 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
     } finally {
       isSaving.current = false;
       if (saveQueue.current.length > 0) {
-        setTimeout(processQueue, 1500); // Increased delay to prevent race conditions
+        setTimeout(processQueue, 1500);
       }
     }
   };
@@ -135,14 +135,6 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
     }, 1000);
   };
 
-  const calculateHighestStep = (data: WizardData): number => {
-    let step = 1;
-    if (data.business_idea) step = Math.max(step, 2);
-    if (data.target_audience) step = Math.max(step, 3);
-    if (data.audience_analysis) step = Math.max(step, 4);
-    return step;
-  };
-
   const syncWizardState = async (userId: string | undefined) => {
     if (migrationInProgress.current) {
       console.log('[WizardStateProvider] Migration already in progress, skipping');
@@ -150,7 +142,6 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
     }
 
     try {
-      console.log('[WizardStateProvider] Starting to sync wizard state for user:', userId);
       setIsLoading(true);
       migrationInProgress.current = true;
 
@@ -163,7 +154,6 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
 
         const sessionId = localStorage.getItem('anonymous_session_id');
         if (sessionId && !progress) {
-          console.log('[WizardStateProvider] Found anonymous session:', sessionId);
           const { data: anonymousData } = await supabase
             .from('anonymous_usage')
             .select('wizard_data, last_completed_step')
@@ -171,150 +161,51 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
             .maybeSingle();
 
           if (anonymousData?.wizard_data) {
-            console.log('[WizardStateProvider] Found anonymous data:', anonymousData);
-            try {
-              const calculatedStep = Math.max(
-                calculateHighestStep(anonymousData.wizard_data as WizardData),
-                anonymousData.last_completed_step || 1
-              );
+            const calculatedStep = Math.max(
+              anonymousData.last_completed_step || 1,
+              1
+            );
 
-              const { data: migratedData, error } = await supabase
-                .rpc('atomic_migration', {
-                  p_user_id: userId,
-                  p_session_id: sessionId,
-                  p_calculated_step: calculatedStep
-                });
-
-              if (error) {
-                console.error('[WizardStateProvider] Migration error:', error);
-                throw error;
-              }
-
-              if (migratedData) {
-                console.log('[WizardStateProvider] Successfully migrated data:', migratedData);
-
-                if (migratedData.business_idea && isBusinessIdea(migratedData.business_idea)) {
-                  state.setBusinessIdea(migratedData.business_idea);
-                }
-                if (migratedData.target_audience && isTargetAudience(migratedData.target_audience)) {
-                  state.setTargetAudience(migratedData.target_audience);
-                }
-                if (migratedData.audience_analysis && isAudienceAnalysis(migratedData.audience_analysis)) {
-                  state.setAudienceAnalysis(migratedData.audience_analysis);
-                }
-
-                const targetStep = Math.max(
-                  migratedData.current_step || 1,
-                  calculatedStep
-                );
-
-                state.setCurrentStep(targetStep);
-                setStateVersion(migratedData.version || 1);
-
-                if (targetStep > 1) {
-                  navigate(`/ad-wizard/step-${targetStep}`, { replace: true });
-                }
-
-                localStorage.removeItem('anonymous_session_id');
-
-                toast({
-                  title: "Progress Restored",
-                  description: "Your previous work has been saved to your account.",
-                });
-              }
-            } catch (error) {
-              console.error('[WizardStateProvider] Error during migration:', error);
-              toast({
-                title: "Migration Error",
-                description: "There was an error restoring your previous work.",
-                variant: "destructive",
+            const { data: migratedData, error } = await supabase
+              .rpc('atomic_migration', {
+                p_user_id: userId,
+                p_session_id: sessionId,
+                p_calculated_step: calculatedStep
               });
+
+            if (error) throw error;
+
+            if (migratedData) {
+              if (migratedData.business_idea) state.setBusinessIdea(migratedData.business_idea);
+              if (migratedData.target_audience) state.setTargetAudience(migratedData.target_audience);
+              if (migratedData.audience_analysis) state.setAudienceAnalysis(migratedData.audience_analysis);
+              state.setCurrentStep(Math.max(migratedData.current_step || 1, 1));
+              setStateVersion(migratedData.version || 1);
+              navigate(`/ad-wizard/step-${migratedData.current_step || 1}`, { replace: true });
             }
           }
-        } else if (progress) {
-          console.log('[WizardStateProvider] Found existing progress:', progress);
-          if (progress.business_idea && isBusinessIdea(progress.business_idea)) {
-            state.setBusinessIdea(progress.business_idea);
-          }
-          if (progress.target_audience && isTargetAudience(progress.target_audience)) {
-            state.setTargetAudience(progress.target_audience);
-          }
-          if (progress.audience_analysis && isAudienceAnalysis(progress.audience_analysis)) {
-            state.setAudienceAnalysis(progress.audience_analysis);
-          }
-          if (progress.current_step) {
-            state.setCurrentStep(progress.current_step);
-            if (progress.current_step > 1 && location.pathname === '/ad-wizard/new') {
-              navigate(`/ad-wizard/step-${progress.current_step}`, { replace: true });
-            }
-          }
-          setStateVersion(progress.version || 1);
         }
       }
     } catch (error) {
       console.error('[WizardStateProvider] Error syncing state:', error);
-      toast({
-        title: "Error Loading Progress",
-        description: "There was an error loading your progress.",
-        variant: "destructive",
-      });
     } finally {
       setIsLoading(false);
-      hasInitialized.current = true;
       migrationInProgress.current = false;
     }
   };
 
   useEffect(() => {
-    const saveProgress = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-
-      if (user) {
-        queueSave({
-          user_id: user.id,
-          business_idea: state.businessIdea,
-          target_audience: state.targetAudience,
-          audience_analysis: state.audienceAnalysis,
-          current_step: state.currentStep,
-          generated_ads: state.generatedAds || []
-        });
-      }
-    };
-
-    if (state.businessIdea || state.targetAudience || state.audienceAnalysis || state.generatedAds?.length > 0) {
-      saveProgress();
-    }
-
-    return () => {
-      if (saveTimeout.current) {
-        clearTimeout(saveTimeout.current);
-      }
-    };
-  }, [state.businessIdea, state.targetAudience, state.audienceAnalysis, state.currentStep, state.generatedAds]);
-
-  useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('[WizardStateProvider] Auth state changed:', event);
-
+    const { data: unsubscribe } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session?.user && !hasInitialized.current) {
         await syncWizardState(session.user.id);
       }
     });
 
     return () => {
-      subscription.unsubscribe();
-    };
-  }, []);
-
-  useEffect(() => {
-    const initializeState = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!hasInitialized.current) {
-        await syncWizardState(user?.id);
+      if (unsubscribe) {
+        unsubscribe(); // Correct cleanup for subscription
       }
     };
-
-    initializeState();
   }, []);
 
   if (isLoading) {
