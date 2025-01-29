@@ -8,7 +8,7 @@ import { usePlatformSwitch } from "@/hooks/usePlatformSwitch";
 import { useAdGeneration } from "./useAdGeneration";
 import { useAdDisplay } from "@/hooks/useAdDisplay";
 import AdGenerationControls from "./AdGenerationControls";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AdSizeSelector, AD_FORMATS } from "./components/AdSizeSelector";
 
 interface AdGalleryContentProps {
@@ -58,6 +58,10 @@ const AdGalleryContent = ({
     handleAdError
   } = useAdDisplay(generatedAds);
 
+  useEffect(() => {
+    console.log('[AdGalleryContent] Current display ads:', displayAds);
+  }, [displayAds]);
+
   const handleFormatChange = (format: typeof AD_FORMATS[0]) => {
     console.log('[AdGalleryContent] Format changed:', format);
     setSelectedFormat(format);
@@ -70,11 +74,7 @@ const AdGalleryContent = ({
   };
 
   const renderPlatformContent = (platformName: string) => {
-    const platformAds = Array.isArray(displayAds) 
-      ? displayAds.filter(ad => ad.platform === platformName)
-      : [];
-    
-    console.log(`[AdGalleryContent] Rendering ${platformName} ads:`, platformAds);
+    console.log(`[AdGalleryContent] Rendering ${platformName} ads:`, displayAds);
     
     return (
       <TabsContent value={platformName} className="space-y-4">
@@ -86,7 +86,7 @@ const AdGalleryContent = ({
         </div>
         <PlatformContent
           platformName={platformName}
-          adVariants={platformAds}
+          adVariants={displayAds}
           onCreateProject={onCreateProject}
           videoAdsEnabled={videoAdsEnabled}
           selectedFormat={selectedFormat}
