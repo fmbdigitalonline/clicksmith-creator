@@ -42,6 +42,14 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
   const saveTimeout = useRef<NodeJS.Timeout | null>(null);
   const migrationInProgress = useRef(false);
 
+  const calculateHighestStep = (data: WizardData): number => {
+    let step = 1;
+    if (data.business_idea) step = Math.max(step, 2);
+    if (data.target_audience) step = Math.max(step, 3);
+    if (data.audience_analysis) step = Math.max(step, 4);
+    return step;
+  };
+
   const syncWizardState = async (userId: string | undefined) => {
     if (migrationInProgress.current) {
       console.log('[WizardStateProvider] Migration already in progress, skipping');
@@ -72,11 +80,22 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
           if (anonymousData?.wizard_data) {
             console.log('[WizardStateProvider] Found anonymous data:', anonymousData);
             try {
-              const { data: migratedData } = await supabase
-                .rpc('atomic_migration', { 
-                  p_user_id: userId, 
-                  p_session_id: sessionId 
+              const calculatedStep = Math.max(
+                calculateHighestStep(anonymousData.wizard_data as WizardData),
+                anonymousData.last_completed_step || 1
+              );
+
+              const { data: migratedData, error } = await supabase
+                .rpc('atomic_migration', {
+                  p_user_id: userId,
+                  p_session_id: sessionId,
+                  p_calculated_step: calculatedStep
                 });
+
+              if (error) {
+                console.error('[WizardStateProvider] Migration error:', error);
+                throw error;
+              }
 
               if (migratedData) {
                 console.log('[WizardStateProvider] Successfully migrated data:', migratedData);
@@ -90,13 +109,10 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
                 if (migratedData.audience_analysis && isAudienceAnalysis(migratedData.audience_analysis)) {
                   state.setAudienceAnalysis(migratedData.audience_analysis);
                 }
-                if (Array.isArray(migratedData.generated_ads)) {
-                  state.setGeneratedAds(migratedData.generated_ads);
-                }
                 
                 const targetStep = Math.max(
                   migratedData.current_step || 1,
-                  anonymousData.last_completed_step || 1
+                  calculatedStep
                 );
                 
                 state.setCurrentStep(targetStep);
@@ -114,9 +130,9 @@ export const WizardStateProvider = ({ children }: { children: ReactNode }) => {
                 });
               }
             } catch (error) {
-              console.error('[WizardStateProvider] Migration error:', error);
+              console.error('[WizardStateProvider] Error during migration:', error);
               toast({
-                title: "Error Restoring Progress",
+                title: "Migration Error",
                 description: "There was an error restoring your previous work.",
                 variant: "destructive",
               });
