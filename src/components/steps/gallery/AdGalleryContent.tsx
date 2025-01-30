@@ -11,7 +11,7 @@ import { useState, useEffect } from "react";
 import AdGenerationControls from "./AdGenerationControls";
 import { AdSizeSelector, AD_FORMATS } from "./components/AdSizeSelector";
 import { useToast } from "@/hooks/use-toast";
-import { useAdPersistence } from "@/hooks/useAdPersistence";
+import { useAdGalleryState } from "@/hooks/useAdGalleryState";
 import { supabase } from "@/integrations/supabase/client";
 
 interface AdGalleryContentProps {
@@ -34,13 +34,18 @@ const AdGalleryContent = ({
   onBack,
   onCreateProject,
   videoAdsEnabled = false,
-  generatedAds = [],
-  hasLoadedInitialAds = false,
 }: AdGalleryContentProps) => {
   const [selectedFormat, setSelectedFormat] = useState(AD_FORMATS[0]);
-  const [currentAds, setCurrentAds] = useState<any[]>([]);
   const { toast } = useToast();
-  const { savedAds, saveGeneratedAds, loadSavedAds } = useAdPersistence();
+  const [userId, setUserId] = useState<string | undefined>();
+
+  const {
+    currentAds,
+    setCurrentAds,
+    isLoading: isLoadingState,
+    saveGeneratedAds,
+    clearGeneratedAds
+  } = useAdGalleryState(userId);
 
   const {
     platform,
@@ -60,43 +65,19 @@ const AdGalleryContent = ({
 
   const {
     displayAds,
-    isLoading,
-    setIsLoading,
+    isLoading: isDisplayLoading,
+    setIsLoading: setIsDisplayLoading,
     handleAdError
   } = useAdDisplay(currentAds);
 
-  // Load saved ads on mount
+  // Get user ID on mount
   useEffect(() => {
-    const loadAds = async () => {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user?.id) {
-          const savedAdsData = await loadSavedAds(user.id);
-          if (Array.isArray(savedAdsData) && savedAdsData.length > 0) {
-            setCurrentAds(savedAdsData);
-          }
-        }
-      } catch (error) {
-        console.error('[AdGalleryContent] Error loading saved ads:', error);
-      }
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setUserId(user?.id);
     };
-
-    loadAds();
+    getUser();
   }, []);
-
-  // Save ads when they're generated
-  useEffect(() => {
-    const saveAds = async () => {
-      if (Array.isArray(currentAds) && currentAds.length > 0) {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user?.id) {
-          await saveGeneratedAds(currentAds, user.id);
-        }
-      }
-    };
-
-    saveAds();
-  }, [currentAds]);
 
   const handleFormatChange = (format: typeof AD_FORMATS[0]) => {
     console.log('[AdGalleryContent] Format changed:', format);
@@ -111,14 +92,10 @@ const AdGalleryContent = ({
       handlePlatformChange(value as any, hasExistingAds);
     } else {
       try {
-        setIsLoading(true);
+        setIsDisplayLoading(true);
         const newAds = await generateAds(value);
         if (newAds && Array.isArray(newAds)) {
-          setCurrentAds(newAds);
-          const { data: { user } } = await supabase.auth.getUser();
-          if (user?.id) {
-            await saveGeneratedAds(newAds, user.id);
-          }
+          await saveGeneratedAds(newAds);
           toast({
             title: "Ads Generated",
             description: `Successfully generated ${value} ads.`,
@@ -134,24 +111,20 @@ const AdGalleryContent = ({
           variant: "destructive",
         });
       } finally {
-        setIsLoading(false);
+        setIsDisplayLoading(false);
       }
     }
   };
 
   const handleConfirmPlatformChange = async () => {
     try {
-      setIsLoading(true);
+      setIsDisplayLoading(true);
       const confirmedPlatform = confirmPlatformChange();
       console.log('[AdGalleryContent] Confirmed platform change to:', confirmedPlatform);
       
       const newAds = await generateAds(confirmedPlatform);
       if (newAds && Array.isArray(newAds)) {
-        setCurrentAds(newAds);
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user?.id) {
-          await saveGeneratedAds(newAds, user.id);
-        }
+        await saveGeneratedAds(newAds);
         toast({
           title: "Ads Generated",
           description: `Successfully generated ${confirmedPlatform} ads.`,
@@ -168,18 +141,16 @@ const AdGalleryContent = ({
       });
       cancelPlatformChange();
     } finally {
-      setIsLoading(false);
+      setIsDisplayLoading(false);
     }
   };
 
   const handleRegenerate = async () => {
     try {
-      setIsLoading(true);
+      setIsDisplayLoading(true);
       const newAds = await generateAds(platform);
       if (newAds && Array.isArray(newAds)) {
-        setCurrentAds(newAds);
-        const { data: { user } } = await supabase.auth.getUser();
-        await saveGeneratedAds(newAds, user?.id);
+        await saveGeneratedAds(newAds);
         toast({
           title: "Ads Regenerated",
           description: `Successfully regenerated ${platform} ads.`,
@@ -195,31 +166,36 @@ const AdGalleryContent = ({
         variant: "destructive",
       });
     } finally {
-      setIsLoading(false);
+      setIsDisplayLoading(false);
     }
+  };
+
+  const handleStartOver = async () => {
+    await clearGeneratedAds();
+    onStartOver();
   };
 
   // Initial ad generation for the first platform
   useEffect(() => {
     const generateInitialAds = async () => {
-      if (!currentAds.length && !isLoading && !isGenerating) {
+      if (!currentAds.length && !isDisplayLoading && !isGenerating && userId) {
         console.log('[AdGalleryContent] Generating initial ads for platform:', platform);
         try {
-          setIsLoading(true);
+          setIsDisplayLoading(true);
           const newAds = await generateAds(platform);
           if (newAds && Array.isArray(newAds)) {
-            setCurrentAds(newAds);
+            await saveGeneratedAds(newAds);
           }
         } catch (error) {
           console.error('[AdGalleryContent] Error generating initial ads:', error);
         } finally {
-          setIsLoading(false);
+          setIsDisplayLoading(false);
         }
       }
     };
 
     generateInitialAds();
-  }, [platform, currentAds.length, isLoading, isGenerating, generateAds]);
+  }, [platform, currentAds.length, isDisplayLoading, isGenerating, generateAds, userId]);
 
   const renderPlatformContent = (platformName: string) => {
     console.log(`[AdGalleryContent] Rendering ${platformName} ads:`, displayAds);
@@ -247,13 +223,13 @@ const AdGalleryContent = ({
     <div className="space-y-6 md:space-y-8">
       <AdGenerationControls
         onBack={onBack}
-        onStartOver={onStartOver}
+        onStartOver={handleStartOver}
         onRegenerate={handleRegenerate}
         isGenerating={isGenerating}
         generationStatus={generationStatus}
       />
 
-      {isGenerating || isLoading ? (
+      {isGenerating || isDisplayLoading || isLoadingState ? (
         <LoadingState />
       ) : (
         <PlatformTabs 
