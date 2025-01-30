@@ -3,6 +3,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { AdHook, AdImage } from "@/types/adWizard";
 
+interface WizardProgress {
+  generated_ads?: any[];
+}
+
 export const useAdGalleryState = (userId?: string) => {
   const [currentAds, setCurrentAds] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -25,11 +29,17 @@ export const useAdGalleryState = (userId?: string) => {
 
       if (error) throw error;
 
-      if (data?.generated_ads && Array.isArray(data.generated_ads)) {
-        setCurrentAds(data.generated_ads);
+      // Ensure we have valid array data before setting state
+      const generatedAds = data?.generated_ads;
+      if (generatedAds && Array.isArray(generatedAds)) {
+        setCurrentAds(generatedAds);
+      } else {
+        console.log('[useAdGalleryState] No valid generated ads found:', generatedAds);
+        setCurrentAds([]);
       }
     } catch (error) {
       console.error('[useAdGalleryState] Error loading ads:', error);
+      setCurrentAds([]);
     } finally {
       setIsLoading(false);
     }
