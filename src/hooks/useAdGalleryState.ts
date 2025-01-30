@@ -25,7 +25,7 @@ export const useAdGalleryState = (userId?: string) => {
 
       if (error) throw error;
 
-      if (data?.generated_ads) {
+      if (data?.generated_ads && Array.isArray(data.generated_ads)) {
         setCurrentAds(data.generated_ads);
       }
     } catch (error) {
