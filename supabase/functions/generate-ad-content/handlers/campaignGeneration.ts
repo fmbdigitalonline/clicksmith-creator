@@ -26,12 +26,16 @@ ${platformSpecificPrompt}
 Create a complete marketing campaign with:
 1. 3 Marketing angles with hooks that directly address the audience pain points
 2. EXACTLY 10 unique Ad copies that:
+   - Must be comprehensive and detailed (minimum 100 words each)
+   - Include a clear introduction, body, and call-to-action
    - Speak directly to the defined target audience profile
    - Address specific pain points mentioned
    - Use the core message as foundation
    - Follow the specified messaging approach
    - Maintain the defined positioning
    - Use the marketing angle effectively
+   - Include specific examples and benefits
+   - End with a compelling call-to-action
 3. EXACTLY 10 unique Headlines (6 words max) that resonate with the ICP
 
 Marketing Angles Guidelines:
@@ -43,6 +47,13 @@ Marketing Angles Guidelines:
 
 Ad Copy Guidelines:
 - Create EXACTLY 10 unique ad copies
+- Each copy MUST be comprehensive (minimum 100 words)
+- Structure each copy with clear sections:
+  * Hook/Opening (20-30 words)
+  * Problem statement (30-40 words)
+  * Solution/Value proposition (40-50 words)
+  * Social proof or benefit elaboration (30-40 words)
+  * Call-to-action (20-30 words)
 - Each copy MUST be completely different in approach
 - Incorporate the core message naturally
 - Address specific pain points from the audience profile
@@ -93,12 +104,12 @@ Return ONLY a valid JSON object with these fields:
         messages: [
           {
             role: 'system',
-            content: `You are an expert ${platform} marketing copywriter specializing in persona-based content creation. Always respond with raw JSON only, no markdown. Always generate EXACTLY 10 unique ad copies and headlines with no duplicates.`
+            content: `You are an expert ${platform} marketing copywriter specializing in detailed, comprehensive ad content creation. Always write detailed ad copies with clear structure and substantial content. Always respond with raw JSON only, no markdown. Always generate EXACTLY 10 unique ad copies and headlines with no duplicates.`
           },
           { role: 'user', content: prompt }
         ],
-        temperature: 0.8,
-        max_tokens: 2000,
+        temperature: 0.7,
+        max_tokens: 4000,
       }),
     });
 
@@ -131,11 +142,19 @@ Return ONLY a valid JSON object with these fields:
       throw new Error('Invalid headlines in response - must have exactly 10 headlines');
     }
 
-    // Validate uniqueness of ad copies
+    // Validate uniqueness of ad copies and minimum length
     const uniqueAdCopies = new Set(campaign.adCopies.map(copy => copy.content));
     if (uniqueAdCopies.size !== campaign.adCopies.length) {
       throw new Error('Duplicate ad copies detected - all copies must be unique');
     }
+
+    // Validate minimum length for each ad copy
+    campaign.adCopies.forEach((copy, index) => {
+      const wordCount = copy.content.split(/\s+/).length;
+      if (wordCount < 100) {
+        console.warn(`[generateCampaign] Ad copy ${index + 1} is shorter than required (${wordCount} words)`);
+      }
+    });
     
     console.log('[generateCampaign] Parsed and validated campaign:', campaign);
 
@@ -150,10 +169,10 @@ function getPlatformSpecificPrompt(platform: string): string {
   switch (platform.toLowerCase()) {
     case 'facebook':
       return `Optimize for Facebook Ads:
-- Use conversational, engaging tone
-- Focus on emotional triggers
+- Write detailed, engaging content
+- Focus on emotional triggers and storytelling
 - Include clear call-to-actions
-- Keep text concise for mobile viewing`;
+- Balance mobile readability with comprehensive content`;
     
     case 'google':
       return `Optimize for Google Display Ads:
