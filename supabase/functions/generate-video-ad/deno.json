@@ -2,8 +2,7 @@
   "imports": {
     "std/": "https://deno.land/std@0.168.0/",
     "std/server": "https://deno.land/std@0.168.0/http/server.ts",
-    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.7.1",
-    "stripe": "https://esm.sh/stripe@14.21.0"
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.7.1"
   },
   "tasks": {
     "serve": "deno run --allow-net --allow-env index.ts"
