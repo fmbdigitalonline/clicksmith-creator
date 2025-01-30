@@ -4,7 +4,7 @@
   },
   "imports": {
     "std/": "https://deno.land/std@0.190.0/",
-    "supabase": "https://esm.sh/@supabase/supabase-js@2.7.1",
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.45.0",
     "xhr/": "https://deno.land/x/xhr@0.1.0/",
     "replicate": "https://esm.sh/replicate@0.25.1"
   }
