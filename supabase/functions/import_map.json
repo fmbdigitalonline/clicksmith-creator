@@ -1,0 +1,6 @@
+{
+  "imports": {
+    "openai": "https://esm.sh/openai@4.24.1",
+    "cors": "https://deno.land/x/cors@v1.2.2/mod.ts"
+  }
+}
