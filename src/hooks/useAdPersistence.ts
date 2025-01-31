@@ -1,94 +1,69 @@
-import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/hooks/use-toast";
-import { Json } from "@/integrations/supabase/types";
+import { useState } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 
-interface GeneratedAd {
-  id: string;
-  platform: string;
-  headline: string;
-  description: string;
-  imageUrl: string;
-  size?: {
-    width: number;
-    height: number;
-    label: string;
-  };
-}
-
-export const useAdPersistence = () => {
-  const [savedAds, setSavedAds] = useState<GeneratedAd[]>([]);
+export const useAdPersistence = (userId: string | undefined) => {
+  const [isSaving, setIsSaving] = useState(false);
   const { toast } = useToast();
 
-  const saveGeneratedAds = async (ads: GeneratedAd[], userId: string) => {
-    if (!userId) return;
+  const saveGeneratedAds = async (ads: any[]) => {
+    if (!userId || isSaving || !Array.isArray(ads)) return false;
 
     try {
-      // First, get the current version
-      const { data: currentData, error: fetchError } = await supabase
-        .from('wizard_progress')
-        .select('version')
-        .eq('user_id', userId)
-        .single();
-
-      if (fetchError && fetchError.code !== 'PGRST116') {
-        throw fetchError;
-      }
-
-      const currentVersion = currentData?.version || 0;
-
-      // Then perform the upsert with the incremented version
+      setIsSaving(true);
       const { error } = await supabase
         .from('wizard_progress')
         .upsert({
           user_id: userId,
-          generated_ads: ads as unknown as Json,
-          updated_at: new Date().toISOString(),
-          version: currentVersion + 1
+          generated_ads: ads,
+          updated_at: new Date().toISOString()
         }, {
           onConflict: 'user_id'
         });
 
       if (error) throw error;
-
-      setSavedAds(ads);
+      return true;
     } catch (error) {
       console.error('[useAdPersistence] Error saving ads:', error);
       toast({
-        title: "Error",
-        description: "Failed to save generated ads",
+        title: "Error saving ads",
+        description: "There was an error saving your ads. Please try again.",
         variant: "destructive",
       });
+      return false;
+    } finally {
+      setIsSaving(false);
     }
   };
 
-  const loadSavedAds = async (userId: string): Promise<GeneratedAd[]> => {
-    if (!userId) return [];
+  const clearGeneratedAds = async () => {
+    if (!userId || isSaving) return false;
 
     try {
-      const { data, error } = await supabase
+      setIsSaving(true);
+      const { error } = await supabase
         .from('wizard_progress')
-        .select('generated_ads')
-        .eq('user_id', userId)
-        .single();
+        .update({ generated_ads: [] })
+        .eq('user_id', userId);
 
       if (error) throw error;
-
-      const adsArray = Array.isArray(data?.generated_ads) 
-        ? (data.generated_ads as unknown as GeneratedAd[])
-        : [];
-      setSavedAds(adsArray);
-      return adsArray;
-
+      return true;
     } catch (error) {
-      console.error('[useAdPersistence] Error loading ads:', error);
-      return [];
+      console.error('[useAdPersistence] Error clearing ads:', error);
+      toast({
+        title: "Error clearing ads",
+        description: "There was an error clearing your ads. Please try again.",
+        variant: "destructive",
+      });
+      return false;
+    } finally {
+      setIsSaving(false);
     }
   };
 
   return {
-    savedAds,
+    isSaving,
     saveGeneratedAds,
-    loadSavedAds
+    clearGeneratedAds
   };
 };
