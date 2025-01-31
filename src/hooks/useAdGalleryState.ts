@@ -1,11 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { AdHook, AdImage } from "@/types/adWizard";
-
-interface WizardProgress {
-  generated_ads?: any[];
-}
+import { saveQueue } from "@/utils/saveQueue";
 
 export const useAdGalleryState = (userId?: string) => {
   const [currentAds, setCurrentAds] = useState<any[]>([]);
@@ -29,7 +25,6 @@ export const useAdGalleryState = (userId?: string) => {
 
       if (error) throw error;
 
-      // Ensure we have valid array data before setting state
       const generatedAds = data?.generated_ads;
       if (generatedAds && Array.isArray(generatedAds)) {
         setCurrentAds(generatedAds);
@@ -48,38 +43,52 @@ export const useAdGalleryState = (userId?: string) => {
   const saveGeneratedAds = async (ads: any[]) => {
     if (!userId) return;
 
-    try {
-      const { error } = await supabase
-        .from('wizard_progress')
-        .upsert({
-          user_id: userId,
-          generated_ads: ads,
-          updated_at: new Date().toISOString()
-        }, {
-          onConflict: 'user_id'
-        });
+    await saveQueue.add(async () => {
+      try {
+        // First get the current version
+        const { data: currentData } = await supabase
+          .from('wizard_progress')
+          .select('version')
+          .eq('user_id', userId)
+          .single();
 
-      if (error) throw error;
-      setCurrentAds(ads);
-    } catch (error) {
-      console.error('[useAdGalleryState] Error saving ads:', error);
-      toast({
-        title: "Error",
-        description: "Failed to save generated ads",
-        variant: "destructive",
-      });
-    }
+        const nextVersion = (currentData?.version || 0) + 1;
+
+        const { error } = await supabase
+          .from('wizard_progress')
+          .upsert({
+            user_id: userId,
+            generated_ads: ads,
+            updated_at: new Date().toISOString(),
+            version: nextVersion
+          }, {
+            onConflict: 'user_id'
+          });
+
+        if (error) throw error;
+        setCurrentAds(ads);
+      } catch (error) {
+        console.error('[useAdGalleryState] Error saving ads:', error);
+        toast({
+          title: "Error",
+          description: "Failed to save generated ads",
+          variant: "destructive",
+        });
+      }
+    });
   };
 
   const clearGeneratedAds = async () => {
     if (!userId) return;
     
-    try {
-      await saveGeneratedAds([]);
-      setCurrentAds([]);
-    } catch (error) {
-      console.error('[useAdGalleryState] Error clearing ads:', error);
-    }
+    await saveQueue.add(async () => {
+      try {
+        await saveGeneratedAds([]);
+        setCurrentAds([]);
+      } catch (error) {
+        console.error('[useAdGalleryState] Error clearing ads:', error);
+      }
+    });
   };
 
   return {
