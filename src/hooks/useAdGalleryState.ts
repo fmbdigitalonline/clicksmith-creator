@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { saveQueue } from "@/utils/saveQueue";
@@ -6,20 +6,18 @@ import { saveQueue } from "@/utils/saveQueue";
 export const useAdGalleryState = (userId?: string) => {
   const [currentAds, setCurrentAds] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [saveAttempts, setSaveAttempts] = useState(0);
   const { toast } = useToast();
+  const MAX_SAVE_ATTEMPTS = 3;
 
-  useEffect(() => {
-    loadSavedAds();
-  }, [userId]);
-
-  const loadSavedAds = async () => {
+  const loadSavedAds = useCallback(async () => {
     if (!userId) return;
     
     try {
       setIsLoading(true);
       const { data, error } = await supabase
         .from('wizard_progress')
-        .select('generated_ads')
+        .select('generated_ads, version')
         .eq('user_id', userId)
         .single();
 
@@ -27,9 +25,10 @@ export const useAdGalleryState = (userId?: string) => {
 
       const generatedAds = data?.generated_ads;
       if (generatedAds && Array.isArray(generatedAds)) {
+        console.log('[useAdGalleryState] Loaded saved ads:', generatedAds.length);
         setCurrentAds(generatedAds);
       } else {
-        console.log('[useAdGalleryState] No valid generated ads found:', generatedAds);
+        console.log('[useAdGalleryState] No valid generated ads found');
         setCurrentAds([]);
       }
     } catch (error) {
@@ -38,14 +37,19 @@ export const useAdGalleryState = (userId?: string) => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [userId]);
 
-  const saveGeneratedAds = async (ads: any[]) => {
-    if (!userId) return;
+  useEffect(() => {
+    loadSavedAds();
+  }, [userId, loadSavedAds]);
+
+  const saveGeneratedAds = useCallback(async (ads: any[]) => {
+    if (!userId || saveAttempts >= MAX_SAVE_ATTEMPTS) return;
 
     await saveQueue.add(async () => {
       try {
-        // First get the current version
+        setSaveAttempts(prev => prev + 1);
+        
         const { data: currentData } = await supabase
           .from('wizard_progress')
           .select('version')
@@ -53,6 +57,7 @@ export const useAdGalleryState = (userId?: string) => {
           .single();
 
         const nextVersion = (currentData?.version || 0) + 1;
+        console.log('[useAdGalleryState] Saving ads with version:', nextVersion);
 
         const { error } = await supabase
           .from('wizard_progress')
@@ -66,19 +71,29 @@ export const useAdGalleryState = (userId?: string) => {
           });
 
         if (error) throw error;
+        
         setCurrentAds(ads);
+        setSaveAttempts(0); // Reset attempts on success
       } catch (error) {
         console.error('[useAdGalleryState] Error saving ads:', error);
-        toast({
-          title: "Error",
-          description: "Failed to save generated ads",
-          variant: "destructive",
-        });
+        
+        if (saveAttempts < MAX_SAVE_ATTEMPTS) {
+          // Exponential backoff for retries
+          const delay = Math.pow(2, saveAttempts) * 1000;
+          await new Promise(resolve => setTimeout(resolve, delay));
+          await saveGeneratedAds(ads);
+        } else {
+          toast({
+            title: "Error",
+            description: "Failed to save generated ads",
+            variant: "destructive",
+          });
+        }
       }
     });
-  };
+  }, [userId, saveAttempts, toast]);
 
-  const clearGeneratedAds = async () => {
+  const clearGeneratedAds = useCallback(async () => {
     if (!userId) return;
     
     await saveQueue.add(async () => {
@@ -89,7 +104,7 @@ export const useAdGalleryState = (userId?: string) => {
         console.error('[useAdGalleryState] Error clearing ads:', error);
       }
     });
-  };
+  }, [userId, saveGeneratedAds]);
 
   return {
     currentAds,
