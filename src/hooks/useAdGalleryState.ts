@@ -27,7 +27,9 @@ export const useAdGalleryState = (userId: string | undefined) => {
         }
 
         if (data?.generated_ads) {
-          setCurrentAds(data.generated_ads);
+          // Ensure we're setting an array
+          const adsArray = Array.isArray(data.generated_ads) ? data.generated_ads : [];
+          setCurrentAds(adsArray);
         } else {
           setCurrentAds([]);
         }
