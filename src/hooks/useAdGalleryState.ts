@@ -1,11 +1,14 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useCreditsManagement } from '@/hooks/useCreditsManagement';
 
 export const useAdGalleryState = (userId: string | undefined) => {
   const [currentAds, setCurrentAds] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [saveInProgress, setSaveInProgress] = useState(false);
   const { toast } = useToast();
+  const { checkCredits } = useCreditsManagement();
 
   useEffect(() => {
     const loadAds = async () => {
@@ -21,7 +24,7 @@ export const useAdGalleryState = (userId: string | undefined) => {
           .eq('user_id', userId)
           .maybeSingle();
 
-        if (error) {
+        if (error && error.code !== 'PGRST116') {
           console.error('[useAdGalleryState] Error loading ads:', error);
           throw error;
         }
@@ -49,9 +52,19 @@ export const useAdGalleryState = (userId: string | undefined) => {
   }, [userId, toast]);
 
   const saveGeneratedAds = async (ads: any[]) => {
-    if (!userId) return;
+    if (!userId || saveInProgress) return;
 
     try {
+      setSaveInProgress(true);
+      console.log('[useAdGalleryState] Starting save operation for ads:', ads.length);
+
+      // Check credits before saving
+      const hasCredits = await checkCredits(1);
+      if (!hasCredits) {
+        console.log('[useAdGalleryState] No credits available for saving');
+        return;
+      }
+
       const { data: existing } = await supabase
         .from('wizard_progress')
         .select('version')
@@ -67,11 +80,14 @@ export const useAdGalleryState = (userId: string | undefined) => {
           generated_ads: ads,
           version: version + 1,
           updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'user_id'
         });
 
       if (error) throw error;
 
       setCurrentAds(ads);
+      console.log('[useAdGalleryState] Successfully saved ads');
     } catch (error) {
       console.error('[useAdGalleryState] Error saving ads:', error);
       toast({
@@ -79,13 +95,16 @@ export const useAdGalleryState = (userId: string | undefined) => {
         description: "There was an error saving your ads. Please try again.",
         variant: "destructive",
       });
+    } finally {
+      setSaveInProgress(false);
     }
   };
 
   const clearGeneratedAds = async () => {
-    if (!userId) return;
+    if (!userId || saveInProgress) return;
 
     try {
+      setSaveInProgress(true);
       const { error } = await supabase
         .from('wizard_progress')
         .update({ generated_ads: [] })
@@ -101,6 +120,8 @@ export const useAdGalleryState = (userId: string | undefined) => {
         description: "There was an error clearing your ads. Please try again.",
         variant: "destructive",
       });
+    } finally {
+      setSaveInProgress(false);
     }
   };
 
@@ -109,6 +130,7 @@ export const useAdGalleryState = (userId: string | undefined) => {
     setCurrentAds,
     isLoading,
     saveGeneratedAds,
-    clearGeneratedAds
+    clearGeneratedAds,
+    saveInProgress
   };
 };

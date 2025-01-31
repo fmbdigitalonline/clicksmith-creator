@@ -4,6 +4,8 @@ import { useToast } from './use-toast';
 import { BusinessIdea, TargetAudience, AdHook } from '@/types/adWizard';
 import { useAdGenerationLock } from './useAdGenerationLock';
 
+const RETRY_DELAYS = [2000, 4000, 8000]; // Exponential backoff
+
 export const usePlatformAds = (
   businessIdea: BusinessIdea,
   targetAudience: TargetAudience,
@@ -23,7 +25,8 @@ export const usePlatformAds = (
     acquireLock,
     releaseLock,
     canRetry,
-    incrementRetry
+    incrementRetry,
+    retryCount
   } = useAdGenerationLock();
 
   const generatePlatformAds = useCallback(async () => {
@@ -51,10 +54,11 @@ export const usePlatformAds = (
       console.error(`[usePlatformAds] Error generating ${platform} ads:`, error);
       
       if (canRetry()) {
-        const retryCount = incrementRetry();
-        console.log(`[usePlatformAds] Retrying generation (${retryCount}/3)`);
-        // Exponential backoff
-        await new Promise(resolve => setTimeout(resolve, Math.pow(2, retryCount) * 1000));
+        const currentRetry = incrementRetry();
+        const delay = RETRY_DELAYS[currentRetry - 1] || RETRY_DELAYS[RETRY_DELAYS.length - 1];
+        
+        console.log(`[usePlatformAds] Retrying generation (${currentRetry}/3) after ${delay}ms`);
+        await new Promise(resolve => setTimeout(resolve, delay));
         return generatePlatformAds();
       }
 
