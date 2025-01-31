@@ -1,7 +1,8 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useToast } from './use-toast';
 import { BusinessIdea, TargetAudience, AdHook } from '@/types/adWizard';
 import { useAdGenerationLock } from './useAdGenerationLock';
+import { supabase } from "@/integrations/supabase/client";
 
 const RETRY_DELAYS = [2000, 4000, 8000];
 
@@ -12,6 +13,8 @@ export const usePlatformAds = (
   platform: string
 ) => {
   const [isLoading, setIsLoading] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generationStatus, setGenerationStatus] = useState('');
   const { toast } = useToast();
   const {
     isLocked,
@@ -35,6 +38,9 @@ export const usePlatformAds = (
 
     try {
       setIsLoading(true);
+      setIsGenerating(true);
+      setGenerationStatus(`Generating ${platform} ads...`);
+      
       const { data, error } = await supabase.functions.invoke('generate-ad-content', {
         body: {
           type: 'complete_ads',
@@ -66,6 +72,8 @@ export const usePlatformAds = (
       return [];
     } finally {
       setIsLoading(false);
+      setIsGenerating(false);
+      setGenerationStatus('');
       releaseLock();
     }
   }, [platform, businessIdea, targetAudience, adHooks, isLocked, acquireLock, releaseLock, canRetry, incrementRetry, toast]);
@@ -78,6 +86,8 @@ export const usePlatformAds = (
 
   return {
     isLoading,
+    isGenerating,
+    generationStatus,
     generatePlatformAds,
   };
 };
