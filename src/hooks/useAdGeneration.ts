@@ -1,8 +1,7 @@
-import { useState, useCallback } from 'react';
-import { useToast } from './use-toast';
-import { BusinessIdea, TargetAudience, AdHook } from '@/types/adWizard';
-import { supabase } from '@/integrations/supabase/client';
-import { useCreditsManagement } from './useCreditsManagement';
+import { BusinessIdea, TargetAudience, AdHook } from "@/types/adWizard";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import { useState } from "react";
 
 export const useAdGeneration = (
   businessIdea: BusinessIdea,
@@ -10,56 +9,78 @@ export const useAdGeneration = (
   adHooks: AdHook[]
 ) => {
   const [isGenerating, setIsGenerating] = useState(false);
-  const [generationStatus, setGenerationStatus] = useState('');
-  const { checkCredits } = useCreditsManagement();
+  const [generationStatus, setGenerationStatus] = useState<string>("");
   const { toast } = useToast();
 
-  const generateAds = useCallback(async (platform: string) => {
-    if (isGenerating) {
-      console.log('[useAdGeneration] Generation already in progress');
-      return [];
-    }
-
+  const generateAds = async (selectedPlatform: string) => {
+    console.log('[useAdGeneration] Starting ad generation for platform:', selectedPlatform);
+    setIsGenerating(true);
+    setGenerationStatus(`Initializing ${selectedPlatform} ad generation...`);
+    
     try {
-      setIsGenerating(true);
-      setGenerationStatus(`Generating ${platform} ads...`);
-
-      const hasCredits = await checkCredits(1);
-      if (!hasCredits) {
-        console.log('[useAdGeneration] No credits available');
-        return [];
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError) {
+        console.error('[useAdGeneration] User error:', userError);
+        throw userError;
+      }
+      
+      if (!user) {
+        throw new Error('User must be logged in to generate ads');
       }
 
+      setGenerationStatus(`Generating ${selectedPlatform} ads...`);
+      
       const { data, error } = await supabase.functions.invoke('generate-ad-content', {
-        body: { 
+        body: {
           type: 'complete_ads',
-          platform,
+          platform: selectedPlatform,
           businessIdea,
           targetAudience,
-          adHooks
-        }
+          adHooks,
+          userId: user.id,
+          numVariants: 10
+        },
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('[useAdGeneration] Generation error:', error);
+        throw error;
+      }
 
-      return data?.variants || [];
-    } catch (error) {
+      if (!data?.variants || !Array.isArray(data.variants)) {
+        throw new Error('Invalid response format from server');
+      }
+
+      console.log(`[useAdGeneration] Generated ${selectedPlatform} variants:`, data.variants);
+
+      // Process variants to ensure all required fields
+      const variants = data.variants.map(variant => ({
+        ...variant,
+        platform: selectedPlatform.toLowerCase(),
+        id: variant.id || crypto.randomUUID(),
+        headline: variant.headline || variant.hook?.text || 'Untitled Ad',
+        description: variant.description || variant.primaryText || '',
+        imageUrl: variant.imageUrl || variant.image?.url || '',
+      }));
+
+      return variants;
+    } catch (error: any) {
       console.error('[useAdGeneration] Error:', error);
       toast({
         title: "Error generating ads",
-        description: error instanceof Error ? error.message : "Failed to generate ads",
+        description: error.message || "Failed to generate ads. Please try again.",
         variant: "destructive",
       });
       return [];
     } finally {
       setIsGenerating(false);
-      setGenerationStatus('');
+      setGenerationStatus("");
     }
-  }, [businessIdea, targetAudience, adHooks, isGenerating, checkCredits, toast]);
+  };
 
   return {
     isGenerating,
     generationStatus,
-    generateAds
+    generateAds,
   };
 };
