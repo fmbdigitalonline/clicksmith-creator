@@ -2,7 +2,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { AdHook, AdImage } from "@/types/adWizard";
 import { SavedAd, SavedAdJson } from "@/types/savedAd";
 import { Json } from "@/integrations/supabase/types";
-import { v4 as uuidv4 } from 'uuid';
 
 interface SaveAdParams {
   image: AdImage;
@@ -43,29 +42,34 @@ export const saveAd = async (params: SaveAdParams): Promise<SaveAdResult> => {
     const isValidUUID = projectId && 
                        projectId !== "new" && 
                        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(projectId);
-    const validProjectId = isValidUUID ? projectId : null;
 
-    // Start a transaction using RPC
-    const { data: result, error: rpcError } = await supabase.rpc('save_ad_with_feedback', {
-      p_user_id: user.id,
-      p_project_id: validProjectId,
-      p_rating: parseInt(rating, 10),
-      p_feedback: feedback,
-      p_saved_images: [image.url],
-      p_primary_text: primaryText,
-      p_headline: headline,
-      p_hook: hook,
-      p_image: image
-    });
+    // Insert feedback with atomic operation
+    const { data: savedFeedback, error: insertError } = await supabase
+      .from('ad_feedback')
+      .insert({
+        user_id: user.id,
+        project_id: isValidUUID ? projectId : null,
+        rating: parseInt(rating, 10),
+        feedback,
+        saved_images: [image.url],
+        primary_text: primaryText,
+        headline,
+        project_data: {
+          hook,
+          image
+        }
+      })
+      .select()
+      .single();
 
-    if (rpcError) {
-      console.error('Error in save_ad_with_feedback RPC:', rpcError);
-      throw rpcError;
+    if (insertError) {
+      console.error('Error saving ad feedback:', insertError);
+      throw insertError;
     }
 
     return {
       success: true,
-      message: validProjectId 
+      message: isValidUUID 
         ? "Your feedback has been saved and ad added to project."
         : "Your feedback has been saved."
     };
