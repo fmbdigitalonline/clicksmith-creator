@@ -50,6 +50,7 @@ const AdGalleryContent = ({
   const {
     currentPlatform,
     isChangingPlatform,
+    setIsChangingPlatform,
     handlePlatformChange,
     confirmPlatformChange,
     cancelPlatformChange
