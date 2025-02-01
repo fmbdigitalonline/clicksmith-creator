@@ -44,32 +44,22 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
   const navigate = useNavigate();
   const location = useLocation();
 
-  const redirectToStep = async (step: number) => {
-    console.group('[Auth] Redirecting to step');
-    console.log('Step:', step);
-    console.log('Current location:', location.pathname);
-    console.log('Location state:', location.state);
-    console.log('Is new registration:', location.state?.from === '/login');
-    console.groupEnd();
+  const handleMigrationSuccess = async (migratedData: WizardData) => {
+    console.log('[Auth] Migration successful, updating state and URL');
+    onAnonymousDataChange(migratedData);
+    localStorage.removeItem('anonymous_session_id');
     
-    const isNewRegistration = location.state?.from === '/login';
-    const targetStep = step > 0 ? step : 1;
-    
-    if (!targetStep || targetStep < 1) {
-      console.error('[Auth] Invalid step value:', { targetStep, step });
-      return;
-    }
-
-    const currentPathMatch = location.pathname.match(/step-(\d+)/);
-    const currentStep = currentPathMatch ? parseInt(currentPathMatch[1]) : 1;
-    
-    if (currentStep !== targetStep || isNewRegistration) {
-      console.log('[Auth] Navigating to step:', {
-        targetStep,
-        isNewRegistration,
-        currentPath: location.pathname
+    if (migratedData.current_step && migratedData.current_step > 1) {
+      // Only navigate if we're on the /new route
+      if (location.pathname.includes('/ad-wizard/new')) {
+        console.log('[Auth] Redirecting to step:', migratedData.current_step);
+        navigate(`/ad-wizard/step-${migratedData.current_step}`, { replace: true });
+      }
+      
+      toast({
+        title: "Progress Restored",
+        description: "Your previous work has been saved to your account.",
       });
-      navigate(`/ad-wizard/step-${targetStep}`, { replace: true });
     }
   };
 
@@ -84,18 +74,8 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
         console.log('[Auth] Starting migration for user:', user.id);
         const migratedData = await migrateUserProgress(user.id, sessionId);
         
-        if (migratedData) {
-          onAnonymousDataChange(migratedData);
-          localStorage.removeItem('anonymous_session_id');
-          
-          if (migratedData.current_step && migratedData.current_step > 1) {
-            await redirectToStep(migratedData.current_step);
-            
-            toast({
-              title: "Progress Restored",
-              description: "Your previous work has been saved to your account.",
-            });
-          }
+        if (migratedData && isMounted) {
+          await handleMigrationSuccess(migratedData);
         }
       } catch (error) {
         console.error('[Auth] Migration error:', error);
