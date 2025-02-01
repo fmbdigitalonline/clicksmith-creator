@@ -82,7 +82,6 @@ const AdGalleryContent = ({
   };
 
   const handlePlatformTabChange = async (value: string) => {
-    console.log('[AdGalleryContent] Platform tab change:', value);
     const hasExistingAds = Array.isArray(displayAds) && displayAds.length > 0;
     
     if (hasExistingAds) {
@@ -90,18 +89,10 @@ const AdGalleryContent = ({
     } else {
       try {
         setIsDisplayLoading(true);
-        console.log('[AdGalleryContent] Generating ads for platform:', value);
         const newAds = await generateAds(value);
         if (newAds && newAds.length > 0) {
-          console.log('[AdGalleryContent] Generated ads:', newAds);
           await saveGeneratedAds(newAds);
-          setCurrentAds(prevAds => {
-            const platformAds = newAds.map(ad => ({
-              ...ad,
-              platform: value.toLowerCase()
-            }));
-            return [...prevAds, ...platformAds];
-          });
+          setCurrentAds(newAds);
           toast({
             title: "Ads Generated",
             description: `Successfully generated ${value} ads.`,
@@ -124,19 +115,11 @@ const AdGalleryContent = ({
     try {
       setIsDisplayLoading(true);
       const confirmedPlatform = confirmPlatformChange();
-      console.log('[AdGalleryContent] Confirmed platform change:', confirmedPlatform);
       
       const newAds = await generateAds(confirmedPlatform);
       if (newAds && newAds.length > 0) {
-        console.log('[AdGalleryContent] Generated new ads after platform change:', newAds);
         await saveGeneratedAds(newAds);
-        setCurrentAds(prevAds => {
-          const platformAds = newAds.map(ad => ({
-            ...ad,
-            platform: confirmedPlatform.toLowerCase()
-          }));
-          return [...prevAds, ...platformAds];
-        });
+        setCurrentAds(newAds);
         toast({
           title: "Ads Generated",
           description: `Successfully generated ${confirmedPlatform} ads.`,
@@ -153,18 +136,10 @@ const AdGalleryContent = ({
   const handleRegenerate = async () => {
     try {
       setIsDisplayLoading(true);
-      console.log('[AdGalleryContent] Regenerating ads for platform:', currentPlatform);
       const newAds = await generateAds(currentPlatform);
       if (newAds && newAds.length > 0) {
-        console.log('[AdGalleryContent] Regenerated ads:', newAds);
         await saveGeneratedAds(newAds);
-        setCurrentAds(prevAds => {
-          const platformAds = newAds.map(ad => ({
-            ...ad,
-            platform: currentPlatform.toLowerCase()
-          }));
-          return [...prevAds, ...platformAds];
-        });
+        setCurrentAds(newAds);
         toast({
           title: "Ads Regenerated",
           description: `Successfully regenerated ${currentPlatform} ads.`,
@@ -190,10 +165,7 @@ const AdGalleryContent = ({
           if (newAds && newAds.length > 0) {
             console.log('[AdGalleryContent] Successfully generated initial ads:', newAds);
             await saveGeneratedAds(newAds);
-            setCurrentAds(newAds.map(ad => ({
-              ...ad,
-              platform: currentPlatform.toLowerCase()
-            })));
+            setCurrentAds(newAds);
             setInitialGenerationDone(true);
           }
         } catch (error) {
@@ -208,12 +180,6 @@ const AdGalleryContent = ({
   }, [currentPlatform, currentAds.length, isDisplayLoading, isGenerating, userId, initialGenerationDone]);
 
   const renderPlatformContent = (platformName: string) => {
-    const platformAds = displayAds.filter(ad => 
-      ad && ad.platform && ad.platform.toLowerCase() === platformName.toLowerCase()
-    );
-    
-    console.log(`[AdGalleryContent] Rendering ${platformName} ads:`, platformAds);
-
     return (
       <TabsContent value={platformName} className="space-y-4">
         <div className="flex justify-end mb-4">
@@ -224,7 +190,7 @@ const AdGalleryContent = ({
         </div>
         <PlatformContent
           platformName={platformName}
-          adVariants={platformAds}
+          adVariants={displayAds}
           onCreateProject={onCreateProject}
           videoAdsEnabled={videoAdsEnabled}
           selectedFormat={selectedFormat}

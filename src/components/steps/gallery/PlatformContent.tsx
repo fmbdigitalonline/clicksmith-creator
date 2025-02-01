@@ -21,7 +21,7 @@ const PlatformContent = ({
 
   console.log(`[PlatformContent] Rendering ${platformName} variants:`, adVariants);
 
-  // Case-insensitive platform matching and handle null/undefined values
+  // Ensure case-insensitive platform matching and handle null/undefined values
   const filteredVariants = adVariants.filter(variant => 
     variant && 
     variant.platform && 
