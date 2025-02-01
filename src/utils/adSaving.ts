@@ -49,7 +49,7 @@ export const saveAd = async (params: SaveAdParams): Promise<SaveAdResult> => {
       .insert({
         user_id: user.id,
         project_id: isValidUUID ? projectId : null,
-        rating: parseInt(rating, 10),
+        rating: Math.max(1, Math.min(5, parseInt(rating, 10))), // Ensure rating is between 1-5
         feedback,
         saved_images: [image.url],
         primary_text: primaryText,
@@ -60,7 +60,7 @@ export const saveAd = async (params: SaveAdParams): Promise<SaveAdResult> => {
         }
       })
       .select()
-      .single();
+      .maybeSingle(); // Changed from single() to maybeSingle()
 
     if (insertError) {
       console.error('Error saving ad feedback:', insertError);

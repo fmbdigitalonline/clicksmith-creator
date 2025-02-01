@@ -35,7 +35,7 @@ export const useAtomicOperation = () => {
           expires_at: new Date(Date.now() + 30000).toISOString()
         })
         .select()
-        .single();
+        .maybeSingle(); // Changed from single() to maybeSingle()
 
       if (lockError) {
         if (retryCount < 3) {
