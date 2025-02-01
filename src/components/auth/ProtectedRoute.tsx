@@ -46,7 +46,7 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
         if (!session) {
           console.log('[ProtectedRoute] No session found, redirecting to login');
           setIsAuthenticated(false);
-          navigate('/login', { replace: true });
+          navigate('/login', { replace: true, state: { from: location } });
           return;
         }
 
