@@ -16,6 +16,7 @@ export const useAtomicOperation = () => {
       return null;
     }
 
+    let lockAcquired = false;
     try {
       setIsProcessing(true);
       console.log(`[AtomicOperation] Acquiring lock for: ${lockKey}`);
@@ -45,6 +46,7 @@ export const useAtomicOperation = () => {
         throw new Error('Failed to acquire lock after retries');
       }
 
+      lockAcquired = true;
       console.log('[AtomicOperation] Lock acquired, executing operation');
       const result = await operation();
 
@@ -58,14 +60,15 @@ export const useAtomicOperation = () => {
       });
       return null;
     } finally {
-      // Release lock
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user?.id) {
-        await supabase
-          .from('migration_locks')
-          .delete()
-          .eq('user_id', user.id)
-          .eq('lock_type', lockKey);
+      if (lockAcquired) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user?.id) {
+          await supabase
+            .from('migration_locks')
+            .delete()
+            .eq('user_id', user.id)
+            .eq('lock_type', lockKey);
+        }
       }
       setIsProcessing(false);
       console.log('[AtomicOperation] Lock released');

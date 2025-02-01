@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAdPersistence } from './useAdPersistence';
@@ -7,18 +7,20 @@ import { useAdGenerationState } from './useAdGenerationState';
 export const useAdGalleryState = (userId: string | undefined) => {
   const [currentAds, setCurrentAds] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const generationInProgress = useRef(false);
   const { toast } = useToast();
   const { savedAds, isLoading: isSaving, saveGeneratedAds, clearGeneratedAds } = useAdPersistence(userId);
   const { isGenerating, generationStatus, generateAds } = useAdGenerationState(userId);
 
   useEffect(() => {
     const loadAds = async () => {
-      if (!userId) {
+      if (!userId || generationInProgress.current) {
         setIsLoading(false);
         return;
       }
 
       try {
+        console.log('[useAdGalleryState] Loading ads for user:', userId);
         const { data, error } = await supabase
           .from('wizard_progress')
           .select('generated_ads')
@@ -31,9 +33,11 @@ export const useAdGalleryState = (userId: string | undefined) => {
         }
 
         if (data?.generated_ads) {
+          console.log('[useAdGalleryState] Found existing ads:', data.generated_ads.length);
           const adsArray = Array.isArray(data.generated_ads) ? data.generated_ads : [];
           setCurrentAds(adsArray);
         } else {
+          console.log('[useAdGalleryState] No existing ads found');
           setCurrentAds([]);
         }
       } catch (error) {
@@ -51,6 +55,24 @@ export const useAdGalleryState = (userId: string | undefined) => {
     loadAds();
   }, [userId, toast]);
 
+  const handleGenerateAds = async () => {
+    if (generationInProgress.current) {
+      console.log('[useAdGalleryState] Generation already in progress, skipping');
+      return;
+    }
+
+    try {
+      generationInProgress.current = true;
+      const newAds = await generateAds();
+      if (newAds.length > 0) {
+        await saveGeneratedAds(newAds);
+        setCurrentAds(prev => [...prev, ...newAds]);
+      }
+    } finally {
+      generationInProgress.current = false;
+    }
+  };
+
   return {
     currentAds,
     setCurrentAds,
@@ -58,7 +80,7 @@ export const useAdGalleryState = (userId: string | undefined) => {
     isSaving,
     isGenerating,
     generationStatus,
-    generateAds,
+    generateAds: handleGenerateAds,
     saveGeneratedAds,
     clearGeneratedAds
   };

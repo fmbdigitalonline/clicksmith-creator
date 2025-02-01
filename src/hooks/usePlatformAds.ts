@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useToast } from './use-toast';
 import { BusinessIdea, TargetAudience, AdHook } from '@/types/adWizard';
 import { useAdGenerationLock } from './useAdGenerationLock';
@@ -16,6 +16,7 @@ export const usePlatformAds = (
   const [isLoading, setIsLoading] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationStatus, setGenerationStatus] = useState('');
+  const generationAttempted = useRef(false);
   const { toast } = useToast();
   const { executeAtomically } = useAtomicOperation();
   const {
@@ -28,8 +29,8 @@ export const usePlatformAds = (
   } = useAdGenerationLock();
 
   const generatePlatformAds = useCallback(async () => {
-    if (isLocked || isGenerating) {
-      console.log('[usePlatformAds] Generation already in progress');
+    if (isLocked || isGenerating || generationAttempted.current) {
+      console.log('[usePlatformAds] Generation already attempted or in progress');
       return [];
     }
 
@@ -41,6 +42,7 @@ export const usePlatformAds = (
     try {
       setIsLoading(true);
       setIsGenerating(true);
+      generationAttempted.current = true;
       setGenerationStatus(`Generating ${platform} ads...`);
 
       const result = await executeAtomically(async () => {
@@ -63,6 +65,7 @@ export const usePlatformAds = (
         const delay = RETRY_DELAYS[currentRetry - 1] || RETRY_DELAYS[RETRY_DELAYS.length - 1];
         
         await new Promise(resolve => setTimeout(resolve, delay));
+        generationAttempted.current = false;
         return generatePlatformAds();
       }
 
