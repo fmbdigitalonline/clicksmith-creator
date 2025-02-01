@@ -10,6 +10,7 @@ import { analyzeAudience } from "./handlers/audienceAnalysis.ts";
 serve(async (req) => {
   console.log('[generate-ad-content] Function started');
   
+  // Always handle OPTIONS request first
   if (req.method === 'OPTIONS') {
     console.log('[generate-ad-content] Handling OPTIONS request');
     return handleOptionsRequest();
@@ -97,7 +98,8 @@ serve(async (req) => {
     console.log('[generate-ad-content] Successfully generated response');
     return createSuccessResponse(responseData);
   } catch (error) {
-    if (error.message.includes('No credits available')) {
+    console.error('[generate-ad-content] Error:', error);
+    if (error.message?.includes('No credits available')) {
       return createErrorResponse(error, 402);
     }
     return createErrorResponse(error);
