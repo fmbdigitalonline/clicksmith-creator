@@ -1,6 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "@/components/ui/toaster";
-import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import { AnonymousRoute } from "@/components/auth/AnonymousRoute";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { SidebarProvider } from "@/components/ui/sidebar";
