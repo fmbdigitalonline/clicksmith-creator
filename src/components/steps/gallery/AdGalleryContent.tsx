@@ -90,13 +90,21 @@ const AdGalleryContent = ({
       try {
         setIsDisplayLoading(true);
         const newAds = await generateAds(value);
-        if (newAds.length > 0) {
+        if (newAds && newAds.length > 0) {
           await saveGeneratedAds(newAds);
+          setCurrentAds(newAds);
           toast({
             title: "Ads Generated",
             description: `Successfully generated ${value} ads.`,
           });
         }
+      } catch (error) {
+        console.error('[AdGalleryContent] Error generating ads:', error);
+        toast({
+          title: "Error",
+          description: "Failed to generate ads. Please try again.",
+          variant: "destructive",
+        });
       } finally {
         setIsDisplayLoading(false);
       }
@@ -109,8 +117,9 @@ const AdGalleryContent = ({
       const confirmedPlatform = confirmPlatformChange();
       
       const newAds = await generateAds(confirmedPlatform);
-      if (newAds.length > 0) {
+      if (newAds && newAds.length > 0) {
         await saveGeneratedAds(newAds);
+        setCurrentAds(newAds);
         toast({
           title: "Ads Generated",
           description: `Successfully generated ${confirmedPlatform} ads.`,
@@ -128,8 +137,9 @@ const AdGalleryContent = ({
     try {
       setIsDisplayLoading(true);
       const newAds = await generateAds(currentPlatform);
-      if (newAds.length > 0) {
+      if (newAds && newAds.length > 0) {
         await saveGeneratedAds(newAds);
+        setCurrentAds(newAds);
         toast({
           title: "Ads Regenerated",
           description: `Successfully regenerated ${currentPlatform} ads.`,
@@ -150,11 +160,16 @@ const AdGalleryContent = ({
       if (!currentAds.length && !isDisplayLoading && !isGenerating && userId && !initialGenerationDone) {
         try {
           setIsDisplayLoading(true);
+          console.log('[AdGalleryContent] Generating initial ads for platform:', currentPlatform);
           const newAds = await generateAds(currentPlatform);
-          if (newAds.length > 0) {
+          if (newAds && newAds.length > 0) {
+            console.log('[AdGalleryContent] Successfully generated initial ads:', newAds);
             await saveGeneratedAds(newAds);
+            setCurrentAds(newAds);
             setInitialGenerationDone(true);
           }
+        } catch (error) {
+          console.error('[AdGalleryContent] Error generating initial ads:', error);
         } finally {
           setIsDisplayLoading(false);
         }
