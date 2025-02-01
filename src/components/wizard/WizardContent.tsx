@@ -3,7 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { WizardData } from "@/types/wizardProgress";
-import { useWizardState } from "./WizardStateProvider";
+import { useWizardStore, useWizardUrlSync } from "@/stores/wizardStore";
 import WizardAuthentication from "./WizardAuthentication";
 import WizardControls from "./WizardControls";
 import WizardHeader from "./WizardHeader";
@@ -12,19 +12,17 @@ import WizardSteps from "./WizardSteps";
 import CreateProjectDialog from "../projects/CreateProjectDialog";
 import { Button } from "../ui/button";
 import { Save } from "lucide-react";
-import { isBusinessIdea, isTargetAudience, isAudienceAnalysis } from "@/utils/typeGuards";
 
 const WizardContent = () => {
   const [showCreateProject, setShowCreateProject] = useState(false);
   const [videoAdsEnabled, setVideoAdsEnabled] = useState(false);
-  const [generatedAds, setGeneratedAds] = useState<any[]>([]);
-  const [hasLoadedInitialAds, setHasLoadedInitialAds] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [anonymousData, setAnonymousData] = useState<WizardData | null>(null);
   const navigate = useNavigate();
   const { projectId } = useParams();
   const { toast } = useToast();
 
+  // Use our enhanced wizard store
   const {
     currentStep,
     businessIdea,
@@ -33,79 +31,48 @@ const WizardContent = () => {
     setAudienceAnalysis,
     setCurrentStep,
     canNavigateToStep
-  } = useWizardState();
+  } = useWizardStore();
 
+  // Use URL sync hook
+  useWizardUrlSync();
+
+  // Handle anonymous data migration
   useEffect(() => {
-    const loadProgress = async () => {
-      try {
-        console.log('[WizardContent] Starting to load progress');
-        
-        if (anonymousData && currentUser) {
-          console.log('[WizardContent] Checking existing progress for user:', currentUser.id);
-          
-          const { data: existingProgress } = await supabase
-            .from('wizard_progress')
-            .select('*')
-            .eq('user_id', currentUser.id)
-            .maybeSingle();
+    const migrateAnonymousData = async () => {
+      if (anonymousData && currentUser) {
+        try {
+          const { data: migrationResult, error } = await supabase.rpc(
+            'atomic_migration',
+            {
+              p_user_id: currentUser.id,
+              p_session_id: localStorage.getItem('anonymous_session_id'),
+              p_calculated_step: currentStep
+            }
+          );
 
-          const currentPathMatch = window.location.pathname.match(/step-(\d+)/);
-          const currentUrlStep = currentPathMatch ? parseInt(currentPathMatch[1]) : null;
-          
-          const anonymousStep = anonymousData.current_step || 1;
-          
-          if (existingProgress) {
-            console.log('[WizardContent] Found existing progress with step:', existingProgress.current_step);
+          if (error) throw error;
+
+          if (migrationResult) {
+            // Update store with migrated data
+            if (migrationResult.business_idea) setBusinessIdea(migrationResult.business_idea);
+            if (migrationResult.target_audience) setTargetAudience(migrationResult.target_audience);
+            if (migrationResult.audience_analysis) setAudienceAnalysis(migrationResult.audience_analysis);
             
-            const targetStep = Math.max(
-              existingProgress.current_step || 1,
-              anonymousStep,
-              currentUrlStep || 1
-            );
-            
-            if (anonymousData.business_idea && isBusinessIdea(anonymousData.business_idea)) {
-              setBusinessIdea(anonymousData.business_idea);
-            }
-            if (anonymousData.target_audience && isTargetAudience(anonymousData.target_audience)) {
-              setTargetAudience(anonymousData.target_audience);
-            }
-            if (anonymousData.audience_analysis && isAudienceAnalysis(anonymousData.audience_analysis)) {
-              setAudienceAnalysis(anonymousData.audience_analysis);
-            }
-            if (Array.isArray(anonymousData.generated_ads)) {
-              setGeneratedAds(anonymousData.generated_ads);
-              setHasLoadedInitialAds(true);
-            }
-            
-            if (targetStep > 1 && canNavigateToStep(targetStep)) {
-              setCurrentStep(targetStep);
-              
-              // Only navigate if we're not already on the correct path and not in a new wizard
-              const currentPath = window.location.pathname;
-              if (!currentPath.includes('/ad-wizard/new') && currentPath !== `/ad-wizard/step-${targetStep}`) {
-                navigate(`/ad-wizard/step-${targetStep}`, { replace: true });
-              }
-            }
+            setAnonymousData(null);
           }
-
-          setAnonymousData(null);
-          console.log('[WizardContent] Successfully migrated anonymous data');
+        } catch (error) {
+          console.error('[WizardContent] Migration error:', error);
+          toast({
+            title: "Error migrating data",
+            description: "There was an error migrating your progress. Please try again.",
+            variant: "destructive",
+          });
         }
-
-        setHasLoadedInitialAds(true);
-      } catch (error) {
-        console.error('[WizardContent] Error in loadProgress:', error);
-        toast({
-          title: "Something went wrong",
-          description: "We couldn't load your previous work. Please try refreshing the page.",
-          variant: "destructive",
-        });
-        setHasLoadedInitialAds(true);
       }
     };
 
-    loadProgress();
-  }, [projectId, navigate, toast, anonymousData, currentUser, setBusinessIdea, setTargetAudience, setAudienceAnalysis, setCurrentStep, canNavigateToStep]);
+    migrateAnonymousData();
+  }, [currentUser, anonymousData]);
 
   const handleCreateProject = () => setShowCreateProject(true);
   const handleProjectCreated = (projectId: string) => {
@@ -212,14 +179,12 @@ const WizardContent = () => {
 
       <WizardControls
         videoAdsEnabled={videoAdsEnabled}
-        onVideoAdsToggle={handleVideoAdsToggle}
+        onVideoAdsToggle={setVideoAdsEnabled}
       />
 
       <WizardSteps 
         currentUser={currentUser}
         videoAdsEnabled={videoAdsEnabled}
-        generatedAds={generatedAds}
-        hasLoadedInitialAds={hasLoadedInitialAds}
         onCreateProject={handleCreateProject}
         renderSaveButton={renderSaveButton}
       />
