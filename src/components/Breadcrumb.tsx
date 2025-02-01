@@ -6,11 +6,11 @@ import {
   BreadcrumbList,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
-import { useWizardState } from "./wizard/WizardStateProvider";
+import { useAdWizardState } from "@/hooks/useAdWizardState";
 
 const BreadcrumbNav = () => {
   const location = useLocation();
-  const { currentStep } = useWizardState();
+  const { currentStep } = useAdWizardState();
   const pathSegments = location.pathname.split("/").filter(Boolean);
 
   console.log("Current path segments:", pathSegments, "Current step:", currentStep);
