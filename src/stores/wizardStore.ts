@@ -10,11 +10,13 @@ interface WizardState {
   targetAudience: TargetAudience | null;
   audienceAnalysis: AudienceAnalysis | null;
   selectedHooks: AdHook[];
+  generatedAds: any[];
   setCurrentStep: (step: number) => void;
   setBusinessIdea: (idea: BusinessIdea) => void;
   setTargetAudience: (audience: TargetAudience) => void;
   setAudienceAnalysis: (analysis: AudienceAnalysis) => void;
   setSelectedHooks: (hooks: AdHook[]) => void;
+  setGeneratedAds: (ads: any[]) => void;
   handleBack: () => void;
   handleStartOver: () => void;
   canNavigateToStep: (step: number) => boolean;
@@ -30,6 +32,7 @@ export const useWizardStore = create<WizardState>()(
       targetAudience: null,
       audienceAnalysis: null,
       selectedHooks: [],
+      generatedAds: [],
       
       setCurrentStep: (step) => {
         set({ currentStep: step });
@@ -55,6 +58,11 @@ export const useWizardStore = create<WizardState>()(
         set({ selectedHooks: hooks });
         get().syncWithUrl();
       },
+
+      setGeneratedAds: (ads) => {
+        set({ generatedAds: ads });
+        get().syncWithUrl();
+      },
       
       handleBack: () => {
         const { currentStep } = get();
@@ -68,9 +76,11 @@ export const useWizardStore = create<WizardState>()(
           businessIdea: null,
           targetAudience: null,
           audienceAnalysis: null,
-          selectedHooks: []
+          selectedHooks: [],
+          generatedAds: []
         });
         get().syncWithUrl();
+        localStorage.removeItem('wizard-storage');
       },
       
       canNavigateToStep: (step) => {
@@ -106,6 +116,7 @@ export const useWizardStore = create<WizardState>()(
         targetAudience: state.targetAudience,
         audienceAnalysis: state.audienceAnalysis,
         selectedHooks: state.selectedHooks,
+        generatedAds: state.generatedAds,
         currentStep: state.currentStep
       })
     }

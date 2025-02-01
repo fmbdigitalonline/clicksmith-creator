@@ -19,8 +19,6 @@ const WizardContent = () => {
   const [videoAdsEnabled, setVideoAdsEnabled] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [anonymousData, setAnonymousData] = useState<WizardData | null>(null);
-  const [generatedAds, setGeneratedAds] = useState<any[]>([]);
-  const [hasLoadedInitialAds, setHasLoadedInitialAds] = useState(false);
   const navigate = useNavigate();
   const { projectId } = useParams();
   const { toast } = useToast();
@@ -28,6 +26,7 @@ const WizardContent = () => {
   const {
     currentStep,
     businessIdea,
+    generatedAds,
     setBusinessIdea,
     setTargetAudience,
     setAudienceAnalysis,
@@ -183,7 +182,7 @@ const WizardContent = () => {
 
       <WizardControls
         videoAdsEnabled={videoAdsEnabled}
-        onVideoAdsToggle={setVideoAdsEnabled}
+        onVideoAdsToggle={handleVideoAdsToggle}
       />
 
       <WizardSteps 
@@ -192,7 +191,7 @@ const WizardContent = () => {
         onCreateProject={handleCreateProject}
         renderSaveButton={renderSaveButton}
         generatedAds={generatedAds}
-        hasLoadedInitialAds={hasLoadedInitialAds}
+        hasLoadedInitialAds={false}
       />
 
       <CreateProjectDialog
