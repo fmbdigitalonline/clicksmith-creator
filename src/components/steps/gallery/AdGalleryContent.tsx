@@ -67,7 +67,8 @@ const AdGalleryContent = ({
   const {
     displayAds,
     isLoading: isDisplayLoading,
-    setIsDisplayLoading: setIsDisplayLoading,
+    setIsLoading: setIsDisplayLoading,
+    handleAdError
   } = useAdDisplay(currentAds);
 
   useEffect(() => {
