@@ -20,6 +20,24 @@ export const useWizardLock = () => {
         return false;
       }
 
+      // First check if a lock already exists
+      const { data: existingLock, error: checkError } = await supabase
+        .from('migration_locks')
+        .select('*')
+        .eq('user_id', user.id)
+        .maybeSingle();  // Changed from single() to maybeSingle()
+
+      if (checkError && !checkError.message.includes('PGRST116')) {
+        console.error('[WizardLock] Error checking lock:', checkError);
+        return false;
+      }
+
+      // If lock exists and hasn't expired, return false
+      if (existingLock && new Date(existingLock.expires_at) > new Date()) {
+        console.log('[WizardLock] Lock already exists and is valid');
+        return false;
+      }
+
       const { data, error } = await supabase
         .from('migration_locks')
         .insert([{
@@ -28,7 +46,7 @@ export const useWizardLock = () => {
           expires_at: new Date(Date.now() + 30000).toISOString() // 30 second lock
         }])
         .select()
-        .maybeSingle();
+        .maybeSingle();  // Changed from single() to maybeSingle()
 
       if (error) {
         console.error('[WizardLock] Error acquiring lock:', error);
@@ -58,7 +76,7 @@ export const useWizardLock = () => {
         .eq('user_id', user.id)
         .eq('lock_type', 'wizard_progress');
 
-      if (error) {
+      if (error && !error.message.includes('PGRST116')) {
         console.error('[WizardLock] Error releasing lock:', error);
         return;
       }
