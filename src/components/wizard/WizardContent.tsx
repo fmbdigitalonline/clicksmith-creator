@@ -4,6 +4,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { WizardData } from "@/types/wizardProgress";
 import { useWizardStore, useWizardUrlSync } from "@/stores/wizardStore";
+import { BusinessIdea, TargetAudience, AudienceAnalysis } from "@/types/adWizard";
 import WizardAuthentication from "./WizardAuthentication";
 import WizardControls from "./WizardControls";
 import WizardHeader from "./WizardHeader";
@@ -18,11 +19,12 @@ const WizardContent = () => {
   const [videoAdsEnabled, setVideoAdsEnabled] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [anonymousData, setAnonymousData] = useState<WizardData | null>(null);
+  const [generatedAds, setGeneratedAds] = useState<any[]>([]);
+  const [hasLoadedInitialAds, setHasLoadedInitialAds] = useState(false);
   const navigate = useNavigate();
   const { projectId } = useParams();
   const { toast } = useToast();
 
-  // Use our enhanced wizard store
   const {
     currentStep,
     businessIdea,
@@ -33,10 +35,8 @@ const WizardContent = () => {
     canNavigateToStep
   } = useWizardStore();
 
-  // Use URL sync hook
   useWizardUrlSync();
 
-  // Handle anonymous data migration
   useEffect(() => {
     const migrateAnonymousData = async () => {
       if (anonymousData && currentUser) {
@@ -53,11 +53,15 @@ const WizardContent = () => {
           if (error) throw error;
 
           if (migrationResult) {
-            // Update store with migrated data
-            if (migrationResult.business_idea) setBusinessIdea(migrationResult.business_idea);
-            if (migrationResult.target_audience) setTargetAudience(migrationResult.target_audience);
-            if (migrationResult.audience_analysis) setAudienceAnalysis(migrationResult.audience_analysis);
-            
+            if (migrationResult.business_idea) {
+              setBusinessIdea(migrationResult.business_idea as BusinessIdea);
+            }
+            if (migrationResult.target_audience) {
+              setTargetAudience(migrationResult.target_audience as TargetAudience);
+            }
+            if (migrationResult.audience_analysis) {
+              setAudienceAnalysis(migrationResult.audience_analysis as AudienceAnalysis);
+            }
             setAnonymousData(null);
           }
         } catch (error) {
@@ -187,6 +191,8 @@ const WizardContent = () => {
         videoAdsEnabled={videoAdsEnabled}
         onCreateProject={handleCreateProject}
         renderSaveButton={renderSaveButton}
+        generatedAds={generatedAds}
+        hasLoadedInitialAds={hasLoadedInitialAds}
       />
 
       <CreateProjectDialog

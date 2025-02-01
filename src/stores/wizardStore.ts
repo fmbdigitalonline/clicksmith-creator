@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { BusinessIdea, TargetAudience, AudienceAnalysis, AdHook } from '@/types/adWizard';
 import { saveWizardProgress } from '@/utils/wizardProgress';
+import { useEffect } from 'react';
 
 interface WizardState {
   currentStep: number;
@@ -115,7 +116,7 @@ export const useWizardStore = create<WizardState>()(
 export const useWizardUrlSync = () => {
   const store = useWizardStore();
 
-  React.useEffect(() => {
+  useEffect(() => {
     // Hydrate state from URL on mount
     store.hydrateFromUrl();
     
