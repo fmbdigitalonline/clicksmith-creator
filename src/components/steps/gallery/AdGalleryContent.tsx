@@ -38,6 +38,7 @@ const AdGalleryContent = ({
   const [selectedFormat, setSelectedFormat] = useState(AD_FORMATS[0]);
   const { toast } = useToast();
   const [userId, setUserId] = useState<string | undefined>();
+  const [initialGenerationDone, setInitialGenerationDone] = useState(false);
 
   const {
     currentAds,
@@ -146,12 +147,13 @@ const AdGalleryContent = ({
 
   useEffect(() => {
     const generateInitialAds = async () => {
-      if (!currentAds.length && !isDisplayLoading && !isGenerating && userId) {
+      if (!currentAds.length && !isDisplayLoading && !isGenerating && userId && !initialGenerationDone) {
         try {
           setIsDisplayLoading(true);
           const newAds = await generateAds(currentPlatform);
           if (newAds.length > 0) {
             await saveGeneratedAds(newAds);
+            setInitialGenerationDone(true);
           }
         } finally {
           setIsDisplayLoading(false);
@@ -160,7 +162,7 @@ const AdGalleryContent = ({
     };
 
     generateInitialAds();
-  }, [currentPlatform, currentAds.length, isDisplayLoading, isGenerating, userId]);
+  }, [currentPlatform, currentAds.length, isDisplayLoading, isGenerating, userId, initialGenerationDone]);
 
   const renderPlatformContent = (platformName: string) => {
     return (
