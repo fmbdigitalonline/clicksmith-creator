@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from "@/integrations/supabase/client";
 import { AdVariant, convertAdVariantToJson } from '@/types/adVariant';
 import { useToast } from '@/hooks/use-toast';
 import { useAtomicOperation } from './useAtomicOperation';

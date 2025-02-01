@@ -45,83 +45,22 @@ export const saveAd = async (params: SaveAdParams): Promise<SaveAdResult> => {
                        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(projectId);
     const validProjectId = isValidUUID ? projectId : null;
 
-    if (validProjectId) {
-      const { data: project, error: projectError } = await supabase
-        .from('projects')
-        .select('generated_ads')
-        .eq('id', validProjectId)
-        .single();
+    // Start a transaction using RPC
+    const { data: result, error: rpcError } = await supabase.rpc('save_ad_with_feedback', {
+      p_user_id: user.id,
+      p_project_id: validProjectId,
+      p_rating: parseInt(rating, 10),
+      p_feedback: feedback,
+      p_saved_images: [image.url],
+      p_primary_text: primaryText,
+      p_headline: headline,
+      p_hook: hook,
+      p_image: image
+    });
 
-      if (projectError) {
-        console.error('Error fetching project:', projectError);
-        throw projectError;
-      }
-
-      const existingAds = ((project?.generated_ads as SavedAdJson[]) || []).map(ad => ({
-        image: ad.image as AdImage,
-        hook: ad.hook as AdHook,
-        rating: ad.rating as number,
-        feedback: ad.feedback as string,
-        savedAt: ad.savedAt as string,
-      }));
-
-      const newAd: SavedAd = {
-        image,
-        hook,
-        rating: parseInt(rating, 10),
-        feedback,
-        savedAt: new Date().toISOString()
-      };
-
-      const jsonAds: SavedAdJson[] = [...existingAds, newAd].map(ad => ({
-        image: ad.image as Json,
-        hook: ad.hook as Json,
-        rating: ad.rating as Json,
-        feedback: ad.feedback as Json,
-        savedAt: ad.savedAt as Json,
-      }));
-
-      const { error: updateError } = await supabase
-        .from('projects')
-        .update({
-          generated_ads: jsonAds
-        })
-        .eq('id', validProjectId);
-
-      if (updateError) {
-        console.error('Error updating project:', updateError);
-        throw updateError;
-      }
-    } else if (projectId === "new") {
-      return {
-        success: false,
-        message: "No Project Selected",
-        shouldCreateProject: true
-      };
-    }
-
-    const baseFeedbackData = {
-      id: uuidv4(),
-      user_id: user.id,
-      rating: parseInt(rating, 10),
-      feedback,
-      saved_images: [image.url],
-      primary_text: primaryText || null,
-      headline: headline || null,
-      created_at: new Date().toISOString()
-    };
-
-    const feedbackData = validProjectId 
-      ? { ...baseFeedbackData, project_id: validProjectId }
-      : baseFeedbackData;
-
-    const { error: feedbackError } = await supabase
-      .from('ad_feedback')
-      .insert(feedbackData);
-
-    if (feedbackError) {
-      console.error('Error saving feedback:', feedbackError);
-      throw feedbackError;
+    if (rpcError) {
+      console.error('Error in save_ad_with_feedback RPC:', rpcError);
+      throw rpcError;
     }
 
     return {
@@ -130,6 +69,7 @@ export const saveAd = async (params: SaveAdParams): Promise<SaveAdResult> => {
         ? "Your feedback has been saved and ad added to project."
         : "Your feedback has been saved."
     };
+
   } catch (error) {
     console.error('Error saving ad:', error);
     return {
