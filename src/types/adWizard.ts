@@ -60,24 +60,3 @@ export type AdImage = {
 };
 
 export type Step = "idea" | "audience" | "analysis" | "campaign" | "format" | "size" | "hook" | "complete";
-
-export interface SaveAdResponse {
-  success: boolean;
-  message?: string;
-  shouldCreateProject?: boolean;
-  data?: {
-    id: string;
-    ad_id: string;
-    user_id: string;
-    project_id: string;
-    rating: number;
-    feedback: string;
-    primary_text: string;
-    headline: string;
-    saved_images: any;
-    project_data: any;
-    created_at: string;
-    updated_at: string;
-  };
-  error?: any;
-}
