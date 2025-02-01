@@ -33,7 +33,7 @@ export const useAdGalleryState = (userId: string | undefined) => {
         }
 
         if (data?.generated_ads) {
-          console.log('[useAdGalleryState] Found existing ads:', data.generated_ads.length);
+          console.log('[useAdGalleryState] Found existing ads:', Array.isArray(data.generated_ads) ? data.generated_ads.length : 0);
           const adsArray = Array.isArray(data.generated_ads) ? data.generated_ads : [];
           setCurrentAds(adsArray);
         } else {
@@ -55,7 +55,7 @@ export const useAdGalleryState = (userId: string | undefined) => {
     loadAds();
   }, [userId, toast]);
 
-  const handleGenerateAds = async () => {
+  const handleGenerateAds = async (platform: string) => {
     if (generationInProgress.current) {
       console.log('[useAdGalleryState] Generation already in progress, skipping');
       return;
@@ -63,7 +63,7 @@ export const useAdGalleryState = (userId: string | undefined) => {
 
     try {
       generationInProgress.current = true;
-      const newAds = await generateAds();
+      const newAds = await generateAds(platform);
       if (newAds.length > 0) {
         await saveGeneratedAds(newAds);
         setCurrentAds(prev => [...prev, ...newAds]);
