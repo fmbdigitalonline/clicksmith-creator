@@ -32,6 +32,7 @@ export const usePlatformState = () => {
   return {
     currentPlatform,
     isChangingPlatform,
+    setIsChangingPlatform,  // Added this line to expose the setter
     handlePlatformChange,
     confirmPlatformChange,
     cancelPlatformChange
