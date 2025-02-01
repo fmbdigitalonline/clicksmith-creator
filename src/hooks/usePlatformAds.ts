@@ -3,6 +3,7 @@ import { useToast } from './use-toast';
 import { BusinessIdea, TargetAudience, AdHook } from '@/types/adWizard';
 import { useAdGenerationLock } from './useAdGenerationLock';
 import { supabase } from "@/integrations/supabase/client";
+import { useAtomicOperation } from './useAtomicOperation';
 
 const RETRY_DELAYS = [2000, 4000, 8000];
 
@@ -16,6 +17,7 @@ export const usePlatformAds = (
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationStatus, setGenerationStatus] = useState('');
   const { toast } = useToast();
+  const { executeAtomically } = useAtomicOperation();
   const {
     isLocked,
     acquireLock,
@@ -26,7 +28,7 @@ export const usePlatformAds = (
   } = useAdGenerationLock();
 
   const generatePlatformAds = useCallback(async () => {
-    if (isLocked) {
+    if (isLocked || isGenerating) {
       console.log('[usePlatformAds] Generation already in progress');
       return [];
     }
@@ -40,23 +42,23 @@ export const usePlatformAds = (
       setIsLoading(true);
       setIsGenerating(true);
       setGenerationStatus(`Generating ${platform} ads...`);
-      
-      const { data, error } = await supabase.functions.invoke('generate-ad-content', {
-        body: {
-          type: 'complete_ads',
-          platform,
-          businessIdea,
-          targetAudience,
-          adHooks
-        }
-      });
 
-      if (error) throw error;
-      return data?.variants || [];
-    } catch (error) {
-      console.error(`[usePlatformAds] Error generating ${platform} ads:`, error);
-      
-      if (canRetry()) {
+      const result = await executeAtomically(async () => {
+        const { data, error } = await supabase.functions.invoke('generate-ad-content', {
+          body: {
+            type: 'complete_ads',
+            platform,
+            businessIdea,
+            targetAudience,
+            adHooks
+          }
+        });
+
+        if (error) throw error;
+        return data?.variants || [];
+      }, `generate_ads_${platform}`);
+
+      if (!result && canRetry()) {
         const currentRetry = incrementRetry();
         const delay = RETRY_DELAYS[currentRetry - 1] || RETRY_DELAYS[RETRY_DELAYS.length - 1];
         
@@ -64,6 +66,9 @@ export const usePlatformAds = (
         return generatePlatformAds();
       }
 
+      return result || [];
+    } catch (error) {
+      console.error(`[usePlatformAds] Error generating ${platform} ads:`, error);
       toast({
         title: "Error",
         description: "Failed to generate ads. Please try again.",
@@ -76,7 +81,7 @@ export const usePlatformAds = (
       setGenerationStatus('');
       releaseLock();
     }
-  }, [platform, businessIdea, targetAudience, adHooks, isLocked, acquireLock, releaseLock, canRetry, incrementRetry, toast]);
+  }, [platform, businessIdea, targetAudience, adHooks, isLocked, isGenerating, acquireLock, releaseLock, canRetry, incrementRetry, executeAtomically, toast]);
 
   useEffect(() => {
     return () => {

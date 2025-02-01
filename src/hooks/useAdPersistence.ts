@@ -1,69 +1,82 @@
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useAtomicOperation } from './useAtomicOperation';
+import { AdVariant, convertAdVariantToJson } from '@/types/adVariant';
 
-export const useAdPersistence = (userId: string | undefined) => {
-  const [isSaving, setIsSaving] = useState(false);
+export const useAdPersistence = (projectId: string | undefined) => {
+  const [savedAds, setSavedAds] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const { executeAtomically, isProcessing } = useAtomicOperation();
   const { toast } = useToast();
 
-  const saveGeneratedAds = async (ads: any[]) => {
-    if (!userId || isSaving || !Array.isArray(ads)) return false;
-
+  const loadSavedAds = async () => {
+    if (!projectId || projectId === 'new') return;
+    
+    setIsLoading(true);
     try {
-      setIsSaving(true);
-      const { error } = await supabase
-        .from('wizard_progress')
-        .upsert({
-          user_id: userId,
-          generated_ads: ads,
-          updated_at: new Date().toISOString()
-        }, {
-          onConflict: 'user_id'
-        });
+      const result = await executeAtomically(async () => {
+        const { data: project } = await supabase
+          .from('projects')
+          .select('generated_ads')
+          .eq('id', projectId)
+          .maybeSingle();
+        
+        if (project?.generated_ads && Array.isArray(project.generated_ads)) {
+          setSavedAds(project.generated_ads);
+          return project.generated_ads;
+        }
+        return [];
+      }, `load_ads_${projectId}`);
 
-      if (error) throw error;
-      return true;
+      if (result) {
+        console.log('[AdPersistence] Successfully loaded ads:', result.length);
+      }
     } catch (error) {
-      console.error('[useAdPersistence] Error saving ads:', error);
+      console.error('[AdPersistence] Error loading saved ads:', error);
       toast({
-        title: "Error saving ads",
-        description: "There was an error saving your ads. Please try again.",
+        title: "Error loading ads",
+        description: "Failed to load saved ads. Please try again.",
         variant: "destructive",
       });
-      return false;
     } finally {
-      setIsSaving(false);
+      setIsLoading(false);
     }
   };
 
-  const clearGeneratedAds = async () => {
-    if (!userId || isSaving) return false;
+  const saveGeneratedAds = async (newAds: AdVariant[]) => {
+    if (!projectId || projectId === 'new' || isProcessing) return;
 
-    try {
-      setIsSaving(true);
-      const { error } = await supabase
-        .from('wizard_progress')
-        .update({ generated_ads: [] })
-        .eq('user_id', userId);
+    const result = await executeAtomically(async () => {
+      const jsonAds = newAds.map(convertAdVariantToJson);
+      
+      // Merge new ads with existing ones, avoiding duplicates
+      const updatedAds = [...savedAds, ...jsonAds].filter((ad, index, self) => 
+        index === self.findIndex((t) => t.id === ad.id)
+      );
 
-      if (error) throw error;
-      return true;
-    } catch (error) {
-      console.error('[useAdPersistence] Error clearing ads:', error);
+      const { error: updateError } = await supabase
+        .from('projects')
+        .update({ generated_ads: updatedAds })
+        .eq('id', projectId);
+
+      if (updateError) throw updateError;
+      setSavedAds(updatedAds);
+      return updatedAds;
+    }, `save_ads_${projectId}`);
+
+    if (result) {
+      console.log('[AdPersistence] Successfully saved ads:', result.length);
       toast({
-        title: "Error clearing ads",
-        description: "There was an error clearing your ads. Please try again.",
-        variant: "destructive",
+        title: "Success",
+        description: "Ads saved successfully",
       });
-      return false;
-    } finally {
-      setIsSaving(false);
     }
   };
 
   return {
-    isSaving,
-    saveGeneratedAds,
-    clearGeneratedAds
+    savedAds,
+    isLoading: isLoading || isProcessing,
+    saveGeneratedAds
   };
 };
