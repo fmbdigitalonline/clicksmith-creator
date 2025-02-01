@@ -1,61 +1,188 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Navigate, useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { useMigrationLock } from "@/hooks/useMigrationLock";
 
-interface ProtectedRouteProps {
-  children: React.ReactNode;
-}
-
-const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
+export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
-  const [user, setUser] = useState<any>(null);
-  const { isLocked } = useMigrationLock(user?.id);
 
   useEffect(() => {
-    const checkUser = async () => {
+    const checkSession = async () => {
       try {
-        const { data: { user: currentUser }, error } = await supabase.auth.getUser();
+        console.log('[ProtectedRoute] Starting session check');
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
         
-        if (error) {
-          console.error('[ProtectedRoute] Auth error:', error);
-          throw error;
-        }
-
-        if (!currentUser) {
-          navigate('/login');
+        if (sessionError) {
+          console.error("[ProtectedRoute] Session error:", sessionError);
+          setIsAuthenticated(false);
+          navigate('/login', { replace: true });
           return;
         }
 
-        setUser(currentUser);
+        // Check for anonymous session
+        const anonymousSessionId = localStorage.getItem('anonymous_session_id');
+        if (!session && anonymousSessionId) {
+          console.log('[ProtectedRoute] Found anonymous session:', anonymousSessionId);
+          const { data: usage } = await supabase
+            .from('anonymous_usage')
+            .select('used, wizard_data')
+            .eq('session_id', anonymousSessionId)
+            .maybeSingle();
+
+          console.log('[ProtectedRoute] Anonymous usage data:', usage);
+
+          // Only redirect if we're not already on /ad-wizard/new
+          if (usage && !usage.used && location.pathname !== '/ad-wizard/new') {
+            console.log('[ProtectedRoute] Redirecting to new wizard');
+            navigate('/ad-wizard/new', { replace: true });
+            return;
+          }
+        }
+
+        if (!session) {
+          console.log('[ProtectedRoute] No session found, redirecting to login');
+          setIsAuthenticated(false);
+          navigate('/login', { replace: true });
+          return;
+        }
+
+        // Only attempt to refresh if we have a valid session
+        if (session) {
+          try {
+            const { data: { user }, error: refreshError } = await supabase.auth.refreshSession();
+            
+            if (refreshError) {
+              if (refreshError.message.includes('refresh_token_not_found')) {
+                console.error("[ProtectedRoute] Invalid refresh token, redirecting to login");
+                await supabase.auth.signOut();
+                setIsAuthenticated(false);
+                navigate('/login', { replace: true });
+                toast({
+                  title: "Session Expired",
+                  description: "Please sign in again",
+                  variant: "destructive",
+                });
+                return;
+              }
+              throw refreshError;
+            }
+
+            // Initialize free tier usage for new users
+            if (user) {
+              setIsAuthenticated(true);
+              console.log('[ProtectedRoute] Checking free tier usage for user:', user.id);
+              
+              // Check if this is a new registration with anonymous data
+              const anonymousSessionId = localStorage.getItem('anonymous_session_id');
+              if (anonymousSessionId) {
+                console.log('[ProtectedRoute] Found anonymous session after auth:', anonymousSessionId);
+                const { data: anonymousData } = await supabase
+                  .from('anonymous_usage')
+                  .select('wizard_data, used')
+                  .eq('session_id', anonymousSessionId)
+                  .maybeSingle();
+
+                if (anonymousData && !anonymousData.used) {
+                  console.log('[ProtectedRoute] Migrating anonymous data:', anonymousData);
+                  const { data: migratedData, error: migrationError } = await supabase
+                    .rpc('atomic_migration', {
+                      p_user_id: user.id,
+                      p_session_id: anonymousSessionId
+                    });
+
+                  if (migrationError) {
+                    console.error('[ProtectedRoute] Migration error:', migrationError);
+                  } else if (migratedData) {
+                    console.log('[ProtectedRoute] Migration successful:', migratedData);
+                    // Clear anonymous session after successful migration
+                    localStorage.removeItem('anonymous_session_id');
+                    // Redirect to continue the wizard flow
+                    if (location.pathname === '/login') {
+                      navigate('/ad-wizard/new', { replace: true });
+                    }
+                  }
+                }
+              }
+
+              const { data: existingUsage } = await supabase
+                .from('free_tier_usage')
+                .select('*')
+                .eq('user_id', user.id)
+                .maybeSingle();
+
+              if (!existingUsage) {
+                console.log('[ProtectedRoute] Creating new free tier usage record');
+                await supabase
+                  .from('free_tier_usage')
+                  .insert([{ user_id: user.id, generations_used: 0 }]);
+              }
+            }
+          } catch (error) {
+            console.error("[ProtectedRoute] Token refresh error:", error);
+            setIsAuthenticated(false);
+            navigate('/login', { replace: true });
+            toast({
+              title: "Authentication Error",
+              description: "Please sign in again",
+              variant: "destructive",
+            });
+          }
+        }
       } catch (error) {
-        console.error('[ProtectedRoute] Unexpected error:', error);
-        toast({
-          title: "Authentication Error",
-          description: "Please sign in again",
-          variant: "destructive",
-        });
-        navigate('/login');
+        console.error("[ProtectedRoute] Auth error:", error);
+        setIsAuthenticated(false);
+        navigate('/login', { replace: true });
+      } finally {
+        setIsLoading(false);
       }
     };
 
-    checkUser();
-  }, [navigate]);
+    checkSession();
 
-  if (isLocked) {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log("[ProtectedRoute] Auth state changed:", event);
+      
+      if (event === 'SIGNED_IN' && session?.user) {
+        setIsAuthenticated(true);
+        // Check for pending migration after sign in
+        const anonymousSessionId = localStorage.getItem('anonymous_session_id');
+        if (anonymousSessionId) {
+          const { data: anonymousData } = await supabase
+            .from('anonymous_usage')
+            .select('wizard_data, used')
+            .eq('session_id', anonymousSessionId)
+            .maybeSingle();
+
+          if (anonymousData && !anonymousData.used) {
+            navigate('/ad-wizard/new', { replace: true });
+          }
+        }
+      } else if (event === 'SIGNED_OUT') {
+        setIsAuthenticated(false);
+        navigate('/login', { replace: true });
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [navigate, toast, location.pathname]);
+
+  if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <h2 className="text-2xl font-semibold mb-2">Migration in Progress</h2>
-          <p className="text-gray-600">Please wait while we complete your data migration...</p>
-        </div>
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900" />
       </div>
     );
   }
 
-  return children;
-};
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
 
-export default ProtectedRoute;
+  return <>{children}</>;
+};

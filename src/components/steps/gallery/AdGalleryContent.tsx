@@ -43,7 +43,6 @@ const AdGalleryContent = ({
     linkedin: false,
     tiktok: false
   });
-  const [initialGenerationAttempted, setInitialGenerationAttempted] = useState(false);
 
   const {
     currentAds,
@@ -77,17 +76,6 @@ const AdGalleryContent = ({
     };
     getUser();
   }, []);
-
-  // New effect to handle initial ad generation
-  useEffect(() => {
-    const generateInitialAds = async () => {
-      if (!initialGenerationAttempted && !platformAdsGenerated.facebook && userId) {
-        setInitialGenerationAttempted(true);
-        await generateAdsForPlatform('facebook');
-      }
-    };
-    generateInitialAds();
-  }, [userId, initialGenerationAttempted, platformAdsGenerated.facebook]);
 
   const handleFormatChange = (format: typeof AD_FORMATS[0]) => {
     setSelectedFormat(format);
@@ -155,7 +143,6 @@ const AdGalleryContent = ({
       linkedin: false,
       tiktok: false
     });
-    setInitialGenerationAttempted(false);
     onStartOver();
   };
 
