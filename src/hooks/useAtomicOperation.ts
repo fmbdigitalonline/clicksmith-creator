@@ -59,6 +59,7 @@ export const useAtomicOperation = () => {
       return null;
     } finally {
       // Release lock
+      const { data: { user } } = await supabase.auth.getUser();
       if (user?.id) {
         await supabase
           .from('migration_locks')

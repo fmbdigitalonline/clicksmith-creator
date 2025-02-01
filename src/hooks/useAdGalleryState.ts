@@ -8,7 +8,7 @@ export const useAdGalleryState = (userId: string | undefined) => {
   const [currentAds, setCurrentAds] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
-  const { isSaving, saveGeneratedAds, clearGeneratedAds } = useAdPersistence(userId);
+  const { savedAds, isLoading: isSaving, saveGeneratedAds, clearGeneratedAds } = useAdPersistence(userId);
   const { isGenerating, generationStatus, generateAds } = useAdGenerationState(userId);
 
   useEffect(() => {

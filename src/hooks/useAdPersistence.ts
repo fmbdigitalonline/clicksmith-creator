@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { AdVariant, convertAdVariantToJson } from '@/types/adVariant';
 import { useToast } from '@/hooks/use-toast';
 import { useAtomicOperation } from './useAtomicOperation';
-import { AdVariant, convertAdVariantToJson } from '@/types/adVariant';
 
 export const useAdPersistence = (projectId: string | undefined) => {
   const [savedAds, setSavedAds] = useState<any[]>([]);
@@ -74,9 +74,37 @@ export const useAdPersistence = (projectId: string | undefined) => {
     }
   };
 
+  const clearGeneratedAds = async () => {
+    if (!projectId || projectId === 'new' || isProcessing) return;
+
+    const result = await executeAtomically(async () => {
+      const { error: updateError } = await supabase
+        .from('projects')
+        .update({ generated_ads: [] })
+        .eq('id', projectId);
+
+      if (updateError) throw updateError;
+      setSavedAds([]);
+      return [];
+    }, `clear_ads_${projectId}`);
+
+    if (result !== null) {
+      console.log('[AdPersistence] Successfully cleared ads');
+      toast({
+        title: "Success",
+        description: "Ads cleared successfully",
+      });
+    }
+  };
+
+  useEffect(() => {
+    loadSavedAds();
+  }, [projectId]);
+
   return {
     savedAds,
     isLoading: isLoading || isProcessing,
-    saveGeneratedAds
+    saveGeneratedAds,
+    clearGeneratedAds
   };
 };
