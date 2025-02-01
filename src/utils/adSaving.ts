@@ -1,7 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
 import { AdHook, AdImage } from "@/types/adWizard";
-import { SavedAd, SavedAdJson } from "@/types/savedAd";
-import { Json } from "@/integrations/supabase/types";
 
 interface SaveAdParams {
   image: AdImage;
@@ -43,10 +41,10 @@ export const saveAd = async (params: SaveAdParams): Promise<SaveAdResult> => {
                        projectId !== "new" && 
                        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(projectId);
 
-    // Insert feedback with atomic operation
-    const { data: savedFeedback, error: insertError } = await supabase
+    // First try to update existing feedback
+    const { data: existingFeedback, error: updateError } = await supabase
       .from('ad_feedback')
-      .insert({
+      .upsert({
         user_id: user.id,
         project_id: isValidUUID ? projectId : null,
         rating: Math.max(1, Math.min(5, parseInt(rating, 10))), // Ensure rating is between 1-5
@@ -58,13 +56,16 @@ export const saveAd = async (params: SaveAdParams): Promise<SaveAdResult> => {
           hook,
           image
         }
+      }, {
+        onConflict: 'user_id,project_id',
+        ignoreDuplicates: false
       })
       .select()
-      .maybeSingle(); // Changed from single() to maybeSingle()
+      .maybeSingle();
 
-    if (insertError) {
-      console.error('Error saving ad feedback:', insertError);
-      throw insertError;
+    if (updateError) {
+      console.error('Error saving ad feedback:', updateError);
+      throw updateError;
     }
 
     return {
