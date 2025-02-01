@@ -50,7 +50,6 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
     localStorage.removeItem('anonymous_session_id');
     
     if (migratedData.current_step && migratedData.current_step > 1) {
-      // Only navigate if we're on the /new route
       if (location.pathname.includes('/ad-wizard/new')) {
         console.log('[Auth] Redirecting to step:', migratedData.current_step);
         navigate(`/ad-wizard/step-${migratedData.current_step}`, { replace: true });
@@ -107,8 +106,15 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
         if (session?.user) {
           onUserChange(session.user);
           
+          // Changed from .single() to .maybeSingle() to handle no rows gracefully
+          const { data: existingLock } = await supabase
+            .from('migration_locks')
+            .select('*')
+            .eq('user_id', session.user.id)
+            .maybeSingle();
+
           const sessionId = localStorage.getItem('anonymous_session_id');
-          if (sessionId) {
+          if (sessionId && !existingLock) {
             await handleMigration(session.user, sessionId);
           }
         }
