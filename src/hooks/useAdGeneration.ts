@@ -44,6 +44,14 @@ export const useAdGeneration = (
 
       if (error) {
         console.error('[useAdGeneration] Generation error:', error);
+        if (error.message.includes('No credits available')) {
+          toast({
+            title: "No credits available",
+            description: "Please upgrade your plan to continue generating ads.",
+            variant: "destructive",
+          });
+          return [];
+        }
         throw error;
       }
 
@@ -53,10 +61,10 @@ export const useAdGeneration = (
 
       console.log(`[useAdGeneration] Generated ${selectedPlatform} variants:`, data.variants);
 
-      // Process variants to ensure all required fields
+      // Process variants to ensure all required fields and correct platform
       const variants = data.variants.map(variant => ({
         ...variant,
-        platform: selectedPlatform.toLowerCase(),
+        platform: selectedPlatform.toLowerCase(), // Ensure platform is set correctly
         id: variant.id || crypto.randomUUID(),
         headline: variant.headline || variant.hook?.text || 'Untitled Ad',
         description: variant.description || variant.primaryText || '',
