@@ -3,7 +3,6 @@ import { TabsContent } from "@/components/ui/tabs";
 import LoadingState from "../complete/LoadingState";
 import PlatformTabs from "./PlatformTabs";
 import PlatformContent from "./PlatformContent";
-import PlatformChangeDialog from "./PlatformChangeDialog";
 import { useAdDisplay } from "@/hooks/useAdDisplay";
 import { useState, useEffect } from "react";
 import AdGenerationControls from "./AdGenerationControls";
@@ -55,11 +54,7 @@ const AdGalleryContent = ({
 
   const {
     currentPlatform,
-    isChangingPlatform,
-    setIsChangingPlatform,
-    handlePlatformChange,
-    confirmPlatformChange,
-    cancelPlatformChange
+    handlePlatformChange
   } = usePlatformState();
 
   const {
@@ -126,26 +121,8 @@ const AdGalleryContent = ({
     
     if (!hasGeneratedForPlatform) {
       await generateAdsForPlatform(value);
-    } else {
-      handlePlatformChange(value, true);
     }
-  };
-
-  const handleConfirmPlatformChange = async () => {
-    try {
-      setIsDisplayLoading(true);
-      const confirmedPlatform = confirmPlatformChange();
-      console.log('[AdGalleryContent] Confirmed platform change:', confirmedPlatform);
-      
-      if (!platformAdsGenerated[confirmedPlatform.toLowerCase()]) {
-        await generateAdsForPlatform(confirmedPlatform);
-      }
-    } catch (error) {
-      console.error('[AdGalleryContent] Error after platform change:', error);
-      cancelPlatformChange();
-    } finally {
-      setIsDisplayLoading(false);
-    }
+    handlePlatformChange(value, true);
   };
 
   const handleRegenerate = async () => {
@@ -218,13 +195,6 @@ const AdGalleryContent = ({
           {renderPlatformContent('tiktok')}
         </PlatformTabs>
       )}
-
-      <PlatformChangeDialog
-        open={isChangingPlatform}
-        onOpenChange={setIsChangingPlatform}
-        onConfirm={handleConfirmPlatformChange}
-        onCancel={cancelPlatformChange}
-      />
     </div>
   );
 };
