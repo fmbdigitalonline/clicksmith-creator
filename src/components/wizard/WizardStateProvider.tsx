@@ -29,7 +29,6 @@ export const WizardStateProvider: React.FC<{ children: React.ReactNode }> = ({ c
   
   const { saveToProject } = useProjectWizardState();
 
-  // Load saved progress when component mounts
   useEffect(() => {
     const loadSavedProgress = async () => {
       try {
@@ -45,9 +44,9 @@ export const WizardStateProvider: React.FC<{ children: React.ReactNode }> = ({ c
         if (error) throw error;
 
         if (progress) {
-          if (progress.business_idea) setBusinessIdeaState(progress.business_idea);
-          if (progress.target_audience) setTargetAudienceState(progress.target_audience);
-          if (progress.audience_analysis) setAudienceAnalysisState(progress.audience_analysis);
+          if (progress.business_idea) setBusinessIdeaState(progress.business_idea as BusinessIdea);
+          if (progress.target_audience) setTargetAudienceState(progress.target_audience as TargetAudience);
+          if (progress.audience_analysis) setAudienceAnalysisState(progress.audience_analysis as AudienceAnalysis);
           if (progress.current_step) setCurrentStep(progress.current_step);
         }
       } catch (error) {

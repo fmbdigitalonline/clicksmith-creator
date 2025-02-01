@@ -12,6 +12,14 @@ interface SaveAdParams {
   hook?: AdHook;
 }
 
+interface SaveAdResponse {
+  success: boolean;
+  data?: any;
+  error?: string;
+  message?: string;
+  shouldCreateProject?: boolean;
+}
+
 export const saveAd = async ({
   image,
   primaryText,
@@ -20,12 +28,16 @@ export const saveAd = async ({
   rating,
   feedback,
   hook,
-}: SaveAdParams) => {
+}: SaveAdParams): Promise<SaveAdResponse> => {
   try {
     const { data: { user } } = await supabase.auth.getUser();
     
     if (!user) {
-      throw new Error('User must be logged in to save ad');
+      return {
+        success: false,
+        error: 'User must be logged in to save ad',
+        message: 'Please log in to save ads'
+      };
     }
 
     const isValidUUID = projectId && 
@@ -60,7 +72,11 @@ export const saveAd = async ({
         .single();
 
       if (updateError) throw updateError;
-      return { success: true, data: updatedFeedback };
+      return { 
+        success: true, 
+        data: updatedFeedback,
+        message: 'Ad feedback updated successfully'
+      };
     }
 
     // If no existing feedback, insert new
@@ -82,14 +98,30 @@ export const saveAd = async ({
       .select()
       .single();
 
-    if (insertError) throw insertError;
-    return { success: true, data: newFeedback };
+    if (insertError) {
+      if (insertError.message.includes('project_id')) {
+        return {
+          success: false,
+          error: insertError.message,
+          message: 'Please create a project first',
+          shouldCreateProject: true
+        };
+      }
+      throw insertError;
+    }
+
+    return { 
+      success: true, 
+      data: newFeedback,
+      message: 'Ad feedback saved successfully'
+    };
 
   } catch (error) {
     console.error('Error in saveAd:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to save ad'
+      error: error instanceof Error ? error.message : 'Failed to save ad',
+      message: 'Failed to save ad'
     };
   }
 };
