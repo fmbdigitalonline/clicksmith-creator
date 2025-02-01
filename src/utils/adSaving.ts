@@ -1,85 +1,95 @@
 import { supabase } from "@/integrations/supabase/client";
 import { AdHook, AdImage } from "@/types/adWizard";
+import { useToast } from "@/hooks/use-toast";
 
 interface SaveAdParams {
   image: AdImage;
-  hook: AdHook;
-  rating: string;
-  feedback: string;
+  primaryText: string;
+  headline: string;
   projectId?: string;
-  primaryText?: string;
-  headline?: string;
+  rating?: string;
+  feedback?: string;
+  hook?: AdHook;
 }
 
-interface SaveAdResult {
-  success: boolean;
-  message: string;
-  shouldCreateProject?: boolean;
-}
-
-export const saveAd = async (params: SaveAdParams): Promise<SaveAdResult> => {
-  const { image, hook, rating, feedback, projectId, primaryText, headline } = params;
-
-  if (!rating) {
-    return {
-      success: false,
-      message: "Please provide a rating before saving."
-    };
-  }
-
+export const saveAd = async ({
+  image,
+  primaryText,
+  headline,
+  projectId,
+  rating,
+  feedback,
+  hook,
+}: SaveAdParams) => {
   try {
     const { data: { user } } = await supabase.auth.getUser();
     
     if (!user) {
-      return {
-        success: false,
-        message: "User must be logged in to save feedback"
-      };
+      throw new Error('User must be logged in to save ad');
     }
 
     const isValidUUID = projectId && 
                        projectId !== "new" && 
                        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(projectId);
 
-    // First try to update existing feedback
-    const { data: existingFeedback, error: updateError } = await supabase
+    // Check for existing feedback first
+    const { data: existingFeedback } = await supabase
       .from('ad_feedback')
-      .upsert({
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('project_id', isValidUUID ? projectId : null)
+      .eq('primary_text', primaryText)
+      .eq('headline', headline)
+      .maybeSingle();
+
+    // If feedback exists, update it
+    if (existingFeedback) {
+      const { data: updatedFeedback, error: updateError } = await supabase
+        .from('ad_feedback')
+        .update({
+          rating: rating ? Math.max(1, Math.min(5, parseInt(rating, 10))) : existingFeedback.rating,
+          feedback: feedback || existingFeedback.feedback,
+          saved_images: image ? [image] : existingFeedback.saved_images,
+          project_data: {
+            hook,
+            image
+          }
+        })
+        .eq('id', existingFeedback.id)
+        .select()
+        .single();
+
+      if (updateError) throw updateError;
+      return { success: true, data: updatedFeedback };
+    }
+
+    // If no existing feedback, insert new
+    const { data: newFeedback, error: insertError } = await supabase
+      .from('ad_feedback')
+      .insert({
         user_id: user.id,
         project_id: isValidUUID ? projectId : null,
-        rating: Math.max(1, Math.min(5, parseInt(rating, 10))), // Ensure rating is between 1-5
+        rating: rating ? Math.max(1, Math.min(5, parseInt(rating, 10))) : null,
         feedback,
-        saved_images: [image.url],
+        saved_images: image ? [image] : [],
         primary_text: primaryText,
-        headline,
+        headline: headline,
         project_data: {
           hook,
           image
         }
-      }, {
-        onConflict: 'user_id,project_id',
-        ignoreDuplicates: false
       })
       .select()
-      .maybeSingle();
+      .single();
 
-    if (updateError) {
-      console.error('Error saving ad feedback:', updateError);
-      throw updateError;
-    }
-
-    return {
-      success: true,
-      message: isValidUUID 
-        ? "Your feedback has been saved and ad added to project."
-        : "Your feedback has been saved."
-    };
+    if (insertError) throw insertError;
+    return { success: true, data: newFeedback };
 
   } catch (error) {
-    console.error('Error saving ad:', error);
+    console.error('Error in saveAd:', error);
     return {
       success: false,
-      message: error instanceof Error ? error.message : "Failed to save feedback."
+      error: error instanceof Error ? error.message : 'Failed to save ad'
     };
   }
 };
