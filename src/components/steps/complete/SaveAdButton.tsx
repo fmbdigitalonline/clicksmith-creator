@@ -2,8 +2,9 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Save, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { AdHook, AdImage } from "@/types/adWizard";
+import { AdHook, AdImage, SaveAdResponse } from "@/types/adWizard";
 import { saveAd } from "@/utils/adSaving";
+import { useAtomicOperation } from "@/hooks/useAtomicOperation";
 
 interface SaveAdButtonProps {
   image: AdImage;
@@ -30,6 +31,7 @@ export const SaveAdButton = ({
 }: SaveAdButtonProps) => {
   const [isSaving, setSaving] = useState(false);
   const { toast } = useToast();
+  const { executeAtomically } = useAtomicOperation();
 
   const handleSave = async () => {
     if (isSaving) {
@@ -39,26 +41,28 @@ export const SaveAdButton = ({
 
     setSaving(true);
     try {
-      const result = await saveAd({
-        image,
-        hook,
-        rating,
-        feedback,
-        projectId,
-        primaryText,
-        headline
-      });
+      const result = await executeAtomically<SaveAdResponse>(async () => {
+        return await saveAd({
+          image,
+          hook,
+          rating,
+          feedback,
+          projectId,
+          primaryText,
+          headline
+        });
+      }, `save_ad_${projectId || 'new'}`);
 
       if (result.success) {
         onSaveSuccess();
         toast({
           title: "Success!",
-          description: result.message,
+          description: result.message || "Ad saved successfully",
         });
       } else {
         if (result.shouldCreateProject && onCreateProject) {
           toast({
-            title: result.message,
+            title: result.message || "Project needed",
             description: "Please create a project to save your ad.",
             action: (
               <Button variant="outline" onClick={onCreateProject}>
@@ -69,7 +73,7 @@ export const SaveAdButton = ({
         } else {
           toast({
             title: "Error",
-            description: result.message,
+            description: result.message || "Failed to save ad",
             variant: "destructive",
           });
         }
