@@ -2,9 +2,8 @@ import { useEffect, useState } from "react";
 import { Navigate, useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { useMigrationLock } from "@/hooks/useMigrationLock";
 
-const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
@@ -76,39 +75,6 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
             if (user) {
               setIsAuthenticated(true);
               console.log('[ProtectedRoute] Checking free tier usage for user:', user.id);
-              
-              // Check if this is a new registration with anonymous data
-              const anonymousSessionId = localStorage.getItem('anonymous_session_id');
-              if (anonymousSessionId) {
-                console.log('[ProtectedRoute] Found anonymous session after auth:', anonymousSessionId);
-                const { data: anonymousData } = await supabase
-                  .from('anonymous_usage')
-                  .select('wizard_data, used')
-                  .eq('session_id', anonymousSessionId)
-                  .maybeSingle();
-
-                if (anonymousData && !anonymousData.used) {
-                  console.log('[ProtectedRoute] Migrating anonymous data:', anonymousData);
-                  const { data: migratedData, error: migrationError } = await supabase
-                    .rpc('atomic_migration', {
-                      p_user_id: user.id,
-                      p_session_id: anonymousSessionId
-                    });
-
-                  if (migrationError) {
-                    console.error('[ProtectedRoute] Migration error:', migrationError);
-                  } else if (migratedData) {
-                    console.log('[ProtectedRoute] Migration successful:', migratedData);
-                    // Clear anonymous session after successful migration
-                    localStorage.removeItem('anonymous_session_id');
-                    // Redirect to continue the wizard flow
-                    if (location.pathname === '/login') {
-                      navigate('/ad-wizard/new', { replace: true });
-                    }
-                  }
-                }
-              }
-
               const { data: existingUsage } = await supabase
                 .from('free_tier_usage')
                 .select('*')
@@ -149,19 +115,6 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
       
       if (event === 'SIGNED_IN' && session?.user) {
         setIsAuthenticated(true);
-        // Check for pending migration after sign in
-        const anonymousSessionId = localStorage.getItem('anonymous_session_id');
-        if (anonymousSessionId) {
-          const { data: anonymousData } = await supabase
-            .from('anonymous_usage')
-            .select('wizard_data, used')
-            .eq('session_id', anonymousSessionId)
-            .maybeSingle();
-
-          if (anonymousData && !anonymousData.used) {
-            navigate('/ad-wizard/new', { replace: true });
-          }
-        }
       } else if (event === 'SIGNED_OUT') {
         setIsAuthenticated(false);
         navigate('/login', { replace: true });
@@ -187,5 +140,3 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 
   return <>{children}</>;
 };
-
-export default ProtectedRoute;

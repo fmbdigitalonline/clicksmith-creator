@@ -20,7 +20,6 @@ export const useAdGenerationLock = () => {
         return false;
       }
 
-      // Use maybeSingle() instead of single() to handle no rows gracefully
       const { data, error } = await supabase
         .from('migration_locks')
         .insert([{
@@ -32,6 +31,11 @@ export const useAdGenerationLock = () => {
         .maybeSingle();
 
       if (error) {
+        if (error.code === 'PGRST116') {
+          // No rows returned is okay here
+          setIsLocked(true);
+          return true;
+        }
         console.error('[WizardLock] Error acquiring lock:', error);
         return false;
       }
