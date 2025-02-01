@@ -88,22 +88,26 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 
                 if (anonymousData && !anonymousData.used) {
                   console.log('[ProtectedRoute] Migrating anonymous data:', anonymousData);
-                  const { data: migratedData, error: migrationError } = await supabase
-                    .rpc('atomic_migration', {
-                      p_user_id: user.id,
-                      p_session_id: anonymousSessionId
-                    });
+                  try {
+                    const { data: migratedData, error: migrationError } = await supabase
+                      .rpc('atomic_migration', {
+                        p_user_id: user.id,
+                        p_session_id: anonymousSessionId
+                      });
 
-                  if (migrationError) {
-                    console.error('[ProtectedRoute] Migration error:', migrationError);
-                  } else if (migratedData) {
-                    console.log('[ProtectedRoute] Migration successful:', migratedData);
-                    // Clear anonymous session after successful migration
-                    localStorage.removeItem('anonymous_session_id');
-                    // Redirect to continue the wizard flow
-                    if (location.pathname === '/login') {
-                      navigate('/ad-wizard/new', { replace: true });
+                    if (migrationError) {
+                      console.error('[ProtectedRoute] Migration error:', migrationError);
+                    } else if (migratedData) {
+                      console.log('[ProtectedRoute] Migration successful:', migratedData);
+                      // Clear anonymous session after successful migration
+                      localStorage.removeItem('anonymous_session_id');
+                      // Redirect to continue the wizard flow
+                      if (location.pathname === '/login') {
+                        navigate('/ad-wizard/new', { replace: true });
+                      }
                     }
+                  } catch (error) {
+                    console.error('[ProtectedRoute] Migration RPC error:', error);
                   }
                 }
               }
