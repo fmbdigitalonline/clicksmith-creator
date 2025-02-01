@@ -68,7 +68,6 @@ const AdGalleryContent = ({
     displayAds,
     isLoading: isDisplayLoading,
     setIsLoading: setIsDisplayLoading,
-    handleAdError
   } = useAdDisplay(currentAds);
 
   useEffect(() => {
@@ -79,6 +78,7 @@ const AdGalleryContent = ({
     getUser();
   }, []);
 
+  // New effect to handle initial ad generation
   useEffect(() => {
     const generateInitialAds = async () => {
       if (!initialGenerationAttempted && !platformAdsGenerated.facebook && userId) {
@@ -131,11 +131,10 @@ const AdGalleryContent = ({
     const platformKey = value.toLowerCase();
     const hasGeneratedForPlatform = platformAdsGenerated[platformKey];
     
-    handlePlatformChange(value, true);
-    
     if (!hasGeneratedForPlatform) {
       await generateAdsForPlatform(value);
     }
+    handlePlatformChange(value, true);
   };
 
   const handleRegenerate = async () => {
