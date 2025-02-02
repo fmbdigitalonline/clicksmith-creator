@@ -43,7 +43,7 @@ const AdGalleryContent = ({
     isGenerating,
     generationStatus,
     generateAds
-  } = useAdGeneration(userId, saveGeneratedAds, setCurrentAds, setIsDisplayLoading);
+  } = useAdGeneration(userId, saveGeneratedAds, setCurrentAds);
 
   const {
     currentPlatform,
@@ -84,7 +84,6 @@ const AdGalleryContent = ({
 
   const handleConfirmPlatformChange = () => {
     setIsChangingPlatform(false);
-    // Additional platform change logic if needed
   };
 
   const handleCancelPlatformChange = () => {
