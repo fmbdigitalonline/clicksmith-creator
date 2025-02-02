@@ -5,6 +5,7 @@ import { useProjectWizardState } from '@/hooks/useProjectWizardState';
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { isBusinessIdea, isTargetAudience, isAudienceAnalysis } from "@/utils/typeGuards";
+import { useAtomicOperation } from '@/hooks/useAtomicOperation';
 
 interface WizardContextType {
   currentStep: number;
@@ -25,6 +26,9 @@ const WizardContext = createContext<WizardContextType | undefined>(undefined);
 export const WizardStateProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { toast } = useToast();
   const isMounted = useRef(true);
+  const saveTimeoutRef = useRef<NodeJS.Timeout>();
+  const { executeAtomically } = useAtomicOperation();
+  
   const {
     currentStep,
     businessIdea,
@@ -41,31 +45,46 @@ export const WizardStateProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   const { saveToProject } = useProjectWizardState();
 
-  // Save progress when state changes
+  // Save progress when state changes with debouncing
   const saveProgress = useCallback(async (data: any) => {
-    try {
-      console.log('[WizardStateProvider] Saving progress:', data);
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { error } = await supabase
-        .from('wizard_progress')
-        .upsert({
-          user_id: user.id,
-          ...data,
-          updated_at: new Date().toISOString()
-        }, {
-          onConflict: 'user_id'
-        });
-
-      if (error) throw error;
-
-      await saveToProject(data);
-      console.log('[WizardStateProvider] Progress saved successfully');
-    } catch (error) {
-      console.error('[WizardStateProvider] Error saving progress:', error);
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
     }
-  }, [saveToProject]);
+
+    saveTimeoutRef.current = setTimeout(async () => {
+      try {
+        console.log('[WizardStateProvider] Saving progress:', data);
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        await executeAtomically(async () => {
+          const { error } = await supabase
+            .from('wizard_progress')
+            .upsert({
+              user_id: user.id,
+              ...data,
+              updated_at: new Date().toISOString()
+            }, {
+              onConflict: 'user_id'
+            });
+
+          if (error) throw error;
+
+          await saveToProject(data);
+          console.log('[WizardStateProvider] Progress saved successfully');
+        }, `wizard_save_${user.id}`);
+      } catch (error) {
+        console.error('[WizardStateProvider] Error saving progress:', error);
+        if (isMounted.current) {
+          toast({
+            title: "Error saving progress",
+            description: "There was an error saving your progress. We'll try again automatically.",
+            variant: "destructive",
+          });
+        }
+      }
+    }, 1000); // Debounce for 1 second
+  }, [executeAtomically, saveToProject, toast]);
 
   // Load saved progress on mount and handle auth state changes
   useEffect(() => {
@@ -98,11 +117,13 @@ export const WizardStateProvider: React.FC<{ children: React.ReactNode }> = ({ c
         }
       } catch (error) {
         console.error('[WizardStateProvider] Error loading progress:', error);
-        toast({
-          title: "Error loading progress",
-          description: "There was an error loading your progress. Please try again.",
-          variant: "destructive",
-        });
+        if (isMounted.current) {
+          toast({
+            title: "Error loading progress",
+            description: "There was an error loading your progress. Please try again.",
+            variant: "destructive",
+          });
+        }
       }
     };
 
@@ -117,6 +138,9 @@ export const WizardStateProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
     return () => {
       isMounted.current = false;
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
       subscription.unsubscribe();
     };
   }, [setStoreBusinessIdea, setStoreTargetAudience, setStoreAudienceAnalysis, setCurrentStep, toast]);
