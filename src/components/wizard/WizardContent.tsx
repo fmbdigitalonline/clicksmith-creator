@@ -12,6 +12,7 @@ import WizardSteps from "./WizardSteps";
 import CreateProjectDialog from "../projects/CreateProjectDialog";
 import { Button } from "../ui/button";
 import { Save } from "lucide-react";
+import { isBusinessIdea, isTargetAudience, isAudienceAnalysis } from "@/utils/typeGuards";
 
 const WizardContent = () => {
   const [showCreateProject, setShowCreateProject] = useState(false);
@@ -42,16 +43,11 @@ const WizardContent = () => {
         if (anonymousData && currentUser) {
           console.log('[WizardContent] Checking existing progress for user:', currentUser.id);
           
-          const { data: existingProgress, error } = await supabase
+          const { data: existingProgress } = await supabase
             .from('wizard_progress')
             .select('*')
             .eq('user_id', currentUser.id)
             .maybeSingle();
-
-          if (error) {
-            console.error('[WizardContent] Error fetching progress:', error);
-            return;
-          }
 
           const currentPathMatch = window.location.pathname.match(/step-(\d+)/);
           const currentUrlStep = currentPathMatch ? parseInt(currentPathMatch[1]) : null;
@@ -61,29 +57,32 @@ const WizardContent = () => {
           if (existingProgress) {
             console.log('[WizardContent] Found existing progress with step:', existingProgress.current_step);
             
-            if (!window.location.pathname.includes('/ad-wizard/new')) {
-              const targetStep = Math.max(
-                existingProgress.current_step || 1,
-                anonymousStep,
-                currentUrlStep || 1
-              );
-
-              if (anonymousData.business_idea) {
-                setBusinessIdea(anonymousData.business_idea);
-              }
-              if (anonymousData.target_audience) {
-                setTargetAudience(anonymousData.target_audience);
-              }
-              if (anonymousData.audience_analysis) {
-                setAudienceAnalysis(anonymousData.audience_analysis);
-              }
-              if (Array.isArray(anonymousData.generated_ads)) {
-                setGeneratedAds(anonymousData.generated_ads);
-                setHasLoadedInitialAds(true);
-              }
+            const targetStep = Math.max(
+              existingProgress.current_step || 1,
+              anonymousStep,
+              currentUrlStep || 1
+            );
+            
+            if (anonymousData.business_idea && isBusinessIdea(anonymousData.business_idea)) {
+              setBusinessIdea(anonymousData.business_idea);
+            }
+            if (anonymousData.target_audience && isTargetAudience(anonymousData.target_audience)) {
+              setTargetAudience(anonymousData.target_audience);
+            }
+            if (anonymousData.audience_analysis && isAudienceAnalysis(anonymousData.audience_analysis)) {
+              setAudienceAnalysis(anonymousData.audience_analysis);
+            }
+            if (Array.isArray(anonymousData.generated_ads)) {
+              setGeneratedAds(anonymousData.generated_ads);
+              setHasLoadedInitialAds(true);
+            }
+            
+            if (targetStep > 1 && canNavigateToStep(targetStep)) {
+              setCurrentStep(targetStep);
               
-              if (targetStep > 1 && canNavigateToStep(targetStep)) {
-                setCurrentStep(targetStep);
+              // Only navigate if we're not already on the correct path and not in a new wizard
+              const currentPath = window.location.pathname;
+              if (!currentPath.includes('/ad-wizard/new') && currentPath !== `/ad-wizard/step-${targetStep}`) {
                 navigate(`/ad-wizard/step-${targetStep}`, { replace: true });
               }
             }
