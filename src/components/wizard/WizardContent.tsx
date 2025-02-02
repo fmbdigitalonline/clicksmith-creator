@@ -36,6 +36,13 @@ const WizardContent = () => {
   } = useWizardState();
 
   useEffect(() => {
+    // Test persistence
+    console.log('[WizardContent] Current step:', currentStep);
+    console.log('[WizardContent] Business idea:', businessIdea);
+    console.log('[WizardContent] Local storage:', localStorage.getItem('wizard-storage'));
+  }, [currentStep, businessIdea]);
+
+  useEffect(() => {
     const loadProgress = async () => {
       try {
         console.log('[WizardContent] Starting to load progress');
