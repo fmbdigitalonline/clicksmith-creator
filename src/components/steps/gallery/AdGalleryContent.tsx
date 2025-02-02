@@ -111,10 +111,6 @@ const AdGalleryContent = ({
     handleInitialGeneration();
   }, [userId, isGenerating, isLoadingState, currentAds.length, initialLoadDone]);
 
-  const handleFormatChange = (format: typeof AD_FORMATS[0]) => {
-    setSelectedFormat(format);
-  };
-
   const handlePlatformTabChange = async (value: string) => {
     console.log('[AdGalleryContent] Platform tab change requested:', value);
     const platformAds = displayAds.filter(ad => 
@@ -134,7 +130,17 @@ const AdGalleryContent = ({
         if (newAds && newAds.length > 0) {
           console.log('[AdGalleryContent] New ads generated:', newAds);
           await saveGeneratedAds(newAds);
-          setCurrentAds(prevAds => [...prevAds, ...newAds]);
+          // Ensure we preserve existing ads for other platforms
+          setCurrentAds(prevAds => {
+            const updatedAds = [...prevAds, ...newAds].reduce((acc, ad) => {
+              // Only add if we don't already have an ad with this ID
+              if (!acc.some(existingAd => existingAd.id === ad.id)) {
+                acc.push(ad);
+              }
+              return acc;
+            }, []);
+            return updatedAds;
+          });
           toast({
             title: "Ads Generated",
             description: `Successfully generated ${value} ads.`,
@@ -210,7 +216,7 @@ const AdGalleryContent = ({
         <div className="flex justify-end mb-4">
           <AdSizeSelector
             selectedFormat={selectedFormat}
-            onFormatChange={handleFormatChange}
+            onFormatChange={setSelectedFormat}
           />
         </div>
         <PlatformContent
