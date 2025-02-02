@@ -1,18 +1,8 @@
 import { useState, useEffect } from "react";
-import { useNavigate, useParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { WizardData } from "@/types/wizardProgress";
-import { useWizardState } from "../../wizard/WizardStateProvider";
-import WizardAuthentication from "../../wizard/WizardAuthentication";
-import WizardControls from "../../wizard/WizardControls";
-import WizardHeader from "../../wizard/WizardHeader";
-import WizardProgress from "../../WizardProgress";
-import WizardSteps from "../../wizard/WizardSteps";
-import CreateProjectDialog from "../../projects/CreateProjectDialog";
-import { Button } from "../../ui/button";
-import { Save } from "lucide-react";
-import { isBusinessIdea, isTargetAudience, isAudienceAnalysis } from "@/utils/typeGuards";
+import { BusinessIdea, TargetAudience, AdHook } from "@/types/adWizard";
+import { TabsContent } from "@/components/ui/tabs";
 import PlatformTabs from "./PlatformTabs";
 import PlatformContent from "./PlatformContent";
 import PlatformChangeDialog from "./PlatformChangeDialog";
@@ -22,6 +12,19 @@ import LoadingState from "../complete/LoadingState";
 import AdGenerationControls from "./AdGenerationControls";
 import { useAdGeneration } from "@/hooks/useAdGeneration";
 import { usePlatformState } from "@/hooks/usePlatformState";
+import { useAdGalleryState } from "@/hooks/useAdGalleryState";
+
+interface AdGalleryContentProps {
+  businessIdea: BusinessIdea;
+  targetAudience: TargetAudience;
+  adHooks: AdHook[];
+  onStartOver: () => void;
+  onBack: () => void;
+  onCreateProject: () => void;
+  videoAdsEnabled?: boolean;
+  generatedAds?: any[];
+  hasLoadedInitialAds?: boolean;
+}
 
 const AdGalleryContent = ({
   businessIdea,
@@ -31,7 +34,7 @@ const AdGalleryContent = ({
   onBack,
   onCreateProject,
   videoAdsEnabled = false,
-}) => {
+}: AdGalleryContentProps) => {
   const [selectedFormat, setSelectedFormat] = useState(AD_FORMATS[0]);
   const { toast } = useToast();
   const [userId, setUserId] = useState<string | undefined>();
