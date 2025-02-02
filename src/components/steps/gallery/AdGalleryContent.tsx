@@ -82,6 +82,7 @@ const AdGalleryContent = ({
   };
 
   const handlePlatformTabChange = async (value: string) => {
+    console.log('[AdGalleryContent] Platform tab change:', value);
     const hasExistingAds = Array.isArray(displayAds) && displayAds.length > 0;
     
     if (hasExistingAds) {
@@ -90,12 +91,21 @@ const AdGalleryContent = ({
       try {
         setIsDisplayLoading(true);
         const newAds = await generateAds(value);
+        console.log('[AdGalleryContent] Generated new ads:', newAds);
+        
         if (newAds && newAds.length > 0) {
           await saveGeneratedAds(newAds);
           setCurrentAds(newAds);
           toast({
             title: "Ads Generated",
             description: `Successfully generated ${value} ads.`,
+          });
+        } else {
+          console.error('[AdGalleryContent] No ads generated');
+          toast({
+            title: "Error",
+            description: "No ads were generated. Please try again.",
+            variant: "destructive",
           });
         }
       } catch (error) {
@@ -115,6 +125,7 @@ const AdGalleryContent = ({
     try {
       setIsDisplayLoading(true);
       const confirmedPlatform = confirmPlatformChange();
+      console.log('[AdGalleryContent] Confirmed platform change:', confirmedPlatform);
       
       const newAds = await generateAds(confirmedPlatform);
       if (newAds && newAds.length > 0) {
@@ -124,16 +135,24 @@ const AdGalleryContent = ({
           title: "Ads Generated",
           description: `Successfully generated ${confirmedPlatform} ads.`,
         });
+      } else {
+        throw new Error('No ads were generated');
       }
     } catch (error) {
       console.error('[AdGalleryContent] Error generating ads after platform change:', error);
       cancelPlatformChange();
+      toast({
+        title: "Error",
+        description: "Failed to generate ads. Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setIsDisplayLoading(false);
     }
   };
 
   const handleRegenerate = async () => {
+    console.log('[AdGalleryContent] Regenerating ads for platform:', currentPlatform);
     try {
       setIsDisplayLoading(true);
       const newAds = await generateAds(currentPlatform);
@@ -144,7 +163,16 @@ const AdGalleryContent = ({
           title: "Ads Regenerated",
           description: `Successfully regenerated ${currentPlatform} ads.`,
         });
+      } else {
+        throw new Error('No ads were generated');
       }
+    } catch (error) {
+      console.error('[AdGalleryContent] Error regenerating ads:', error);
+      toast({
+        title: "Error",
+        description: "Failed to regenerate ads. Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setIsDisplayLoading(false);
     }
@@ -167,9 +195,16 @@ const AdGalleryContent = ({
             await saveGeneratedAds(newAds);
             setCurrentAds(newAds);
             setInitialGenerationDone(true);
+          } else {
+            throw new Error('No ads were generated');
           }
         } catch (error) {
           console.error('[AdGalleryContent] Error generating initial ads:', error);
+          toast({
+            title: "Error",
+            description: "Failed to generate initial ads. Please try again.",
+            variant: "destructive",
+          });
         } finally {
           setIsDisplayLoading(false);
         }
