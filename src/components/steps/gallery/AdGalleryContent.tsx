@@ -15,12 +15,16 @@ interface AdGalleryContentProps {
   userId?: string;
   videoAdsEnabled: boolean;
   onCreateProject: () => void;
+  onBack: () => void;
+  onStartOver: () => void;
 }
 
 const AdGalleryContent = ({
   userId,
   videoAdsEnabled,
   onCreateProject,
+  onBack,
+  onStartOver,
 }: AdGalleryContentProps) => {
   const [selectedFormat, setSelectedFormat] = useState(AD_FORMATS[0]);
   const [isDisplayLoading, setIsDisplayLoading] = useState(false);
@@ -70,6 +74,21 @@ const AdGalleryContent = ({
   const handleStartOver = async () => {
     await clearGeneratedAds();
     setInitialLoadDone(false);
+    onStartOver();
+  };
+
+  const handlePlatformChange = (platform: string) => {
+    setIsChangingPlatform(true);
+    handlePlatformTabChange(platform);
+  };
+
+  const handleConfirmPlatformChange = () => {
+    setIsChangingPlatform(false);
+    // Additional platform change logic if needed
+  };
+
+  const handleCancelPlatformChange = () => {
+    setIsChangingPlatform(false);
   };
 
   if (isGenerating || isDisplayLoading || isLoadingState) {
@@ -83,11 +102,12 @@ const AdGalleryContent = ({
         isGenerating={isGenerating}
         generationStatus={generationStatus}
         onStartOver={handleStartOver}
+        onBack={onBack}
       />
 
       <PlatformTabs 
         platform={currentPlatform} 
-        onPlatformChange={handlePlatformTabChange}
+        onPlatformChange={handlePlatformChange}
       >
         <div className="flex justify-end mb-4">
           <AdSizeSelector
@@ -107,6 +127,8 @@ const AdGalleryContent = ({
       <PlatformChangeDialog
         open={isChangingPlatform}
         onOpenChange={setIsChangingPlatform}
+        onConfirm={handleConfirmPlatformChange}
+        onCancel={handleCancelPlatformChange}
       />
     </div>
   );

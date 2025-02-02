@@ -1,6 +1,6 @@
-import { useState } from 'react';
-import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
+import { useState, useCallback } from 'react';
+import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 export const useAdGeneration = (
   userId: string | undefined,
@@ -9,85 +9,64 @@ export const useAdGeneration = (
   setIsDisplayLoading: (loading: boolean) => void
 ) => {
   const [isGenerating, setIsGenerating] = useState(false);
-  const [generationStatus, setGenerationStatus] = useState("");
+  const [generationStatus, setGenerationStatus] = useState('');
   const { toast } = useToast();
 
-  const generateAds = async (platform: string) => {
+  const generateAds = useCallback(async (platform: string) => {
+    if (isGenerating) {
+      console.log('[useAdGeneration] Generation already in progress');
+      return [];
+    }
+
     try {
       setIsGenerating(true);
       setGenerationStatus(`Generating ${platform} ads...`);
-      console.log(`[useAdGeneration] Starting generation for ${platform}`);
 
-      const newAds = await generateAdsForPlatform(platform);
-      
-      if (newAds && newAds.length > 0) {
-        console.log('[useAdGeneration] New ads generated:', newAds);
-        await saveGeneratedAds(newAds);
-        
+      const { data, error } = await supabase.functions.invoke('generate-ad-content', {
+        body: { 
+          type: 'complete_ads',
+          platform,
+          userId // Now properly defined from props
+        }
+      });
+
+      if (error) throw error;
+
+      if (data?.variants) {
+        await saveGeneratedAds(data.variants);
         setCurrentAds(prevAds => {
-          const updatedAds = [...prevAds, ...newAds].reduce((acc, ad) => {
-            if (!acc.some(existingAd => existingAd.id === ad.id)) {
-              acc.push(ad);
-            }
-            return acc;
-          }, []);
-          return updatedAds;
+          // Filter out old ads for this platform and add new ones
+          const otherPlatformAds = prevAds.filter(ad => 
+            ad.platform.toLowerCase() !== platform.toLowerCase()
+          );
+          return [...otherPlatformAds, ...data.variants];
         });
 
         toast({
-          title: "Ads Generated",
-          description: `Successfully generated ${platform} ads.`,
+          title: "Success",
+          description: `Generated new ${platform} ads successfully!`,
         });
       }
-      
-      return newAds;
+
+      return data?.variants || [];
     } catch (error) {
-      console.error('[useAdGeneration] Error generating ads:', error);
+      console.error('[useAdGeneration] Error:', error);
       toast({
-        title: "Error",
-        description: "Failed to generate ads. Please try again.",
+        title: "Error generating ads",
+        description: error instanceof Error ? error.message : "Failed to generate ads",
         variant: "destructive",
       });
       return [];
     } finally {
       setIsGenerating(false);
-      setGenerationStatus("");
+      setGenerationStatus('');
       setIsDisplayLoading(false);
     }
-  };
+  }, [isGenerating, saveGeneratedAds, setCurrentAds, setIsDisplayLoading, toast, userId]);
 
   return {
     isGenerating,
     generationStatus,
     generateAds
   };
-};
-
-const generateAdsForPlatform = async (platform: string) => {
-  const { data, error } = await supabase.functions.invoke('generate-ad-content', {
-    body: {
-      type: 'complete_ads',
-      platform,
-      userId,
-      numVariants: 10
-    },
-  });
-
-  if (error) {
-    console.error('[generateAdsForPlatform] Error:', error);
-    throw error;
-  }
-
-  if (!data?.variants || !Array.isArray(data.variants)) {
-    throw new Error('Invalid response format from server');
-  }
-
-  return data.variants.map(variant => ({
-    ...variant,
-    platform: platform.toLowerCase(),
-    id: variant.id || crypto.randomUUID(),
-    headline: variant.headline || variant.hook?.text || 'Untitled Ad',
-    description: variant.description || variant.primaryText || '',
-    imageUrl: variant.imageUrl || variant.image?.url || '',
-  }));
 };
