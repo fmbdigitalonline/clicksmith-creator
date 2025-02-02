@@ -38,6 +38,7 @@ const AdGalleryContent = ({
   const [selectedFormat, setSelectedFormat] = useState(AD_FORMATS[0]);
   const { toast } = useToast();
   const [userId, setUserId] = useState<string | undefined>();
+  const [initialLoadDone, setInitialLoadDone] = useState(false);
 
   const {
     currentAds,
@@ -75,6 +76,39 @@ const AdGalleryContent = ({
     };
     getUser();
   }, []);
+
+  // New effect to handle initial ad generation
+  useEffect(() => {
+    const handleInitialGeneration = async () => {
+      if (!initialLoadDone && userId && !isGenerating && !isLoadingState && currentAds.length === 0) {
+        console.log('[AdGalleryContent] Starting initial ad generation');
+        try {
+          setIsDisplayLoading(true);
+          const newAds = await generateAds(currentPlatform);
+          if (newAds && newAds.length > 0) {
+            await saveGeneratedAds(newAds);
+            setCurrentAds(newAds);
+            toast({
+              title: "Ads Generated",
+              description: `Successfully generated ${currentPlatform} ads.`,
+            });
+          }
+        } catch (error) {
+          console.error('[AdGalleryContent] Error in initial generation:', error);
+          toast({
+            title: "Error",
+            description: "Failed to generate initial ads. Please try again.",
+            variant: "destructive",
+          });
+        } finally {
+          setIsDisplayLoading(false);
+          setInitialLoadDone(true);
+        }
+      }
+    };
+
+    handleInitialGeneration();
+  }, [userId, isGenerating, isLoadingState, currentAds.length, initialLoadDone]);
 
   const handleFormatChange = (format: typeof AD_FORMATS[0]) => {
     setSelectedFormat(format);
