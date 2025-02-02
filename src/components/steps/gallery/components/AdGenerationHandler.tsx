@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { toast } from "@/hooks/use-toast";
-import { useAdDisplay } from '@/hooks/useAdDisplay';
 import { useAdGeneration } from '@/hooks/useAdGeneration';
 
 interface AdGenerationHandlerProps {
@@ -31,7 +30,7 @@ export const useAdGenerationHandler = ({
       setIsDisplayLoading(true);
       console.log(`[AdGenerationHandler] Generating ads for platform: ${platform}`);
       
-      const newAds = await generateAds(platform, userId, currentPlatform);
+      const newAds = await generateAds(platform);
       console.log('[AdGenerationHandler] Generated ads:', newAds);
       
       if (newAds && newAds.length > 0) {
