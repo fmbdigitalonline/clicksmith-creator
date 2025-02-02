@@ -42,11 +42,16 @@ const WizardContent = () => {
         if (anonymousData && currentUser) {
           console.log('[WizardContent] Checking existing progress for user:', currentUser.id);
           
-          const { data: existingProgress } = await supabase
+          const { data: existingProgress, error } = await supabase
             .from('wizard_progress')
             .select('*')
             .eq('user_id', currentUser.id)
             .maybeSingle();
+
+          if (error) {
+            console.error('[WizardContent] Error fetching progress:', error);
+            return;
+          }
 
           const currentPathMatch = window.location.pathname.match(/step-(\d+)/);
           const currentUrlStep = currentPathMatch ? parseInt(currentPathMatch[1]) : null;
@@ -56,8 +61,7 @@ const WizardContent = () => {
           if (existingProgress) {
             console.log('[WizardContent] Found existing progress with step:', existingProgress.current_step);
             
-            // Don't reset progress if we're on a new wizard and have anonymous data
-            if (!window.location.pathname.includes('/ad-wizard/new') || anonymousData) {
+            if (!window.location.pathname.includes('/ad-wizard/new')) {
               const targetStep = Math.max(
                 existingProgress.current_step || 1,
                 anonymousStep,
@@ -80,12 +84,7 @@ const WizardContent = () => {
               
               if (targetStep > 1 && canNavigateToStep(targetStep)) {
                 setCurrentStep(targetStep);
-                
-                // Only navigate if we're not already on the correct path
-                const currentPath = window.location.pathname;
-                if (!currentPath.includes('/ad-wizard/new') && currentPath !== `/ad-wizard/step-${targetStep}`) {
-                  navigate(`/ad-wizard/step-${targetStep}`, { replace: true });
-                }
+                navigate(`/ad-wizard/step-${targetStep}`, { replace: true });
               }
             }
           }
