@@ -8,7 +8,7 @@ interface AdGalleryStepProps {
   onStartOver: () => void;
   onBack: () => void;
   onCreateProject: () => void;
-  videoAdsEnabled: boolean; // Made required to match AdGalleryContentProps
+  videoAdsEnabled?: boolean;
   generatedAds?: any[];
   hasLoadedInitialAds?: boolean;
 }

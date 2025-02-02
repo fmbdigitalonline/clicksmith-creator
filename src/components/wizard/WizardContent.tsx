@@ -12,7 +12,6 @@ import WizardSteps from "./WizardSteps";
 import CreateProjectDialog from "../projects/CreateProjectDialog";
 import { Button } from "../ui/button";
 import { Save } from "lucide-react";
-import { isBusinessIdea, isTargetAudience, isAudienceAnalysis } from "@/utils/typeGuards";
 
 const WizardContent = () => {
   const [showCreateProject, setShowCreateProject] = useState(false);
@@ -57,33 +56,36 @@ const WizardContent = () => {
           if (existingProgress) {
             console.log('[WizardContent] Found existing progress with step:', existingProgress.current_step);
             
-            const targetStep = Math.max(
-              existingProgress.current_step || 1,
-              anonymousStep,
-              currentUrlStep || 1
-            );
-            
-            if (anonymousData.business_idea && isBusinessIdea(anonymousData.business_idea)) {
-              setBusinessIdea(anonymousData.business_idea);
-            }
-            if (anonymousData.target_audience && isTargetAudience(anonymousData.target_audience)) {
-              setTargetAudience(anonymousData.target_audience);
-            }
-            if (anonymousData.audience_analysis && isAudienceAnalysis(anonymousData.audience_analysis)) {
-              setAudienceAnalysis(anonymousData.audience_analysis);
-            }
-            if (Array.isArray(anonymousData.generated_ads)) {
-              setGeneratedAds(anonymousData.generated_ads);
-              setHasLoadedInitialAds(true);
-            }
-            
-            if (targetStep > 1 && canNavigateToStep(targetStep)) {
-              setCurrentStep(targetStep);
+            // Don't reset progress if we're on a new wizard and have anonymous data
+            if (!window.location.pathname.includes('/ad-wizard/new') || anonymousData) {
+              const targetStep = Math.max(
+                existingProgress.current_step || 1,
+                anonymousStep,
+                currentUrlStep || 1
+              );
+
+              if (anonymousData.business_idea) {
+                setBusinessIdea(anonymousData.business_idea);
+              }
+              if (anonymousData.target_audience) {
+                setTargetAudience(anonymousData.target_audience);
+              }
+              if (anonymousData.audience_analysis) {
+                setAudienceAnalysis(anonymousData.audience_analysis);
+              }
+              if (Array.isArray(anonymousData.generated_ads)) {
+                setGeneratedAds(anonymousData.generated_ads);
+                setHasLoadedInitialAds(true);
+              }
               
-              // Only navigate if we're not already on the correct path and not in a new wizard
-              const currentPath = window.location.pathname;
-              if (!currentPath.includes('/ad-wizard/new') && currentPath !== `/ad-wizard/step-${targetStep}`) {
-                navigate(`/ad-wizard/step-${targetStep}`, { replace: true });
+              if (targetStep > 1 && canNavigateToStep(targetStep)) {
+                setCurrentStep(targetStep);
+                
+                // Only navigate if we're not already on the correct path
+                const currentPath = window.location.pathname;
+                if (!currentPath.includes('/ad-wizard/new') && currentPath !== `/ad-wizard/step-${targetStep}`) {
+                  navigate(`/ad-wizard/step-${targetStep}`, { replace: true });
+                }
               }
             }
           }

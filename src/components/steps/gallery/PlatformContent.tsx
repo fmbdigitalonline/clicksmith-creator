@@ -21,19 +21,14 @@ const PlatformContent = ({
 
   console.log(`[PlatformContent] Rendering ${platformName} variants:`, adVariants);
 
-  const filteredVariants = adVariants.filter(variant => {
-    const isMatchingPlatform = variant?.platform?.toLowerCase() === platformName.toLowerCase();
-    const hasRequiredFields = variant?.headline && (variant?.imageUrl || variant?.image?.url);
-    
-    if (!isMatchingPlatform) {
-      console.log(`[PlatformContent] Filtered out variant due to platform mismatch:`, variant);
-    }
-    if (!hasRequiredFields) {
-      console.log(`[PlatformContent] Filtered out variant due to missing required fields:`, variant);
-    }
-    
-    return isMatchingPlatform && hasRequiredFields;
-  });
+  // Case-insensitive platform filtering while maintaining null/undefined checks
+  const filteredVariants = adVariants.filter(variant => 
+    variant && 
+    variant.platform && 
+    variant.platform.toLowerCase() === platformName.toLowerCase() &&
+    variant.headline && // Ensure required fields exist
+    (variant.imageUrl || variant.image?.url)
+  );
 
   console.log(`[PlatformContent] Filtered ${platformName} variants:`, filteredVariants);
 
