@@ -3,60 +3,48 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAdPersistence } from './useAdPersistence';
 import { useAdGenerationState } from './useAdGenerationState';
-import { AdVariant, convertJsonToAdVariant, convertAdVariantToJson } from '@/types/adVariant';
-import { useAtomicOperation } from './useAtomicOperation';
 
 export const useAdGalleryState = (userId: string | undefined) => {
-  const [currentAds, setCurrentAds] = useState<AdVariant[]>([]);
+  const [currentAds, setCurrentAds] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [lastSaveTimestamp, setLastSaveTimestamp] = useState<Date | null>(null);
+  const generationInProgress = useRef(false);
   const { toast } = useToast();
-  const { executeAtomically } = useAtomicOperation();
-  const { savedAds, isLoading: isSaving, saveGeneratedAds } = useAdPersistence(userId);
+  const { savedAds, isLoading: isSaving, saveGeneratedAds, clearGeneratedAds } = useAdPersistence(userId);
   const { isGenerating, generationStatus, generateAds } = useAdGenerationState(userId);
 
-  // Load saved ads from wizard_progress
   useEffect(() => {
-    const loadSavedAds = async () => {
-      if (!userId) {
+    const loadAds = async () => {
+      if (!userId || generationInProgress.current) {
         setIsLoading(false);
         return;
       }
 
       try {
-        setIsLoading(true);
-        const result = await executeAtomically(async () => {
-          const { data: progressData, error } = await supabase
-            .from('wizard_progress')
-            .select('generated_ads')
-            .eq('user_id', userId)
-            .maybeSingle();
+        console.log('[useAdGalleryState] Loading ads for user:', userId);
+        const { data, error } = await supabase
+          .from('wizard_progress')
+          .select('generated_ads')
+          .eq('user_id', userId)
+          .maybeSingle();
 
-          if (error && error.code !== 'PGRST116') {
-            throw error;
-          }
+        if (error && error.code !== 'PGRST116') {
+          console.error('[useAdGalleryState] Error loading ads:', error);
+          throw error;
+        }
 
-          if (progressData?.generated_ads) {
-            const validAds = Array.isArray(progressData.generated_ads) 
-              ? progressData.generated_ads
-                  .map(convertJsonToAdVariant)
-                  .filter((ad): ad is AdVariant => ad !== null)
-              : [];
-
-            console.log('[useAdGalleryState] Loaded ads:', validAds.length);
-            return validAds;
-          }
-          return [];
-        }, `load_ads_${userId}`);
-
-        if (result) {
-          setCurrentAds(result);
+        if (data?.generated_ads) {
+          console.log('[useAdGalleryState] Found existing ads:', Array.isArray(data.generated_ads) ? data.generated_ads.length : 0);
+          const adsArray = Array.isArray(data.generated_ads) ? data.generated_ads : [];
+          setCurrentAds(adsArray);
+        } else {
+          console.log('[useAdGalleryState] No existing ads found');
+          setCurrentAds([]);
         }
       } catch (error) {
         console.error('[useAdGalleryState] Error loading ads:', error);
         toast({
           title: "Error loading ads",
-          description: "Failed to load your saved ads. Please try again.",
+          description: "There was an error loading your ads. Please try again.",
           variant: "destructive",
         });
       } finally {
@@ -64,72 +52,24 @@ export const useAdGalleryState = (userId: string | undefined) => {
       }
     };
 
-    loadSavedAds();
-  }, [userId, executeAtomically, toast]);
+    loadAds();
+  }, [userId, toast]);
 
-  // Save ads to wizard_progress
-  const persistAds = async (ads: AdVariant[]) => {
-    if (!userId) return;
-
-    try {
-      const result = await executeAtomically(async () => {
-        // Convert AdVariant[] to Json[] before saving
-        const jsonAds = ads.map(convertAdVariantToJson);
-        
-        const { error } = await supabase
-          .from('wizard_progress')
-          .update({ 
-            generated_ads: jsonAds,
-            updated_at: new Date().toISOString()
-          })
-          .eq('user_id', userId);
-
-        if (error) throw error;
-        return true;
-      }, `save_ads_${userId}`);
-
-      if (result) {
-        setLastSaveTimestamp(new Date());
-        console.log('[useAdGalleryState] Ads saved successfully');
-      }
-    } catch (error) {
-      console.error('[useAdGalleryState] Error saving ads:', error);
-      toast({
-        title: "Error saving ads",
-        description: "Failed to save your ads. Please try again.",
-        variant: "destructive",
-      });
+  const handleGenerateAds = async (platform: string) => {
+    if (generationInProgress.current) {
+      console.log('[useAdGalleryState] Generation already in progress, skipping');
+      return;
     }
-  };
-
-  const clearGeneratedAds = async () => {
-    if (!userId) return;
 
     try {
-      const result = await executeAtomically(async () => {
-        const { error } = await supabase
-          .from('wizard_progress')
-          .update({ generated_ads: [] })
-          .eq('user_id', userId);
-
-        if (error) throw error;
-        setCurrentAds([]);
-        return true;
-      }, `clear_ads_${userId}`);
-
-      if (result) {
-        toast({
-          title: "Success",
-          description: "All generated ads have been cleared.",
-        });
+      generationInProgress.current = true;
+      const newAds = await generateAds(platform);
+      if (newAds.length > 0) {
+        await saveGeneratedAds(newAds);
+        setCurrentAds(prev => [...prev, ...newAds]);
       }
-    } catch (error) {
-      console.error('[useAdGalleryState] Error clearing ads:', error);
-      toast({
-        title: "Error",
-        description: "Failed to clear ads. Please try again.",
-        variant: "destructive",
-      });
+    } finally {
+      generationInProgress.current = false;
     }
   };
 
@@ -140,9 +80,8 @@ export const useAdGalleryState = (userId: string | undefined) => {
     isSaving,
     isGenerating,
     generationStatus,
-    lastSaveTimestamp,
-    generateAds,
-    saveGeneratedAds: persistAds,
+    generateAds: handleGenerateAds,
+    saveGeneratedAds,
     clearGeneratedAds
   };
 };

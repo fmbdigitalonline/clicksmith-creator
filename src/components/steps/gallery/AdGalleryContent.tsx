@@ -1,18 +1,16 @@
-import { useState, useEffect } from "react";
-import { useNavigate, useParams } from "react-router-dom";
-import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
-import { WizardData } from "@/types/wizardProgress";
 import { BusinessIdea, TargetAudience, AdHook } from "@/types/adWizard";
-import { AdVariant } from "@/types/adVariant";
+import { TabsContent } from "@/components/ui/tabs";
 import LoadingState from "../complete/LoadingState";
 import PlatformTabs from "./PlatformTabs";
 import PlatformContent from "./PlatformContent";
 import PlatformChangeDialog from "./PlatformChangeDialog";
 import { useAdDisplay } from "@/hooks/useAdDisplay";
+import { useState, useEffect } from "react";
 import AdGenerationControls from "./AdGenerationControls";
 import { AdSizeSelector, AD_FORMATS } from "./components/AdSizeSelector";
+import { useToast } from "@/hooks/use-toast";
 import { useAdGalleryState } from "@/hooks/useAdGalleryState";
+import { supabase } from "@/integrations/supabase/client";
 import { useAdGeneration } from "@/hooks/useAdGeneration";
 import { usePlatformState } from "@/hooks/usePlatformState";
 
@@ -41,7 +39,6 @@ const AdGalleryContent = ({
   const { toast } = useToast();
   const [userId, setUserId] = useState<string | undefined>();
   const [initialGenerationDone, setInitialGenerationDone] = useState(false);
-  const [hasExistingAds, setHasExistingAds] = useState(false);
 
   const {
     currentAds,
@@ -80,61 +77,13 @@ const AdGalleryContent = ({
     getUser();
   }, []);
 
-  // Modified to prevent unnecessary loading cycles
-  useEffect(() => {
-    const generateInitialAds = async () => {
-      if (!userId || initialGenerationDone || isGenerating || isDisplayLoading) {
-        return;
-      }
-
-      try {
-        setIsDisplayLoading(true);
-        console.log('[AdGalleryContent] Checking for existing ads...');
-        
-        const { data: progressData } = await supabase
-          .from('wizard_progress')
-          .select('generated_ads')
-          .eq('user_id', userId)
-          .maybeSingle();
-
-        if (progressData?.generated_ads?.length > 0) {
-          console.log('[AdGalleryContent] Found existing ads');
-          setCurrentAds(progressData.generated_ads);
-          setHasExistingAds(true);
-        } else if (!hasExistingAds) {
-          console.log('[AdGalleryContent] Generating initial ads');
-          const newAds = await generateAds(currentPlatform);
-          if (newAds && newAds.length > 0) {
-            await saveGeneratedAds(newAds);
-            setCurrentAds(newAds);
-            setHasExistingAds(true);
-            toast({
-              title: "Ads Generated",
-              description: "Your initial ads have been generated successfully.",
-            });
-          }
-        }
-      } catch (error) {
-        console.error('[AdGalleryContent] Error in initial generation:', error);
-        toast({
-          title: "Error",
-          description: "Failed to generate initial ads. Please try again.",
-          variant: "destructive",
-        });
-      } finally {
-        setInitialGenerationDone(true);
-        setIsDisplayLoading(false);
-      }
-    };
-
-    generateInitialAds();
-  }, [userId, currentPlatform, hasExistingAds, isGenerating, isDisplayLoading, initialGenerationDone, generateAds, saveGeneratedAds, setCurrentAds, toast]);
-
   const handleFormatChange = (format: typeof AD_FORMATS[0]) => {
     setSelectedFormat(format);
   };
 
   const handlePlatformTabChange = async (value: string) => {
+    const hasExistingAds = Array.isArray(displayAds) && displayAds.length > 0;
+    
     if (hasExistingAds) {
       handlePlatformChange(value, hasExistingAds);
     } else {
@@ -144,7 +93,6 @@ const AdGalleryContent = ({
         if (newAds && newAds.length > 0) {
           await saveGeneratedAds(newAds);
           setCurrentAds(newAds);
-          setHasExistingAds(true);
           toast({
             title: "Ads Generated",
             description: `Successfully generated ${value} ads.`,
@@ -207,17 +155,37 @@ const AdGalleryContent = ({
     onStartOver();
   };
 
-  const renderPlatformContent = (platformName: string) => {
-    if (isGenerating || isDisplayLoading || isLoadingState) {
-      return <LoadingState />;
-    }
+  useEffect(() => {
+    const generateInitialAds = async () => {
+      if (!currentAds.length && !isDisplayLoading && !isGenerating && userId && !initialGenerationDone) {
+        try {
+          setIsDisplayLoading(true);
+          console.log('[AdGalleryContent] Generating initial ads for platform:', currentPlatform);
+          const newAds = await generateAds(currentPlatform);
+          if (newAds && newAds.length > 0) {
+            console.log('[AdGalleryContent] Successfully generated initial ads:', newAds);
+            await saveGeneratedAds(newAds);
+            setCurrentAds(newAds);
+            setInitialGenerationDone(true);
+          }
+        } catch (error) {
+          console.error('[AdGalleryContent] Error generating initial ads:', error);
+        } finally {
+          setIsDisplayLoading(false);
+        }
+      }
+    };
 
+    generateInitialAds();
+  }, [currentPlatform, currentAds.length, isDisplayLoading, isGenerating, userId, initialGenerationDone]);
+
+  const renderPlatformContent = (platformName: string) => {
     return (
       <TabsContent value={platformName} className="space-y-4">
         <div className="flex justify-end mb-4">
           <AdSizeSelector
             selectedFormat={selectedFormat}
-            onFormatChange={setSelectedFormat}
+            onFormatChange={handleFormatChange}
           />
         </div>
         <PlatformContent
@@ -241,15 +209,19 @@ const AdGalleryContent = ({
         generationStatus={generationStatus}
       />
 
-      <PlatformTabs 
-        platform={currentPlatform} 
-        onPlatformChange={handlePlatformTabChange}
-      >
-        {renderPlatformContent('facebook')}
-        {renderPlatformContent('google')}
-        {renderPlatformContent('linkedin')}
-        {renderPlatformContent('tiktok')}
-      </PlatformTabs>
+      {isGenerating || isDisplayLoading || isLoadingState ? (
+        <LoadingState />
+      ) : (
+        <PlatformTabs 
+          platform={currentPlatform} 
+          onPlatformChange={handlePlatformTabChange}
+        >
+          {renderPlatformContent('facebook')}
+          {renderPlatformContent('google')}
+          {renderPlatformContent('linkedin')}
+          {renderPlatformContent('tiktok')}
+        </PlatformTabs>
+      )}
 
       <PlatformChangeDialog
         open={isChangingPlatform}
