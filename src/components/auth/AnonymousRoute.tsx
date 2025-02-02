@@ -101,7 +101,49 @@ export const AnonymousRoute = ({ children }: { children: React.ReactNode }) => {
           return;
         }
 
-        if (!usage || !usage.used) {
+        // Handle case where no data is found
+        if (!usage) {
+          console.log('[AnonymousRoute] No usage data found, creating new session');
+          const initialWizardData: Json = {
+            current_step: 1,
+            business_idea: null,
+            target_audience: null,
+            audience_analysis: null,
+            generated_ads: [],
+            selected_hooks: [],
+            version: 1,
+            last_save_attempt: new Date().toISOString(),
+            ad_format: null,
+            video_ad_preferences: null
+          };
+
+          const { error: createError } = await supabase
+            .from('anonymous_usage')
+            .insert({
+              session_id: sessionId,
+              used: false,
+              wizard_data: initialWizardData,
+              last_save_attempt: new Date().toISOString(),
+              save_count: 0
+            });
+
+          if (createError) {
+            console.error('[AnonymousRoute] Error creating new usage:', createError);
+            if (mounted) {
+              setCanAccess(false);
+              setIsLoading(false);
+            }
+            return;
+          }
+
+          if (mounted) {
+            setCanAccess(true);
+            setIsLoading(false);
+          }
+          return;
+        }
+
+        if (!usage.used) {
           const wizardData = {
             ...(usage?.wizard_data as Record<string, unknown> || {}),
             last_save_attempt: new Date().toISOString()
