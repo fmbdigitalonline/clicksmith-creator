@@ -1,6 +1,9 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useCallback, useEffect } from 'react';
 import { BusinessIdea, TargetAudience, AudienceAnalysis } from '@/types/adWizard';
+import { useWizardStore } from '@/stores/wizardStore';
 import { useProjectWizardState } from '@/hooks/useProjectWizardState';
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 interface WizardContextType {
   currentStep: number;
@@ -19,48 +22,92 @@ interface WizardContextType {
 const WizardContext = createContext<WizardContextType | undefined>(undefined);
 
 export const WizardStateProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [currentStep, setCurrentStep] = useState(1);
-  const [businessIdea, setBusinessIdeaState] = useState<BusinessIdea | null>(null);
-  const [targetAudience, setTargetAudienceState] = useState<TargetAudience | null>(null);
-  const [audienceAnalysis, setAudienceAnalysisState] = useState<AudienceAnalysis | null>(null);
-  
+  const { toast } = useToast();
+  const {
+    currentStep,
+    businessIdea,
+    targetAudience,
+    audienceAnalysis,
+    setCurrentStep,
+    setBusinessIdea: setStoreBusinessIdea,
+    setTargetAudience: setStoreTargetAudience,
+    setAudienceAnalysis: setStoreAudienceAnalysis,
+    handleBack,
+    handleStartOver,
+    canNavigateToStep
+  } = useWizardStore();
+
   const { saveToProject } = useProjectWizardState();
 
+  // Load saved progress on mount
+  useEffect(() => {
+    const loadProgress = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const { data: progress } = await supabase
+          .from('wizard_progress')
+          .select('*')
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+        if (progress) {
+          if (progress.business_idea) setStoreBusinessIdea(progress.business_idea);
+          if (progress.target_audience) setStoreTargetAudience(progress.target_audience);
+          if (progress.audience_analysis) setStoreAudienceAnalysis(progress.audience_analysis);
+          if (progress.current_step) setCurrentStep(progress.current_step);
+        }
+      } catch (error) {
+        console.error('[WizardStateProvider] Error loading progress:', error);
+        toast({
+          title: "Error loading progress",
+          description: "There was an error loading your progress. Please try again.",
+          variant: "destructive",
+        });
+      }
+    };
+
+    loadProgress();
+  }, []);
+
+  // Save progress when state changes
+  const saveProgress = useCallback(async (data: any) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      await supabase
+        .from('wizard_progress')
+        .upsert({
+          user_id: user.id,
+          ...data,
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'user_id'
+        });
+
+      await saveToProject(data);
+    } catch (error) {
+      console.error('[WizardStateProvider] Error saving progress:', error);
+    }
+  }, [saveToProject]);
+
+  // Wrap state setters to include persistence
   const setBusinessIdea = useCallback((idea: BusinessIdea) => {
-    setBusinessIdeaState(idea);
-    saveToProject({ businessIdea: idea, currentStep: currentStep });
-  }, [currentStep]);
+    setStoreBusinessIdea(idea);
+    saveProgress({ business_idea: idea, current_step: currentStep });
+  }, [currentStep, setStoreBusinessIdea, saveProgress]);
 
   const setTargetAudience = useCallback((audience: TargetAudience) => {
-    setTargetAudienceState(audience);
-    saveToProject({ targetAudience: audience, currentStep: currentStep });
-  }, [currentStep]);
+    setStoreTargetAudience(audience);
+    saveProgress({ target_audience: audience, current_step: currentStep });
+  }, [currentStep, setStoreTargetAudience, saveProgress]);
 
   const setAudienceAnalysis = useCallback((analysis: AudienceAnalysis) => {
-    setAudienceAnalysisState(analysis);
-    saveToProject({ audienceAnalysis: analysis, currentStep: currentStep });
-  }, [currentStep]);
-
-  const handleBack = useCallback(() => {
-    setCurrentStep(prev => Math.max(1, prev - 1));
-  }, []);
-
-  const handleStartOver = useCallback(() => {
-    setCurrentStep(1);
-    setBusinessIdeaState(null);
-    setTargetAudienceState(null);
-    setAudienceAnalysisState(null);
-  }, []);
-
-  const canNavigateToStep = useCallback((step: number): boolean => {
-    switch (step) {
-      case 1: return true;
-      case 2: return !!businessIdea;
-      case 3: return !!businessIdea && !!targetAudience;
-      case 4: return !!businessIdea && !!targetAudience && !!audienceAnalysis;
-      default: return false;
-    }
-  }, [businessIdea, targetAudience, audienceAnalysis]);
+    setStoreAudienceAnalysis(analysis);
+    saveProgress({ audience_analysis: analysis, current_step: currentStep });
+  }, [currentStep, setStoreAudienceAnalysis, saveProgress]);
 
   return (
     <WizardContext.Provider
