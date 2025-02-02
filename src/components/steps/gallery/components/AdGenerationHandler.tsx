@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { toast } from "@/hooks/use-toast";
 import { useAdGeneration } from '@/hooks/useAdGeneration';
+import { BusinessIdea, TargetAudience, AdHook } from '@/types/adWizard';
 
 interface AdGenerationHandlerProps {
   userId: string | undefined;
@@ -8,6 +9,9 @@ interface AdGenerationHandlerProps {
   setIsDisplayLoading: (loading: boolean) => void;
   setCurrentAds: (ads: any[]) => void;
   saveGeneratedAds: (ads: any[]) => void;
+  businessIdea: BusinessIdea;
+  targetAudience: TargetAudience;
+  adHooks: AdHook[];
 }
 
 export const useAdGenerationHandler = ({
@@ -15,7 +19,10 @@ export const useAdGenerationHandler = ({
   currentPlatform,
   setIsDisplayLoading,
   setCurrentAds,
-  saveGeneratedAds
+  saveGeneratedAds,
+  businessIdea,
+  targetAudience,
+  adHooks
 }: AdGenerationHandlerProps) => {
   const [initialGenerationDone, setInitialGenerationDone] = useState(false);
   
@@ -23,7 +30,7 @@ export const useAdGenerationHandler = ({
     isGenerating,
     generationStatus,
     generateAds
-  } = useAdGeneration(userId);
+  } = useAdGeneration(businessIdea, targetAudience, adHooks);
 
   const handleGeneration = async (platform: string) => {
     try {

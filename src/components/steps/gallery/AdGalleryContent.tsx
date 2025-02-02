@@ -70,13 +70,10 @@ const AdGalleryContent = ({
     currentPlatform,
     setIsDisplayLoading: setIsLoadingDisplay,
     setCurrentAds,
-    saveGeneratedAds
-  });
-
-  const { handlePlatformChange } = usePlatformChangeHandler({
-    handleGeneration,
-    confirmPlatformChange,
-    cancelPlatformChange
+    saveGeneratedAds,
+    businessIdea,
+    targetAudience,
+    adHooks
   });
 
   const handlePlatformTabChange = async (value: string) => {
