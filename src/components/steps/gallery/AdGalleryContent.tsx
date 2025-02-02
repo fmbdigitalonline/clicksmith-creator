@@ -1,30 +1,27 @@
-import { BusinessIdea, TargetAudience, AdHook } from "@/types/adWizard";
-import { TabsContent } from "@/components/ui/tabs";
-import LoadingState from "../complete/LoadingState";
+import { useState, useEffect } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { WizardData } from "@/types/wizardProgress";
+import { useWizardState } from "../../wizard/WizardStateProvider";
+import WizardAuthentication from "../../wizard/WizardAuthentication";
+import WizardControls from "../../wizard/WizardControls";
+import WizardHeader from "../../wizard/WizardHeader";
+import WizardProgress from "../../WizardProgress";
+import WizardSteps from "../../wizard/WizardSteps";
+import CreateProjectDialog from "../../projects/CreateProjectDialog";
+import { Button } from "../../ui/button";
+import { Save } from "lucide-react";
+import { isBusinessIdea, isTargetAudience, isAudienceAnalysis } from "@/utils/typeGuards";
 import PlatformTabs from "./PlatformTabs";
 import PlatformContent from "./PlatformContent";
 import PlatformChangeDialog from "./PlatformChangeDialog";
 import { useAdDisplay } from "@/hooks/useAdDisplay";
-import { useState, useEffect } from "react";
-import AdGenerationControls from "./AdGenerationControls";
 import { AdSizeSelector, AD_FORMATS } from "./components/AdSizeSelector";
-import { useToast } from "@/hooks/use-toast";
-import { useAdGalleryState } from "@/hooks/useAdGalleryState";
-import { supabase } from "@/integrations/supabase/client";
+import LoadingState from "../complete/LoadingState";
+import AdGenerationControls from "./AdGenerationControls";
 import { useAdGeneration } from "@/hooks/useAdGeneration";
 import { usePlatformState } from "@/hooks/usePlatformState";
-
-interface AdGalleryContentProps {
-  businessIdea: BusinessIdea;
-  targetAudience: TargetAudience;
-  adHooks: AdHook[];
-  onStartOver: () => void;
-  onBack: () => void;
-  onCreateProject: () => void;
-  videoAdsEnabled?: boolean;
-  generatedAds?: any[];
-  hasLoadedInitialAds?: boolean;
-}
 
 const AdGalleryContent = ({
   businessIdea,
@@ -34,11 +31,10 @@ const AdGalleryContent = ({
   onBack,
   onCreateProject,
   videoAdsEnabled = false,
-}: AdGalleryContentProps) => {
+}) => {
   const [selectedFormat, setSelectedFormat] = useState(AD_FORMATS[0]);
   const { toast } = useToast();
   const [userId, setUserId] = useState<string | undefined>();
-  const [initialGenerationDone, setInitialGenerationDone] = useState(false);
 
   const {
     currentAds,
@@ -154,30 +150,6 @@ const AdGalleryContent = ({
     await clearGeneratedAds();
     onStartOver();
   };
-
-  useEffect(() => {
-    const generateInitialAds = async () => {
-      if (!currentAds.length && !isDisplayLoading && !isGenerating && userId && !initialGenerationDone) {
-        try {
-          setIsDisplayLoading(true);
-          console.log('[AdGalleryContent] Generating initial ads for platform:', currentPlatform);
-          const newAds = await generateAds(currentPlatform);
-          if (newAds && newAds.length > 0) {
-            console.log('[AdGalleryContent] Successfully generated initial ads:', newAds);
-            await saveGeneratedAds(newAds);
-            setCurrentAds(newAds);
-            setInitialGenerationDone(true);
-          }
-        } catch (error) {
-          console.error('[AdGalleryContent] Error generating initial ads:', error);
-        } finally {
-          setIsDisplayLoading(false);
-        }
-      }
-    };
-
-    generateInitialAds();
-  }, [currentPlatform, currentAds.length, isDisplayLoading, isGenerating, userId, initialGenerationDone]);
 
   const renderPlatformContent = (platformName: string) => {
     return (
