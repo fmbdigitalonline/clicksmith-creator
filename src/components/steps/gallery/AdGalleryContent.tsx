@@ -39,6 +39,7 @@ const AdGalleryContent = ({
   const { toast } = useToast();
   const [userId, setUserId] = useState<string | undefined>();
   const [initialGenerationDone, setInitialGenerationDone] = useState(false);
+  const [hasExistingAds, setHasExistingAds] = useState(false);
 
   const {
     currentAds,
@@ -69,6 +70,38 @@ const AdGalleryContent = ({
     setIsLoading: setIsDisplayLoading,
   } = useAdDisplay(currentAds);
 
+  // Check for existing ads in wizard_progress
+  useEffect(() => {
+    const checkExistingAds = async () => {
+      if (!userId) return;
+
+      try {
+        const { data: progressData } = await supabase
+          .from('wizard_progress')
+          .select('generated_ads')
+          .eq('user_id', userId)
+          .single();
+
+        if (progressData?.generated_ads && Array.isArray(progressData.generated_ads)) {
+          const platformAds = progressData.generated_ads.filter(
+            ad => ad.platform?.toLowerCase() === currentPlatform.toLowerCase()
+          );
+
+          if (platformAds.length > 0) {
+            console.log(`[AdGalleryContent] Found ${platformAds.length} existing ads for ${currentPlatform}`);
+            setCurrentAds(platformAds);
+            setHasExistingAds(true);
+            setInitialGenerationDone(true);
+          }
+        }
+      } catch (error) {
+        console.error('[AdGalleryContent] Error checking existing ads:', error);
+      }
+    };
+
+    checkExistingAds();
+  }, [userId, currentPlatform, setCurrentAds]);
+
   useEffect(() => {
     const getUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -82,8 +115,6 @@ const AdGalleryContent = ({
   };
 
   const handlePlatformTabChange = async (value: string) => {
-    const hasExistingAds = Array.isArray(displayAds) && displayAds.length > 0;
-    
     if (hasExistingAds) {
       handlePlatformChange(value, hasExistingAds);
     } else {
@@ -93,6 +124,7 @@ const AdGalleryContent = ({
         if (newAds && newAds.length > 0) {
           await saveGeneratedAds(newAds);
           setCurrentAds(newAds);
+          setHasExistingAds(true);
           toast({
             title: "Ads Generated",
             description: `Successfully generated ${value} ads.`,
@@ -157,7 +189,7 @@ const AdGalleryContent = ({
 
   useEffect(() => {
     const generateInitialAds = async () => {
-      if (!currentAds.length && !isDisplayLoading && !isGenerating && userId && !initialGenerationDone) {
+      if (!hasExistingAds && !isDisplayLoading && !isGenerating && userId && !initialGenerationDone) {
         try {
           setIsDisplayLoading(true);
           console.log('[AdGalleryContent] Generating initial ads for platform:', currentPlatform);
@@ -166,6 +198,7 @@ const AdGalleryContent = ({
             console.log('[AdGalleryContent] Successfully generated initial ads:', newAds);
             await saveGeneratedAds(newAds);
             setCurrentAds(newAds);
+            setHasExistingAds(true);
             setInitialGenerationDone(true);
           }
         } catch (error) {
@@ -177,7 +210,7 @@ const AdGalleryContent = ({
     };
 
     generateInitialAds();
-  }, [currentPlatform, currentAds.length, isDisplayLoading, isGenerating, userId, initialGenerationDone]);
+  }, [currentPlatform, hasExistingAds, isDisplayLoading, isGenerating, userId, initialGenerationDone, generateAds, saveGeneratedAds, setCurrentAds]);
 
   const renderPlatformContent = (platformName: string) => {
     return (
