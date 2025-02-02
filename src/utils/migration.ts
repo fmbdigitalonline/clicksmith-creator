@@ -24,7 +24,7 @@ const backupAnonymousData = async (sessionId: string): Promise<boolean> => {
         .from('data_backups')
         .insert({
           data: JSON.stringify(anonymousData.wizard_data),
-          backup_type: 'migration',
+          backup_type: 'manual',
           metadata: { session_id: sessionId }
         });
       return true;
