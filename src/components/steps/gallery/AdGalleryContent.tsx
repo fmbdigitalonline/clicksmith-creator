@@ -11,6 +11,7 @@ import { useAdGalleryState } from '@/hooks/useAdGalleryState';
 import { usePlatformState } from '@/hooks/usePlatformState';
 import { useAdGenerationHandler } from './components/AdGenerationHandler';
 import { usePlatformChangeHandler } from './components/PlatformChangeHandler';
+import AdGenerationControls from './AdGenerationControls';
 
 interface AdGalleryContentProps {
   businessIdea: any;
@@ -35,7 +36,7 @@ const AdGalleryContent = ({
 }: AdGalleryContentProps) => {
   const [selectedFormat, setSelectedFormat] = useState(AD_FORMATS[0]);
   const [userId, setUserId] = useState<string | undefined>();
-  const [isDisplayLoading, setIsDisplayLoading] = useState(false);
+  const [isLoadingDisplay, setIsLoadingDisplay] = useState(false);
 
   const {
     currentAds,
@@ -67,7 +68,7 @@ const AdGalleryContent = ({
   } = useAdGenerationHandler({
     userId,
     currentPlatform,
-    setIsDisplayLoading,
+    setIsDisplayLoading: setIsLoadingDisplay,
     setCurrentAds,
     saveGeneratedAds
   });
@@ -131,7 +132,7 @@ const AdGalleryContent = ({
         generationStatus={generationStatus}
       />
 
-      {isGenerating || isDisplayLoading || isLoadingState ? (
+      {isGenerating || isLoadingDisplay || isLoadingState ? (
         <LoadingState />
       ) : (
         <PlatformTabs 

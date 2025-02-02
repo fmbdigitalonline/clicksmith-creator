@@ -31,7 +31,7 @@ export const useAdGenerationHandler = ({
       setIsDisplayLoading(true);
       console.log(`[AdGenerationHandler] Generating ads for platform: ${platform}`);
       
-      const newAds = await generateAds(platform);
+      const newAds = await generateAds(platform, userId, currentPlatform);
       console.log('[AdGenerationHandler] Generated ads:', newAds);
       
       if (newAds && newAds.length > 0) {
