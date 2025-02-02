@@ -11,7 +11,7 @@ const calculateHighestStep = (data: any): number => {
   return step;
 };
 
-const backupAnonymousData = async (sessionId: string): Promise<boolean> => {
+const backupAnonymousData = async (sessionId: string, userId: string): Promise<boolean> => {
   try {
     const { data: anonymousData } = await supabase
       .from('anonymous_usage')
@@ -25,7 +25,8 @@ const backupAnonymousData = async (sessionId: string): Promise<boolean> => {
         .insert({
           data: JSON.stringify(anonymousData.wizard_data),
           backup_type: 'manual',
-          metadata: { session_id: sessionId }
+          metadata: { session_id: sessionId },
+          user_id: userId
         });
       return true;
     }
@@ -44,7 +45,7 @@ export const migrateUserProgress = async (
 
   try {
     // First backup the anonymous data
-    const backupSuccess = await backupAnonymousData(session_id);
+    const backupSuccess = await backupAnonymousData(session_id, user_id);
     if (!backupSuccess) {
       console.warn('[Migration] Failed to backup anonymous data');
     }
