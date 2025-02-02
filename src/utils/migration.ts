@@ -37,6 +37,31 @@ const backupAnonymousData = async (sessionId: string, userId: string): Promise<b
   }
 };
 
+const validateWizardData = (data: WizardData): boolean => {
+  // Basic validation of required fields
+  if (!data.user_id) {
+    console.error('[Migration] Missing user_id in wizard data');
+    return false;
+  }
+
+  // Validate data structure
+  const requiredArrayFields = ['generated_ads', 'selected_hooks'];
+  for (const field of requiredArrayFields) {
+    if (data[field] && !Array.isArray(data[field])) {
+      console.error(`[Migration] Invalid ${field} format`);
+      return false;
+    }
+  }
+
+  // Validate step number
+  if (data.current_step && (data.current_step < 1 || data.current_step > 4)) {
+    console.error('[Migration] Invalid step number:', data.current_step);
+    return false;
+  }
+
+  return true;
+};
+
 export const migrateUserProgress = async (
   user_id: string,
   session_id: string
@@ -60,7 +85,7 @@ export const migrateUserProgress = async (
         .from('migration_locks')
         .select('*')
         .eq('user_id', user_id)
-        .single();
+        .maybeSingle();
 
       if (!existingLock) {
         break;
@@ -95,7 +120,7 @@ export const migrateUserProgress = async (
       .from('anonymous_usage')
       .select('wizard_data, last_completed_step')
       .eq('session_id', session_id)
-      .single();
+      .maybeSingle();
 
     if (!anonymousData) {
       console.log('[Migration] No anonymous data found');
@@ -166,6 +191,11 @@ export const migrateUserProgress = async (
       current_step: data.current_step || 1,
       version: data.version || 1
     };
+
+    // Validate the wizard data before returning
+    if (!validateWizardData(wizardData)) {
+      throw new Error('Invalid wizard data structure');
+    }
 
     return wizardData;
   } catch (error) {
