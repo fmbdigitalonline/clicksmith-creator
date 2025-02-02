@@ -13,7 +13,7 @@ import { useAdGalleryState } from "@/hooks/useAdGalleryState";
 import { supabase } from "@/integrations/supabase/client";
 import { useAdGeneration } from "@/hooks/useAdGeneration";
 import { usePlatformState } from "@/hooks/usePlatformState";
-import { AdVariant } from "@/types/adVariant";
+import { AdVariant, convertJsonToAdVariant } from "@/types/adVariant";
 
 interface AdGalleryContentProps {
   businessIdea: BusinessIdea;
@@ -71,7 +71,6 @@ const AdGalleryContent = ({
     setIsLoading: setIsDisplayLoading,
   } = useAdDisplay(currentAds);
 
-  // Check for existing ads in wizard_progress
   useEffect(() => {
     const checkExistingAds = async () => {
       if (!userId) return;
@@ -84,13 +83,16 @@ const AdGalleryContent = ({
           .single();
 
         if (progressData?.generated_ads && Array.isArray(progressData.generated_ads)) {
-          const platformAds = (progressData.generated_ads as AdVariant[]).filter(
-            (ad: AdVariant) => ad.platform?.toLowerCase() === currentPlatform.toLowerCase()
-          );
+          const validAds = progressData.generated_ads
+            .map(convertJsonToAdVariant)
+            .filter((ad): ad is AdVariant => 
+              ad !== null && 
+              ad.platform?.toLowerCase() === currentPlatform.toLowerCase()
+            );
 
-          if (platformAds.length > 0) {
-            console.log(`[AdGalleryContent] Found ${platformAds.length} existing ads for ${currentPlatform}`);
-            setCurrentAds(platformAds);
+          if (validAds.length > 0) {
+            console.log(`[AdGalleryContent] Found ${validAds.length} existing ads for ${currentPlatform}`);
+            setCurrentAds(validAds);
             setHasExistingAds(true);
             setInitialGenerationDone(true);
           }
