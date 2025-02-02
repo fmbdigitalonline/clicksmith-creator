@@ -4,8 +4,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { migrateUserProgress } from "@/utils/migration";
 import { WizardData } from "@/types/wizardProgress";
-import { BusinessIdea, TargetAudience, AudienceAnalysis } from "@/types/adWizard";
-import { Json } from "@/integrations/supabase/types";
 
 interface WizardAuthenticationProps {
   onUserChange: (user: any) => void;
@@ -19,7 +17,7 @@ interface MigrationQueueItem {
 }
 
 const MAX_RETRIES = 3;
-const RETRY_DELAY = 1000; // 1 second
+const RETRY_DELAY = 1000;
 
 const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAuthenticationProps) => {
   const [authError, setAuthError] = useState<string | null>(null);
@@ -37,13 +35,58 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
 
     try {
       console.log('[Auth] Processing migration for user:', item.userId);
+      
+      // Check for existing migration lock
+      const { data: existingLock, error: lockError } = await supabase
+        .from('migration_locks')
+        .select('*')
+        .eq('user_id', item.userId)
+        .maybeSingle();
+
+      if (lockError) {
+        console.error('[Auth] Error checking migration lock:', lockError);
+        throw lockError;
+      }
+
+      if (existingLock) {
+        console.log('[Auth] Migration already in progress, will retry');
+        if (item.retryCount < MAX_RETRIES) {
+          migrationQueue.current[0] = {
+            ...item,
+            retryCount: item.retryCount + 1
+          };
+          setTimeout(() => setIsMigrating(false), RETRY_DELAY * (item.retryCount + 1));
+          return;
+        }
+        throw new Error('Max retries exceeded for migration lock');
+      }
+
+      // Check for anonymous data
+      const { data: anonData, error: anonError } = await supabase
+        .from('anonymous_usage')
+        .select('wizard_data, last_completed_step')
+        .eq('session_id', item.sessionId)
+        .maybeSingle();
+
+      if (anonError) {
+        console.error('[Auth] Error fetching anonymous data:', anonError);
+        throw anonError;
+      }
+
+      if (!anonData) {
+        console.log('[Auth] No anonymous data found for session:', item.sessionId);
+        migrationQueue.current.shift();
+        setIsMigrating(false);
+        return;
+      }
+
       const migratedData = await migrateUserProgress(item.userId, item.sessionId);
 
       if (migratedData) {
         console.log('[Auth] Migration successful:', migratedData);
         onAnonymousDataChange(migratedData);
         localStorage.removeItem('anonymous_session_id');
-        migrationQueue.current.shift(); // Remove processed item
+        migrationQueue.current.shift();
 
         if (migratedData.current_step && migratedData.current_step > 1) {
           if (location.pathname.includes('/ad-wizard/new')) {
@@ -56,24 +99,9 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
             description: "Your previous work has been saved to your account.",
           });
         }
-      } else if (item.retryCount < MAX_RETRIES) {
-        console.log('[Auth] Migration failed, retrying. Attempt:', item.retryCount + 1);
-        migrationQueue.current[0] = {
-          ...item,
-          retryCount: item.retryCount + 1
-        };
-        setTimeout(() => {
-          setIsMigrating(false);
-        }, RETRY_DELAY * (item.retryCount + 1));
       } else {
-        console.error('[Auth] Migration failed after max retries');
-        migrationQueue.current.shift(); // Remove failed item
-        toast({
-          title: "Error Restoring Progress",
-          description: "There was an error restoring your previous work.",
-          variant: "destructive",
-        });
-        setIsMigrating(false);
+        console.log('[Auth] No data to migrate');
+        migrationQueue.current.shift();
       }
     } catch (error) {
       console.error('[Auth] Migration error:', error);
@@ -82,13 +110,18 @@ const WizardAuthentication = ({ onUserChange, onAnonymousDataChange }: WizardAut
           ...item,
           retryCount: item.retryCount + 1
         };
-        setTimeout(() => {
-          setIsMigrating(false);
-        }, RETRY_DELAY * (item.retryCount + 1));
+        setTimeout(() => setIsMigrating(false), RETRY_DELAY * (item.retryCount + 1));
       } else {
+        console.error('[Auth] Migration failed after max retries');
         migrationQueue.current.shift();
-        setIsMigrating(false);
+        toast({
+          title: "Error Restoring Progress",
+          description: "There was an error restoring your previous work. Please try again later.",
+          variant: "destructive",
+        });
       }
+    } finally {
+      setIsMigrating(false);
     }
   }, [isMigrating, navigate, location.pathname, onAnonymousDataChange, toast]);
 
