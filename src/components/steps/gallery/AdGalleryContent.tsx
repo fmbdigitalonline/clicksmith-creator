@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useAdGalleryState } from "@/hooks/useAdGalleryState";
 import { AdSizeSelector, AD_FORMATS } from "./components/AdSizeSelector";
@@ -35,6 +35,7 @@ const AdGalleryContent = ({
   const [isDisplayLoading, setIsDisplayLoading] = useState(false);
   const [initialLoadDone, setInitialLoadDone] = useState(false);
   const [isChangingPlatform, setIsChangingPlatform] = useState(false);
+  const { toast } = useToast();
 
   const {
     currentAds,
@@ -70,7 +71,34 @@ const AdGalleryContent = ({
   const handleRegenerate = async () => {
     try {
       setIsDisplayLoading(true);
-      await generateAds(currentPlatform);
+      console.log('[AdGalleryContent] Regenerating ads for platform:', currentPlatform);
+      
+      const newAds = await generateAds(currentPlatform);
+      
+      if (newAds && newAds.length > 0) {
+        console.log('[AdGalleryContent] New ads generated:', newAds);
+        setCurrentAds(prevAds => [...prevAds, ...newAds]);
+        await saveGeneratedAds(newAds);
+        
+        toast({
+          title: "Success",
+          description: `Generated ${newAds.length} new ads for ${currentPlatform}`,
+        });
+      } else {
+        console.warn('[AdGalleryContent] No new ads were generated');
+        toast({
+          title: "Warning",
+          description: "No new ads were generated. Please try again.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('[AdGalleryContent] Error regenerating ads:', error);
+      toast({
+        title: "Error",
+        description: "Failed to generate new ads. Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setIsDisplayLoading(false);
     }
