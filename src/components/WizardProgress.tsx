@@ -2,8 +2,6 @@ import { cn } from "@/lib/utils";
 import { Check } from "lucide-react";
 import { useEffect } from "react";
 import { useLocation } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
-import { useWizardStore } from "@/stores/wizardStore";
 
 interface WizardProgressProps {
   currentStep: number;
@@ -24,34 +22,14 @@ const WizardProgress = ({
   canNavigateToStep,
 }: WizardProgressProps) => {
   const location = useLocation();
-  const isNewSession = useWizardStore((state) => state.isNewSession);
-  const initializeNewSession = useWizardStore((state) => state.initializeNewSession);
   
+  // Sync with URL state if we're on step 4
   useEffect(() => {
-    const loadSavedProgress = async () => {
-      if (location.pathname.includes('new')) {
-        initializeNewSession();
-        return;
-      }
-
-      if (!isNewSession) {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          const { data: progress } = await supabase
-            .from('wizard_progress')
-            .select('*')
-            .eq('user_id', user.id)
-            .single();
-
-          if (progress) {
-            onStepClick(progress.current_step || 1);
-          }
-        }
-      }
-    };
-
-    loadSavedProgress();
-  }, [location.pathname, onStepClick, isNewSession, initializeNewSession]);
+    if (location.pathname.includes('ad-wizard') && currentStep === 4) {
+      console.log('[WizardProgress] Syncing with step 4');
+      onStepClick(4);
+    }
+  }, [location.pathname, currentStep, onStepClick]);
 
   return (
     <nav aria-label="Progress">

@@ -60,13 +60,6 @@ export type Database = {
             referencedRelation: "projects"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "valid_project_reference"
-            columns: ["project_id"]
-            isOneToOne: false
-            referencedRelation: "projects"
-            referencedColumns: ["id"]
-          },
         ]
       }
       ad_image_variants: {

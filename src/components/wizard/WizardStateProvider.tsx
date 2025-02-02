@@ -1,7 +1,6 @@
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import React, { createContext, useContext, useState, useCallback } from 'react';
 import { BusinessIdea, TargetAudience, AudienceAnalysis } from '@/types/adWizard';
 import { useProjectWizardState } from '@/hooks/useProjectWizardState';
-import { useLocation } from 'react-router-dom';
 
 interface WizardContextType {
   currentStep: number;
@@ -15,8 +14,6 @@ interface WizardContextType {
   handleBack: () => void;
   handleStartOver: () => void;
   canNavigateToStep: (step: number) => boolean;
-  isMigrating: boolean;
-  setIsMigrating: (migrating: boolean) => void;
 }
 
 const WizardContext = createContext<WizardContextType | undefined>(undefined);
@@ -26,48 +23,34 @@ export const WizardStateProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const [businessIdea, setBusinessIdeaState] = useState<BusinessIdea | null>(null);
   const [targetAudience, setTargetAudienceState] = useState<TargetAudience | null>(null);
   const [audienceAnalysis, setAudienceAnalysisState] = useState<AudienceAnalysis | null>(null);
-  const [isMigrating, setIsMigrating] = useState(false);
   
   const { saveToProject } = useProjectWizardState();
-  const location = useLocation();
-
-  useEffect(() => {
-    // Only reset state if explicitly on new wizard and not during migration
-    if (location.pathname.includes('/ad-wizard/new') && !isMigrating) {
-      setCurrentStep(1);
-      setBusinessIdeaState(null);
-      setTargetAudienceState(null);
-      setAudienceAnalysisState(null);
-    }
-  }, [location.pathname, isMigrating]);
 
   const setBusinessIdea = useCallback((idea: BusinessIdea) => {
     setBusinessIdeaState(idea);
-    saveToProject({ businessIdea: idea, currentStep });
-  }, [currentStep, saveToProject]);
+    saveToProject({ businessIdea: idea, currentStep: currentStep });
+  }, [currentStep]);
 
   const setTargetAudience = useCallback((audience: TargetAudience) => {
     setTargetAudienceState(audience);
-    saveToProject({ targetAudience: audience, currentStep });
-  }, [currentStep, saveToProject]);
+    saveToProject({ targetAudience: audience, currentStep: currentStep });
+  }, [currentStep]);
 
   const setAudienceAnalysis = useCallback((analysis: AudienceAnalysis) => {
     setAudienceAnalysisState(analysis);
-    saveToProject({ audienceAnalysis: analysis, currentStep });
-  }, [currentStep, saveToProject]);
+    saveToProject({ audienceAnalysis: analysis, currentStep: currentStep });
+  }, [currentStep]);
 
   const handleBack = useCallback(() => {
     setCurrentStep(prev => Math.max(1, prev - 1));
   }, []);
 
   const handleStartOver = useCallback(() => {
-    if (location.pathname.includes('/ad-wizard/new')) {
-      setCurrentStep(1);
-      setBusinessIdeaState(null);
-      setTargetAudienceState(null);
-      setAudienceAnalysisState(null);
-    }
-  }, [location.pathname]);
+    setCurrentStep(1);
+    setBusinessIdeaState(null);
+    setTargetAudienceState(null);
+    setAudienceAnalysisState(null);
+  }, []);
 
   const canNavigateToStep = useCallback((step: number): boolean => {
     switch (step) {
@@ -93,8 +76,6 @@ export const WizardStateProvider: React.FC<{ children: React.ReactNode }> = ({ c
         handleBack,
         handleStartOver,
         canNavigateToStep,
-        isMigrating,
-        setIsMigrating
       }}
     >
       {children}

@@ -2,7 +2,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
-import { useCallback } from "react";
 
 export const useCreditsManagement = () => {
   const { toast } = useToast();
@@ -41,7 +40,7 @@ export const useCreditsManagement = () => {
         }
 
         if (subscription) {
-          console.log('[Credits] Found subscription:', subscription);
+          console.log('[Credits] Found active subscription:', subscription);
           return subscription.credits_remaining;
         }
 
@@ -70,19 +69,16 @@ export const useCreditsManagement = () => {
         return null;
       }
     },
-    staleTime: 30000, // Consider data fresh for 30 seconds
-    refetchInterval: 30000, // Only refetch every 30 seconds
-    retry: 1, // Only retry once on failure
+    refetchInterval: 5000,
+    staleTime: 0,
   });
 
-  const checkCredits = useCallback(async (required: number = 1) => {
+  const checkCredits = async (required: number = 1) => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return false;
-
+      console.log('[Credits] Checking credits requirement:', required);
       const { data: creditCheck, error } = await supabase.rpc(
         'check_user_credits',
-        { p_user_id: user.id, required_credits: required }
+        { p_user_id: (await supabase.auth.getUser()).data.user?.id, required_credits: required }
       );
 
       if (error) {
@@ -117,11 +113,11 @@ export const useCreditsManagement = () => {
       });
       return false;
     }
-  }, [navigate, toast]);
+  };
 
-  const refreshCredits = useCallback(() => {
+  const refreshCredits = () => {
     queryClient.invalidateQueries({ queryKey: ["credits"] });
-  }, [queryClient]);
+  };
 
   return {
     credits,

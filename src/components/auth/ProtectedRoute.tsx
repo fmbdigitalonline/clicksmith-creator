@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { Navigate, useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { refreshSessionWithRetry, withTimeout, handleAuthStateChange } from "@/utils/authUtils";
 
 export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
@@ -15,17 +14,12 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     const checkSession = async () => {
       try {
         console.log('[ProtectedRoute] Starting session check');
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
         
-        // Add timeout to session check
-        const session = await withTimeout(refreshSessionWithRetry());
-        
-        if (!session) {
-          console.log('[ProtectedRoute] No session found, redirecting to login');
+        if (sessionError) {
+          console.error("[ProtectedRoute] Session error:", sessionError);
           setIsAuthenticated(false);
-          navigate('/login', { 
-            replace: true,
-            state: { from: location.pathname }
-          });
+          navigate('/login', { replace: true });
           return;
         }
 
@@ -41,6 +35,7 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 
           console.log('[ProtectedRoute] Anonymous usage data:', usage);
 
+          // Only redirect if we're not already on /ad-wizard/new
           if (usage && !usage.used && location.pathname !== '/ad-wizard/new') {
             console.log('[ProtectedRoute] Redirecting to new wizard');
             navigate('/ad-wizard/new', { replace: true });
@@ -48,36 +43,55 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
           }
         }
 
-        // Initialize free tier usage for new users
-        if (session.user) {
-          setIsAuthenticated(true);
-          console.log('[ProtectedRoute] Checking free tier usage for user:', session.user.id);
-          const { data: existingUsage } = await supabase
-            .from('free_tier_usage')
-            .select('*')
-            .eq('user_id', session.user.id)
-            .maybeSingle();
-
-          if (!existingUsage) {
-            console.log('[ProtectedRoute] Creating new free tier usage record');
-            await supabase
-              .from('free_tier_usage')
-              .insert([{ user_id: session.user.id, generations_used: 0 }]);
-          }
+        if (!session) {
+          console.log('[ProtectedRoute] No session found, redirecting to login');
+          setIsAuthenticated(false);
+          navigate('/login', { replace: true });
+          return;
         }
-      } catch (error) {
-        console.error("[ProtectedRoute] Auth error:", error);
-        setIsAuthenticated(false);
-        
-        // Show specific error messages based on error type
-        if (error instanceof Error) {
-          if (error.message === 'Authentication operation timed out') {
-            toast({
-              title: "Authentication Timeout",
-              description: "Please try again or refresh the page",
-              variant: "destructive",
-            });
-          } else {
+
+        // Only attempt to refresh if we have a valid session
+        if (session) {
+          try {
+            const { data: { user }, error: refreshError } = await supabase.auth.refreshSession();
+            
+            if (refreshError) {
+              if (refreshError.message.includes('refresh_token_not_found')) {
+                console.error("[ProtectedRoute] Invalid refresh token, redirecting to login");
+                await supabase.auth.signOut();
+                setIsAuthenticated(false);
+                navigate('/login', { replace: true });
+                toast({
+                  title: "Session Expired",
+                  description: "Please sign in again",
+                  variant: "destructive",
+                });
+                return;
+              }
+              throw refreshError;
+            }
+
+            // Initialize free tier usage for new users
+            if (user) {
+              setIsAuthenticated(true);
+              console.log('[ProtectedRoute] Checking free tier usage for user:', user.id);
+              const { data: existingUsage } = await supabase
+                .from('free_tier_usage')
+                .select('*')
+                .eq('user_id', user.id)
+                .maybeSingle();
+
+              if (!existingUsage) {
+                console.log('[ProtectedRoute] Creating new free tier usage record');
+                await supabase
+                  .from('free_tier_usage')
+                  .insert([{ user_id: user.id, generations_used: 0 }]);
+              }
+            }
+          } catch (error) {
+            console.error("[ProtectedRoute] Token refresh error:", error);
+            setIsAuthenticated(false);
+            navigate('/login', { replace: true });
             toast({
               title: "Authentication Error",
               description: "Please sign in again",
@@ -85,11 +99,10 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
             });
           }
         }
-        
-        navigate('/login', { 
-          replace: true,
-          state: { from: location.pathname }
-        });
+      } catch (error) {
+        console.error("[ProtectedRoute] Auth error:", error);
+        setIsAuthenticated(false);
+        navigate('/login', { replace: true });
       } finally {
         setIsLoading(false);
       }
@@ -97,30 +110,15 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 
     checkSession();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      handleAuthStateChange(
-        event,
-        session,
-        (newSession) => {
-          setIsAuthenticated(!!newSession);
-          setIsLoading(false);
-          
-          if (!newSession) {
-            navigate('/login', { 
-              replace: true,
-              state: { from: location.pathname }
-            });
-          }
-        },
-        (error) => {
-          console.error('[ProtectedRoute] Auth state change error:', error);
-          toast({
-            title: "Authentication Error",
-            description: error,
-            variant: "destructive",
-          });
-        }
-      );
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log("[ProtectedRoute] Auth state changed:", event);
+      
+      if (event === 'SIGNED_IN' && session?.user) {
+        setIsAuthenticated(true);
+      } else if (event === 'SIGNED_OUT') {
+        setIsAuthenticated(false);
+        navigate('/login', { replace: true });
+      }
     });
 
     return () => {
@@ -137,7 +135,7 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+    return <Navigate to="/login" replace />;
   }
 
   return <>{children}</>;
