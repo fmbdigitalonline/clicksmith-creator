@@ -1,23 +1,21 @@
-import { BusinessIdea, TargetAudience, AdHook } from "@/types/adWizard";
+import { useState, useEffect } from 'react';
 import { TabsContent } from "@/components/ui/tabs";
+import { toast } from "@/hooks/use-toast";
 import LoadingState from "../complete/LoadingState";
 import PlatformTabs from "./PlatformTabs";
 import PlatformContent from "./PlatformContent";
 import PlatformChangeDialog from "./PlatformChangeDialog";
-import { useAdDisplay } from "@/hooks/useAdDisplay";
-import { useState, useEffect } from "react";
-import AdGenerationControls from "./AdGenerationControls";
+import { useAdDisplay } from '@/hooks/useAdDisplay';
 import { AdSizeSelector, AD_FORMATS } from "./components/AdSizeSelector";
-import { useToast } from "@/hooks/use-toast";
-import { useAdGalleryState } from "@/hooks/useAdGalleryState";
-import { supabase } from "@/integrations/supabase/client";
-import { useAdGeneration } from "@/hooks/useAdGeneration";
-import { usePlatformState } from "@/hooks/usePlatformState";
+import { useAdGalleryState } from '@/hooks/useAdGalleryState';
+import { usePlatformState } from '@/hooks/usePlatformState';
+import { useAdGenerationHandler } from './components/AdGenerationHandler';
+import { usePlatformChangeHandler } from './components/PlatformChangeHandler';
 
 interface AdGalleryContentProps {
-  businessIdea: BusinessIdea;
-  targetAudience: TargetAudience;
-  adHooks: AdHook[];
+  businessIdea: any;
+  targetAudience: any;
+  adHooks: any[];
   onStartOver: () => void;
   onBack: () => void;
   onCreateProject: () => void;
@@ -36,9 +34,8 @@ const AdGalleryContent = ({
   videoAdsEnabled = false,
 }: AdGalleryContentProps) => {
   const [selectedFormat, setSelectedFormat] = useState(AD_FORMATS[0]);
-  const { toast } = useToast();
   const [userId, setUserId] = useState<string | undefined>();
-  const [initialGenerationDone, setInitialGenerationDone] = useState(false);
+  const [isDisplayLoading, setIsDisplayLoading] = useState(false);
 
   const {
     currentAds,
@@ -52,130 +49,49 @@ const AdGalleryContent = ({
     currentPlatform,
     isChangingPlatform,
     setIsChangingPlatform,
-    handlePlatformChange,
+    handlePlatformChange: initiatePlatformChange,
     confirmPlatformChange,
     cancelPlatformChange
   } = usePlatformState();
 
   const {
-    isGenerating,
-    generationStatus,
-    generateAds
-  } = useAdGeneration(businessIdea, targetAudience, adHooks);
-
-  const {
     displayAds,
     isLoading: isDisplayLoading,
-    setIsLoading: setIsDisplayLoading,
   } = useAdDisplay(currentAds);
 
-  useEffect(() => {
-    const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      setUserId(user?.id);
-    };
-    getUser();
-  }, []);
+  const {
+    handleGeneration,
+    handleInitialGeneration,
+    isGenerating,
+    generationStatus,
+  } = useAdGenerationHandler({
+    userId,
+    currentPlatform,
+    setIsDisplayLoading,
+    setCurrentAds,
+    saveGeneratedAds
+  });
 
-  const handleFormatChange = (format: typeof AD_FORMATS[0]) => {
-    setSelectedFormat(format);
-  };
+  const { handlePlatformChange } = usePlatformChangeHandler({
+    handleGeneration,
+    confirmPlatformChange,
+    cancelPlatformChange
+  });
 
   const handlePlatformTabChange = async (value: string) => {
     console.log('[AdGalleryContent] Platform tab change:', value);
     const hasExistingAds = Array.isArray(displayAds) && displayAds.length > 0;
     
     if (hasExistingAds) {
-      handlePlatformChange(value, hasExistingAds);
+      initiatePlatformChange(value, hasExistingAds);
     } else {
-      try {
-        setIsDisplayLoading(true);
-        const newAds = await generateAds(value);
-        console.log('[AdGalleryContent] Generated new ads:', newAds);
-        
-        if (newAds && newAds.length > 0) {
-          await saveGeneratedAds(newAds);
-          setCurrentAds(newAds);
-          toast({
-            title: "Ads Generated",
-            description: `Successfully generated ${value} ads.`,
-          });
-        } else {
-          console.error('[AdGalleryContent] No ads generated');
-          toast({
-            title: "Error",
-            description: "No ads were generated. Please try again.",
-            variant: "destructive",
-          });
-        }
-      } catch (error) {
-        console.error('[AdGalleryContent] Error generating ads:', error);
-        toast({
-          title: "Error",
-          description: "Failed to generate ads. Please try again.",
-          variant: "destructive",
-        });
-      } finally {
-        setIsDisplayLoading(false);
-      }
-    }
-  };
-
-  const handleConfirmPlatformChange = async () => {
-    try {
-      setIsDisplayLoading(true);
-      const confirmedPlatform = confirmPlatformChange();
-      console.log('[AdGalleryContent] Confirmed platform change:', confirmedPlatform);
-      
-      const newAds = await generateAds(confirmedPlatform);
-      if (newAds && newAds.length > 0) {
-        await saveGeneratedAds(newAds);
-        setCurrentAds(newAds);
-        toast({
-          title: "Ads Generated",
-          description: `Successfully generated ${confirmedPlatform} ads.`,
-        });
-      } else {
-        throw new Error('No ads were generated');
-      }
-    } catch (error) {
-      console.error('[AdGalleryContent] Error generating ads after platform change:', error);
-      cancelPlatformChange();
-      toast({
-        title: "Error",
-        description: "Failed to generate ads. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsDisplayLoading(false);
+      await handleGeneration(value);
     }
   };
 
   const handleRegenerate = async () => {
     console.log('[AdGalleryContent] Regenerating ads for platform:', currentPlatform);
-    try {
-      setIsDisplayLoading(true);
-      const newAds = await generateAds(currentPlatform);
-      if (newAds && newAds.length > 0) {
-        await saveGeneratedAds(newAds);
-        setCurrentAds(newAds);
-        toast({
-          title: "Ads Regenerated",
-          description: `Successfully regenerated ${currentPlatform} ads.`,
-        });
-      } else {
-        throw new Error('No ads were generated');
-      }
-    } catch (error) {
-      console.error('[AdGalleryContent] Error regenerating ads:', error);
-      toast({
-        title: "Error",
-        description: "Failed to regenerate ads. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsDisplayLoading(false);
-    }
+    await handleGeneration(currentPlatform);
   };
 
   const handleStartOver = async () => {
@@ -184,55 +100,26 @@ const AdGalleryContent = ({
   };
 
   useEffect(() => {
-    const generateInitialAds = async () => {
-      if (!currentAds.length && !isDisplayLoading && !isGenerating && userId && !initialGenerationDone) {
-        try {
-          setIsDisplayLoading(true);
-          console.log('[AdGalleryContent] Generating initial ads for platform:', currentPlatform);
-          const newAds = await generateAds(currentPlatform);
-          if (newAds && newAds.length > 0) {
-            console.log('[AdGalleryContent] Successfully generated initial ads:', newAds);
-            await saveGeneratedAds(newAds);
-            setCurrentAds(newAds);
-            setInitialGenerationDone(true);
-          } else {
-            throw new Error('No ads were generated');
-          }
-        } catch (error) {
-          console.error('[AdGalleryContent] Error generating initial ads:', error);
-          toast({
-            title: "Error",
-            description: "Failed to generate initial ads. Please try again.",
-            variant: "destructive",
-          });
-        } finally {
-          setIsDisplayLoading(false);
-        }
-      }
-    };
+    handleInitialGeneration();
+  }, [currentPlatform, userId]);
 
-    generateInitialAds();
-  }, [currentPlatform, currentAds.length, isDisplayLoading, isGenerating, userId, initialGenerationDone]);
-
-  const renderPlatformContent = (platformName: string) => {
-    return (
-      <TabsContent value={platformName} className="space-y-4">
-        <div className="flex justify-end mb-4">
-          <AdSizeSelector
-            selectedFormat={selectedFormat}
-            onFormatChange={handleFormatChange}
-          />
-        </div>
-        <PlatformContent
-          platformName={platformName}
-          adVariants={displayAds}
-          onCreateProject={onCreateProject}
-          videoAdsEnabled={videoAdsEnabled}
+  const renderPlatformContent = (platformName: string) => (
+    <TabsContent value={platformName} className="space-y-4">
+      <div className="flex justify-end mb-4">
+        <AdSizeSelector
           selectedFormat={selectedFormat}
+          onFormatChange={setSelectedFormat}
         />
-      </TabsContent>
-    );
-  };
+      </div>
+      <PlatformContent
+        platformName={platformName}
+        adVariants={displayAds}
+        onCreateProject={onCreateProject}
+        videoAdsEnabled={videoAdsEnabled}
+        selectedFormat={selectedFormat}
+      />
+    </TabsContent>
+  );
 
   return (
     <div className="space-y-6 md:space-y-8">
@@ -261,7 +148,7 @@ const AdGalleryContent = ({
       <PlatformChangeDialog
         open={isChangingPlatform}
         onOpenChange={setIsChangingPlatform}
-        onConfirm={handleConfirmPlatformChange}
+        onConfirm={handlePlatformChange}
         onCancel={cancelPlatformChange}
       />
     </div>
