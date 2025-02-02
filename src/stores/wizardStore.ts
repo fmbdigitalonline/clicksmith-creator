@@ -31,7 +31,7 @@ export const useWizardStore = create<WizardState>()(
       isNewSession: true,
 
       setCurrentStep: (step) => {
-        if (step === 1) {
+        if (step === 1 && window.location.pathname.includes('/ad-wizard/new')) {
           set({ isNewSession: true });
         }
         set({ currentStep: step });
@@ -90,25 +90,29 @@ export const useWizardStore = create<WizardState>()(
       })),
 
       handleStartOver: () => {
-        set({
-          currentStep: 1,
-          businessIdea: null,
-          targetAudience: null,
-          audienceAnalysis: null,
-          selectedHooks: [],
-          isNewSession: true
-        });
+        if (window.location.pathname.includes('/ad-wizard/new')) {
+          set({
+            currentStep: 1,
+            businessIdea: null,
+            targetAudience: null,
+            audienceAnalysis: null,
+            selectedHooks: [],
+            isNewSession: true
+          });
+        }
       },
 
       initializeNewSession: () => {
-        set({
-          currentStep: 1,
-          businessIdea: null,
-          targetAudience: null,
-          audienceAnalysis: null,
-          selectedHooks: [],
-          isNewSession: true
-        });
+        if (window.location.pathname.includes('/ad-wizard/new')) {
+          set({
+            currentStep: 1,
+            businessIdea: null,
+            targetAudience: null,
+            audienceAnalysis: null,
+            selectedHooks: [],
+            isNewSession: true
+          });
+        }
       }
     }),
     {
@@ -120,7 +124,8 @@ export const useWizardStore = create<WizardState>()(
         audienceAnalysis: state.audienceAnalysis,
         selectedHooks: state.selectedHooks,
         isNewSession: state.isNewSession
-      })
+      }),
+      skipHydration: window.location.pathname.includes('/ad-wizard/new')
     }
   )
 );
