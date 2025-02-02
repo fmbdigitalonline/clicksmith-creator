@@ -88,6 +88,7 @@ const AdGalleryContent = ({
           if (newAds && newAds.length > 0) {
             await saveGeneratedAds(newAds);
             setCurrentAds(newAds);
+            console.log('[AdGalleryContent] Initial ads generated:', newAds);
             toast({
               title: "Ads Generated",
               description: `Successfully generated ${currentPlatform} ads.`,
@@ -116,7 +117,11 @@ const AdGalleryContent = ({
 
   const handlePlatformTabChange = async (value: string) => {
     console.log('[AdGalleryContent] Platform tab change requested:', value);
-    const platformAds = displayAds.filter(ad => ad.platform.toLowerCase() === value.toLowerCase());
+    const platformAds = displayAds.filter(ad => 
+      ad.platform?.toLowerCase() === value.toLowerCase()
+    );
+    console.log('[AdGalleryContent] Existing ads for platform:', value, platformAds);
+    
     const hasExistingAds = platformAds.length > 0;
     
     if (hasExistingAds) {
@@ -127,6 +132,7 @@ const AdGalleryContent = ({
         console.log('[AdGalleryContent] Generating new ads for platform:', value);
         const newAds = await generateAds(value);
         if (newAds && newAds.length > 0) {
+          console.log('[AdGalleryContent] New ads generated:', newAds);
           await saveGeneratedAds(newAds);
           setCurrentAds(prevAds => [...prevAds, ...newAds]);
           toast({
@@ -154,6 +160,7 @@ const AdGalleryContent = ({
       
       const newAds = await generateAds(confirmedPlatform);
       if (newAds && newAds.length > 0) {
+        console.log('[AdGalleryContent] Platform change ads generated:', newAds);
         await saveGeneratedAds(newAds);
         setCurrentAds(prevAds => [...prevAds, ...newAds]);
         toast({
@@ -175,7 +182,13 @@ const AdGalleryContent = ({
       const newAds = await generateAds(currentPlatform);
       if (newAds && newAds.length > 0) {
         await saveGeneratedAds(newAds);
-        setCurrentAds(newAds);
+        setCurrentAds(prevAds => {
+          // Filter out old ads for current platform
+          const otherPlatformAds = prevAds.filter(ad => 
+            ad.platform?.toLowerCase() !== currentPlatform.toLowerCase()
+          );
+          return [...otherPlatformAds, ...newAds];
+        });
         toast({
           title: "Ads Regenerated",
           description: `Successfully regenerated ${currentPlatform} ads.`,
