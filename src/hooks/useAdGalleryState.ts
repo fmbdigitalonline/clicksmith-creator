@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAdPersistence } from './useAdPersistence';
 import { useAdGenerationState } from './useAdGenerationState';
-import { AdVariant, convertJsonToAdVariant } from '@/types/adVariant';
+import { AdVariant, convertJsonToAdVariant, convertAdVariantToJson } from '@/types/adVariant';
 import { useAtomicOperation } from './useAtomicOperation';
 
 export const useAdGalleryState = (userId: string | undefined) => {
@@ -73,10 +73,13 @@ export const useAdGalleryState = (userId: string | undefined) => {
 
     try {
       const result = await executeAtomically(async () => {
+        // Convert AdVariant[] to Json[] before saving
+        const jsonAds = ads.map(convertAdVariantToJson);
+        
         const { error } = await supabase
           .from('wizard_progress')
           .update({ 
-            generated_ads: ads,
+            generated_ads: jsonAds,
             updated_at: new Date().toISOString()
           })
           .eq('user_id', userId);
