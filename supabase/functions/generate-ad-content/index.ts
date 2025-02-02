@@ -62,6 +62,11 @@ serve(async (req) => {
       numVariants = 10 
     } = body;
 
+    // Validate required data based on type
+    if (type === 'complete_ads' && (!businessIdea || !targetAudience)) {
+      throw new Error('Business idea and target audience are required for ad generation');
+    }
+
     await checkAndDeductCredits(supabaseAdmin, userId, isAnonymous, sessionId);
 
     let responseData;
@@ -97,6 +102,7 @@ serve(async (req) => {
     console.log('[generate-ad-content] Successfully generated response');
     return createSuccessResponse(responseData);
   } catch (error) {
+    console.error('[generate-ad-content] Error:', error);
     if (error.message.includes('No credits available')) {
       return createErrorResponse(error, 402);
     }

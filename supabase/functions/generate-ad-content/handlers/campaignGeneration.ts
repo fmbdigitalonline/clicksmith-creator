@@ -1,6 +1,15 @@
 import { BusinessIdea, TargetAudience } from "../types.ts";
 
 export async function generateCampaign(businessIdea: any, targetAudience: any, platform: string = 'facebook') {
+  // Validate required inputs
+  if (!businessIdea || !targetAudience) {
+    throw new Error('Business idea and target audience are required');
+  }
+
+  if (!targetAudience.demographics || !targetAudience.painPoints || !targetAudience.coreMessage) {
+    throw new Error('Invalid target audience data: missing required fields');
+  }
+
   const audienceContext = `
 Target Audience Profile:
 - Demographics: ${targetAudience.demographics}
