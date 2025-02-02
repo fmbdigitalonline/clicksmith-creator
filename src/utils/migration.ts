@@ -18,11 +18,16 @@ export const migrateUserProgress = async (
 
   try {
     // First check if a migration is already in progress
-    const { data: existingLock } = await supabase
+    const { data: existingLock, error: lockError } = await supabase
       .from('migration_locks')
       .select('*')
       .eq('user_id', user_id)
-      .single();
+      .maybeSingle();  // Changed from single() to maybeSingle()
+
+    if (lockError && !lockError.message.includes('PGRST116')) {
+      console.error('[Migration] Error checking lock:', lockError);
+      return null;
+    }
 
     if (existingLock) {
       console.log('[Migration] Migration already in progress');
@@ -30,7 +35,7 @@ export const migrateUserProgress = async (
     }
 
     // Create a migration lock with proper date format
-    const { error: lockError } = await supabase
+    const { error: lockError2 } = await supabase
       .from('migration_locks')
       .insert({
         user_id,
@@ -39,17 +44,22 @@ export const migrateUserProgress = async (
         metadata: {}
       });
 
-    if (lockError) {
-      console.error('[Migration] Error creating migration lock:', lockError);
+    if (lockError2) {
+      console.error('[Migration] Error creating migration lock:', lockError2);
       return null;
     }
 
     // Get anonymous data first to calculate the step
-    const { data: anonymousData } = await supabase
+    const { data: anonymousData, error: anonError } = await supabase
       .from('anonymous_usage')
       .select('wizard_data, last_completed_step')
       .eq('session_id', session_id)
-      .single();
+      .maybeSingle();  // Changed from single() to maybeSingle()
+
+    if (anonError && !anonError.message.includes('PGRST116')) {
+      console.error('[Migration] Error fetching anonymous data:', anonError);
+      return null;
+    }
 
     if (!anonymousData) {
       console.log('[Migration] No anonymous data found');
