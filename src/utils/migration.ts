@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { WizardData } from "@/types/wizardProgress";
 import { Json } from "@/integrations/supabase/types";
+import { toast } from "@/hooks/use-toast";
 
 const calculateHighestStep = (data: any): number => {
   let step = 1;
@@ -10,6 +11,31 @@ const calculateHighestStep = (data: any): number => {
   return step;
 };
 
+const backupAnonymousData = async (sessionId: string): Promise<boolean> => {
+  try {
+    const { data: anonymousData } = await supabase
+      .from('anonymous_usage')
+      .select('wizard_data')
+      .eq('session_id', sessionId)
+      .single();
+
+    if (anonymousData?.wizard_data) {
+      await supabase
+        .from('data_backups')
+        .insert({
+          data: JSON.stringify(anonymousData.wizard_data),
+          backup_type: 'migration',
+          metadata: { session_id: sessionId }
+        });
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error('[Migration] Backup error:', error);
+    return false;
+  }
+};
+
 export const migrateUserProgress = async (
   user_id: string,
   session_id: string
@@ -17,34 +43,53 @@ export const migrateUserProgress = async (
   console.log('[Migration] Starting migration for user:', user_id);
 
   try {
-    // First check if a migration is already in progress
-    const { data: existingLock } = await supabase
-      .from('migration_locks')
-      .select('*')
-      .eq('user_id', user_id)
-      .single();
-
-    if (existingLock) {
-      console.log('[Migration] Migration already in progress');
-      return null;
+    // First backup the anonymous data
+    const backupSuccess = await backupAnonymousData(session_id);
+    if (!backupSuccess) {
+      console.warn('[Migration] Failed to backup anonymous data');
     }
 
-    // Create a migration lock with proper date format
+    // Check for existing lock with retry mechanism
+    let retryCount = 0;
+    const maxRetries = 3;
+    const retryDelay = 1000; // 1 second
+
+    while (retryCount < maxRetries) {
+      const { data: existingLock } = await supabase
+        .from('migration_locks')
+        .select('*')
+        .eq('user_id', user_id)
+        .single();
+
+      if (!existingLock) {
+        break;
+      }
+
+      console.log(`[Migration] Lock exists, retry ${retryCount + 1}/${maxRetries}`);
+      await new Promise(resolve => setTimeout(resolve, retryDelay * Math.pow(2, retryCount)));
+      retryCount++;
+    }
+
+    if (retryCount === maxRetries) {
+      throw new Error('Migration lock timeout');
+    }
+
+    // Create a migration lock
     const { error: lockError } = await supabase
       .from('migration_locks')
       .insert({
         user_id,
         lock_type: 'wizard_migration',
         expires_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
-        metadata: {}
+        metadata: { session_id }
       });
 
     if (lockError) {
       console.error('[Migration] Error creating migration lock:', lockError);
-      return null;
+      throw lockError;
     }
 
-    // Get anonymous data first to calculate the step
+    // Get anonymous data and calculate step
     const { data: anonymousData } = await supabase
       .from('anonymous_usage')
       .select('wizard_data, last_completed_step')
@@ -56,14 +101,13 @@ export const migrateUserProgress = async (
       return null;
     }
 
-    // Calculate the highest step based on data
     const calculatedStep = calculateHighestStep(anonymousData.wizard_data);
     const finalStep = Math.max(
       calculatedStep,
       anonymousData.last_completed_step || 1
     );
 
-    // Call atomic_migration with explicit parameters
+    // Call atomic_migration with explicit parameters and error handling
     const { data, error } = await supabase
       .rpc('atomic_migration', { 
         p_user_id: user_id, 
@@ -73,10 +117,15 @@ export const migrateUserProgress = async (
 
     if (error) {
       console.error('[Migration] Database error:', error);
+      toast({
+        title: "Migration Error",
+        description: "Failed to migrate your progress. Please try again.",
+        variant: "destructive",
+      });
       throw error;
     }
 
-    // Update the anonymous usage record
+    // Update anonymous usage record with status
     const { error: updateError } = await supabase
       .from('anonymous_usage')
       .update({
@@ -94,18 +143,14 @@ export const migrateUserProgress = async (
     }
 
     // Clean up the migration lock
-    const { error: cleanupError } = await supabase
+    await supabase
       .from('migration_locks')
       .delete()
       .eq('user_id', user_id);
 
-    if (cleanupError) {
-      console.error('[Migration] Error cleaning up migration lock:', cleanupError);
-    }
-
-    console.log('[Migration] Migration lock released');
+    console.log('[Migration] Migration completed successfully');
     
-    // Convert the data to match WizardData type with proper type handling
+    // Convert and validate the data
     const wizardData: WizardData = {
       ...data,
       generated_ads: Array.isArray(data.generated_ads) ? data.generated_ads : [],
@@ -129,6 +174,13 @@ export const migrateUserProgress = async (
       .from('migration_locks')
       .delete()
       .eq('user_id', user_id);
+    
+    toast({
+      title: "Migration Failed",
+      description: "There was an error migrating your data. Please try again.",
+      variant: "destructive",
+    });
+    
     throw error;
   }
 };
