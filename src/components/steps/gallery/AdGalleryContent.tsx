@@ -10,8 +10,11 @@ import AdGenerationControls from "./AdGenerationControls";
 import { useAdGeneration } from "./hooks/useAdGeneration";
 import { useInitialGeneration } from "./hooks/useInitialGeneration";
 import { usePlatformChange } from "./hooks/usePlatformChange";
+import { BusinessIdea, TargetAudience } from "@/types/adWizard";
 
 interface AdGalleryContentProps {
+  businessIdea: BusinessIdea;
+  targetAudience: TargetAudience;
   userId?: string;
   videoAdsEnabled: boolean;
   onCreateProject: () => void;
@@ -20,6 +23,8 @@ interface AdGalleryContentProps {
 }
 
 const AdGalleryContent = ({
+  businessIdea,
+  targetAudience,
   userId,
   videoAdsEnabled,
   onCreateProject,
@@ -43,7 +48,7 @@ const AdGalleryContent = ({
     isGenerating,
     generationStatus,
     generateAds
-  } = useAdGeneration(userId, saveGeneratedAds, setCurrentAds);
+  } = useAdGeneration(businessIdea, targetAudience, []);
 
   const {
     currentPlatform,
