@@ -77,7 +77,7 @@ const AdGalleryContent = ({
     getUser();
   }, []);
 
-  // New effect to handle initial ad generation
+  // Effect to handle initial ad generation
   useEffect(() => {
     const handleInitialGeneration = async () => {
       if (!initialLoadDone && userId && !isGenerating && !isLoadingState && currentAds.length === 0) {
@@ -115,17 +115,20 @@ const AdGalleryContent = ({
   };
 
   const handlePlatformTabChange = async (value: string) => {
-    const hasExistingAds = Array.isArray(displayAds) && displayAds.length > 0;
+    console.log('[AdGalleryContent] Platform tab change requested:', value);
+    const platformAds = displayAds.filter(ad => ad.platform.toLowerCase() === value.toLowerCase());
+    const hasExistingAds = platformAds.length > 0;
     
     if (hasExistingAds) {
       handlePlatformChange(value, hasExistingAds);
     } else {
       try {
         setIsDisplayLoading(true);
+        console.log('[AdGalleryContent] Generating new ads for platform:', value);
         const newAds = await generateAds(value);
         if (newAds && newAds.length > 0) {
           await saveGeneratedAds(newAds);
-          setCurrentAds(newAds);
+          setCurrentAds(prevAds => [...prevAds, ...newAds]);
           toast({
             title: "Ads Generated",
             description: `Successfully generated ${value} ads.`,
@@ -152,7 +155,7 @@ const AdGalleryContent = ({
       const newAds = await generateAds(confirmedPlatform);
       if (newAds && newAds.length > 0) {
         await saveGeneratedAds(newAds);
-        setCurrentAds(newAds);
+        setCurrentAds(prevAds => [...prevAds, ...newAds]);
         toast({
           title: "Ads Generated",
           description: `Successfully generated ${confirmedPlatform} ads.`,
