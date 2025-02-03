@@ -4,12 +4,19 @@ import { WizardData } from "@/types/wizardProgress";
 const RETRY_DELAY = 1000; // Base delay in milliseconds
 const MAX_RETRIES = 3;
 
+interface SaveResult {
+  success: boolean;
+  newVersion: number;
+  error?: string;
+  retryCount?: number;
+}
+
 export const saveWizardState = async (
   data: Partial<WizardData> & { user_id: string },
   version: number,
   retryCount = 0
-): Promise<{ success: boolean; newVersion: number }> => {
-  console.log('[versionedSave] Starting save with version:', version);
+): Promise<SaveResult> => {
+  console.log('[versionedSave] Starting save with version:', version, 'retry:', retryCount);
   
   try {
     // First check if a record exists and get its current version
@@ -20,6 +27,7 @@ export const saveWizardState = async (
       .maybeSingle();
 
     if (fetchError && fetchError.code !== 'PGRST116') {
+      console.error('[versionedSave] Error fetching existing record:', fetchError);
       throw fetchError;
     }
 
@@ -35,7 +43,10 @@ export const saveWizardState = async (
         .select('version')
         .maybeSingle();
 
-      if (error) throw error;
+      if (error) {
+        console.error('[versionedSave] Error creating new record:', error);
+        throw error;
+      }
       
       if (!result) {
         throw new Error('Failed to create wizard progress');
@@ -48,12 +59,18 @@ export const saveWizardState = async (
     }
 
     // If version mismatch and under retry limit, wait and retry
-    if (existing.version !== version && retryCount < MAX_RETRIES) {
-      console.log(`[versionedSave] Version mismatch, retrying (${retryCount + 1}/${MAX_RETRIES})`);
-      await new Promise(resolve => 
-        setTimeout(resolve, RETRY_DELAY * Math.pow(2, retryCount))
-      );
-      return saveWizardState(data, existing.version, retryCount + 1);
+    if (existing.version !== version) {
+      console.warn(`[versionedSave] Version mismatch: expected ${version}, got ${existing.version}`);
+      
+      if (retryCount < MAX_RETRIES) {
+        const delay = RETRY_DELAY * Math.pow(2, retryCount);
+        console.log(`[versionedSave] Retrying in ${delay}ms (${retryCount + 1}/${MAX_RETRIES})`);
+        
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return saveWizardState(data, existing.version, retryCount + 1);
+      }
+      
+      throw new Error(`Version mismatch after ${MAX_RETRIES} retries`);
     }
 
     // Update existing record with version check
@@ -70,12 +87,18 @@ export const saveWizardState = async (
       .maybeSingle();
 
     if (error) {
-      if (error.message.includes('Concurrent save detected') && retryCount < MAX_RETRIES) {
-        console.log(`[versionedSave] Concurrent save detected, retrying (${retryCount + 1}/${MAX_RETRIES})`);
-        await new Promise(resolve => 
-          setTimeout(resolve, RETRY_DELAY * Math.pow(2, retryCount))
-        );
-        return saveWizardState(data, version, retryCount + 1);
+      if (error.message.includes('Concurrent save detected')) {
+        console.warn('[versionedSave] Concurrent save detected');
+        
+        if (retryCount < MAX_RETRIES) {
+          const delay = RETRY_DELAY * Math.pow(2, retryCount);
+          console.log(`[versionedSave] Retrying in ${delay}ms (${retryCount + 1}/${MAX_RETRIES})`);
+          
+          await new Promise(resolve => setTimeout(resolve, delay));
+          return saveWizardState(data, version, retryCount + 1);
+        }
+        
+        throw new Error(`Failed to save after ${MAX_RETRIES} retries due to concurrent modifications`);
       }
       throw error;
     }
@@ -86,10 +109,17 @@ export const saveWizardState = async (
 
     return {
       success: true,
-      newVersion: result.version
+      newVersion: result.version,
+      retryCount
     };
   } catch (error) {
     console.error('[versionedSave] Error saving wizard state:', error);
-    throw error;
+    
+    return {
+      success: false,
+      newVersion: version,
+      error: error instanceof Error ? error.message : 'Unknown error occurred',
+      retryCount
+    };
   }
 };
