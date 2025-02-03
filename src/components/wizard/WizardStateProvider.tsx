@@ -25,6 +25,8 @@ const WizardContext = createContext<WizardContextType | undefined>(undefined);
 export const WizardStateProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { toast } = useToast();
   const isMounted = useRef(true);
+  const saveInProgress = useRef<Promise<void> | null>(null);
+  
   const {
     currentStep,
     businessIdea,
@@ -123,22 +125,49 @@ export const WizardStateProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   // Save progress before unmounting
   useEffect(() => {
-    const saveCurrentProgress = () => {
+    const saveCurrentProgress = async () => {
       if (businessIdea || targetAudience || audienceAnalysis) {
         console.log('[WizardStateProvider] Saving progress before unmount');
-        saveProgress({
+        const savePromise = saveProgress({
           business_idea: businessIdea,
           target_audience: targetAudience,
           audience_analysis: audienceAnalysis,
           current_step: currentStep
         });
+        saveInProgress.current = savePromise;
+        await savePromise;
+        saveInProgress.current = null;
       }
     };
 
-    window.addEventListener('beforeunload', saveCurrentProgress);
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (saveInProgress.current) {
+        event.preventDefault();
+        event.returnValue = '';
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    
     return () => {
-      window.removeEventListener('beforeunload', saveCurrentProgress);
-      saveCurrentProgress();
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      
+      // Use a synchronous flag to track cleanup
+      let cleanupComplete = false;
+      
+      // Create a promise that resolves when cleanup is done
+      const cleanupPromise = saveCurrentProgress().finally(() => {
+        cleanupComplete = true;
+      });
+
+      // If running in a browser environment, block until cleanup is complete
+      if (typeof window !== 'undefined') {
+        while (!cleanupComplete) {
+          // Minimal delay to prevent CPU hogging
+          const start = Date.now();
+          while (Date.now() - start < 1) {}
+        }
+      }
     };
   }, [businessIdea, targetAudience, audienceAnalysis, currentStep, saveProgress]);
 
