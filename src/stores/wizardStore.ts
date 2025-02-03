@@ -18,24 +18,6 @@ interface WizardState {
   canNavigateToStep: (step: number) => boolean;
 }
 
-// Helper function to deep clone objects for persistence
-const deepClone = <T>(obj: T): T => {
-  if (obj === null || typeof obj !== 'object') {
-    return obj;
-  }
-
-  if (Array.isArray(obj)) {
-    return obj.map(item => deepClone(item)) as unknown as T;
-  }
-
-  const cloned = {} as T;
-  Object.entries(obj).forEach(([key, value]) => {
-    (cloned as any)[key] = deepClone(value);
-  });
-
-  return cloned;
-};
-
 export const useWizardStore = create<WizardState>()(
   persist(
     (set, get) => ({
@@ -46,10 +28,10 @@ export const useWizardStore = create<WizardState>()(
       selectedHooks: [],
       
       setCurrentStep: (step) => set({ currentStep: step }),
-      setBusinessIdea: (idea) => set({ businessIdea: deepClone(idea) }),
-      setTargetAudience: (audience) => set({ targetAudience: deepClone(audience) }),
-      setAudienceAnalysis: (analysis) => set({ audienceAnalysis: deepClone(analysis) }),
-      setSelectedHooks: (hooks) => set({ selectedHooks: deepClone(hooks) }),
+      setBusinessIdea: (idea) => set({ businessIdea: idea }),
+      setTargetAudience: (audience) => set({ targetAudience: audience }),
+      setAudienceAnalysis: (analysis) => set({ audienceAnalysis: analysis }),
+      setSelectedHooks: (hooks) => set({ selectedHooks: hooks }),
       
       handleBack: () => {
         const { currentStep } = get();
@@ -81,15 +63,10 @@ export const useWizardStore = create<WizardState>()(
       name: 'wizard-storage',
       partialize: (state) => ({
         currentStep: state.currentStep,
-        businessIdea: deepClone(state.businessIdea),
-        targetAudience: deepClone(state.targetAudience),
-        audienceAnalysis: deepClone(state.audienceAnalysis),
-        selectedHooks: deepClone(state.selectedHooks)
-      }),
-      // Ensure proper parsing of stored data
-      merge: (persistedState: any, currentState: WizardState) => ({
-        ...currentState,
-        ...deepClone(persistedState)
+        businessIdea: state.businessIdea,
+        targetAudience: state.targetAudience,
+        audienceAnalysis: state.audienceAnalysis,
+        selectedHooks: state.selectedHooks
       })
     }
   )
