@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { BusinessIdea, TargetAudience, AudienceAnalysis, Step } from '@/types/adWizard';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from '@/hooks/useAuth.ts';
 import { saveQueue } from '@/utils/saveQueue';
 import { WizardData } from '@/types/wizardProgress';
 
@@ -16,6 +16,7 @@ interface WizardContextType {
   setAudienceAnalysis: (analysis: AudienceAnalysis) => void;
   setCurrentStep: (step: Step) => void;
   isLoading: boolean;
+  canNavigateToStep: (step: number) => boolean;
 }
 
 const WizardContext = createContext<WizardContextType | undefined>(undefined);
@@ -39,10 +40,24 @@ export const WizardStateProvider = ({ children }: { children: React.ReactNode })
         await (window as any).posthog.capture(eventName, properties);
       }
     } catch (error) {
-      // Silently handle analytics errors to prevent app disruption
       console.warn('Analytics error:', error);
     }
   };
+
+  const canNavigateToStep = useCallback((step: number): boolean => {
+    switch (step) {
+      case 1:
+        return true;
+      case 2:
+        return !!businessIdea;
+      case 3:
+        return !!businessIdea && !!targetAudience;
+      case 4:
+        return !!businessIdea && !!targetAudience && !!audienceAnalysis;
+      default:
+        return false;
+    }
+  }, [businessIdea, targetAudience, audienceAnalysis]);
 
   const saveProgress = useCallback(async (data: Partial<WizardData>) => {
     if (!user) return;
@@ -51,7 +66,6 @@ export const WizardStateProvider = ({ children }: { children: React.ReactNode })
       try {
         setIsLoading(true);
 
-        // Get current version
         const { data: current, error: fetchError } = await supabase
           .from('wizard_progress')
           .select('version')
@@ -63,7 +77,6 @@ export const WizardStateProvider = ({ children }: { children: React.ReactNode })
         const currentVersion = current?.version || 0;
         const newVersion = currentVersion + 1;
 
-        // Try to update with version check using a match condition
         const { error } = await supabase
           .from('wizard_progress')
           .upsert({
@@ -83,14 +96,12 @@ export const WizardStateProvider = ({ children }: { children: React.ReactNode })
           throw error;
         }
 
-        // Reset retry count on successful save
         retryCount.current = 0;
         
-        // Log successful save to analytics
         logAnalytics('wizard_progress_saved', {
           step: data.current_step,
           retries: retryCount.current
-        }).catch(() => {}); // Catch and ignore analytics errors
+        }).catch(() => {});
         
       } catch (error) {
         console.error('Error saving progress:', error);
@@ -105,7 +116,6 @@ export const WizardStateProvider = ({ children }: { children: React.ReactNode })
       }
     };
 
-    // Queue the save operation
     return saveQueue.add(save);
   }, [user, toast]);
 
@@ -168,21 +178,21 @@ export const WizardStateProvider = ({ children }: { children: React.ReactNode })
 
   const setBusinessIdea = useCallback((idea: BusinessIdea) => {
     setStoreBusinessIdea(idea);
-    const promise = saveProgress({ business_idea: idea, current_step: currentStep });
+    const promise = saveProgress({ business_idea: idea });
     saveInProgress.current = promise;
-  }, [currentStep, saveProgress]);
+  }, [saveProgress]);
 
   const setTargetAudience = useCallback((audience: TargetAudience) => {
     setStoreTargetAudience(audience);
-    const promise = saveProgress({ target_audience: audience, current_step: currentStep });
+    const promise = saveProgress({ target_audience: audience });
     saveInProgress.current = promise;
-  }, [currentStep, saveProgress]);
+  }, [saveProgress]);
 
   const setAudienceAnalysis = useCallback((analysis: AudienceAnalysis) => {
     setStoreAudienceAnalysis(analysis);
-    const promise = saveProgress({ audience_analysis: analysis, current_step: currentStep });
+    const promise = saveProgress({ audience_analysis: analysis });
     saveInProgress.current = promise;
-  }, [currentStep, saveProgress]);
+  }, [saveProgress]);
 
   const setCurrentStep = useCallback((step: Step) => {
     setStoreCurrentStep(step);
@@ -218,6 +228,7 @@ export const WizardStateProvider = ({ children }: { children: React.ReactNode })
         setAudienceAnalysis,
         setCurrentStep,
         isLoading,
+        canNavigateToStep,
       }}
     >
       {children}

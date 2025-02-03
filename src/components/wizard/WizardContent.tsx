@@ -4,6 +4,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { WizardData } from "@/types/wizardProgress";
 import { useWizardState } from "./WizardStateProvider";
+import { Step } from "@/types/adWizard";
 import WizardAuthentication from "./WizardAuthentication";
 import WizardControls from "./WizardControls";
 import WizardHeader from "./WizardHeader";
@@ -35,6 +36,34 @@ const WizardContent = () => {
     setCurrentStep,
     canNavigateToStep
   } = useWizardState();
+
+  const stepToNumber = (step: Step): number => {
+    const stepMap: Record<Step, number> = {
+      'idea': 1,
+      'audience': 2,
+      'analysis': 3,
+      'campaign': 4,
+      'format': 5,
+      'size': 6,
+      'hook': 7,
+      'complete': 8
+    };
+    return stepMap[step];
+  };
+
+  const numberToStep = (num: number): Step => {
+    const stepMap: Record<number, Step> = {
+      1: 'idea',
+      2: 'audience',
+      3: 'analysis',
+      4: 'campaign',
+      5: 'format',
+      6: 'size',
+      7: 'hook',
+      8: 'complete'
+    };
+    return stepMap[num] || 'idea';
+  };
 
   useEffect(() => {
     const loadProgress = async () => {
@@ -205,8 +234,8 @@ const WizardContent = () => {
 
       <div className="mb-8">
         <WizardProgress
-          currentStep={currentStep}
-          onStepClick={setCurrentStep}
+          currentStep={stepToNumber(currentStep)}
+          onStepClick={handleStepClick}
           canNavigateToStep={canNavigateToStep}
         />
       </div>
