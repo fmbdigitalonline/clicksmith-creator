@@ -1,132 +1,81 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
-import { BusinessIdea, TargetAudience, AudienceAnalysis, Step } from '@/types/adWizard';
-import { useAuth } from '@/hooks/useAuth.ts';
-import { saveQueue } from '@/utils/saveQueue';
-import { WizardData } from '@/types/wizardProgress';
+import React, { createContext, useContext, useCallback, useEffect, useRef } from 'react';
+import { BusinessIdea, TargetAudience, AudienceAnalysis } from '@/types/adWizard';
+import { useWizardStore } from '@/stores/wizardStore';
+import { useProjectWizardState } from '@/hooks/useProjectWizardState';
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import { isBusinessIdea, isTargetAudience, isAudienceAnalysis } from "@/utils/typeGuards";
 
 interface WizardContextType {
+  currentStep: number;
   businessIdea: BusinessIdea | null;
   targetAudience: TargetAudience | null;
   audienceAnalysis: AudienceAnalysis | null;
-  currentStep: Step;
+  setCurrentStep: (step: number) => void;
   setBusinessIdea: (idea: BusinessIdea) => void;
   setTargetAudience: (audience: TargetAudience) => void;
   setAudienceAnalysis: (analysis: AudienceAnalysis) => void;
-  setCurrentStep: (step: Step) => void;
-  isLoading: boolean;
+  handleBack: () => void;
+  handleStartOver: () => void;
   canNavigateToStep: (step: number) => boolean;
 }
 
 const WizardContext = createContext<WizardContextType | undefined>(undefined);
 
-export const WizardStateProvider = ({ children }: { children: React.ReactNode }) => {
+export const WizardStateProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { toast } = useToast();
-  const { user } = useAuth();
-  const [businessIdea, setStoreBusinessIdea] = useState<BusinessIdea | null>(null);
-  const [targetAudience, setStoreTargetAudience] = useState<TargetAudience | null>(null);
-  const [audienceAnalysis, setStoreAudienceAnalysis] = useState<AudienceAnalysis | null>(null);
-  const [currentStep, setStoreCurrentStep] = useState<Step>('idea');
-  const [isLoading, setIsLoading] = useState(false);
-  const saveInProgress = useRef<Promise<void>>();
-  const retryCount = useRef(0);
-  const MAX_RETRIES = 3;
-  const RETRY_DELAY = 1000;
+  const isMounted = useRef(true);
+  const {
+    currentStep,
+    businessIdea,
+    targetAudience,
+    audienceAnalysis,
+    setCurrentStep,
+    setBusinessIdea: setStoreBusinessIdea,
+    setTargetAudience: setStoreTargetAudience,
+    setAudienceAnalysis: setStoreAudienceAnalysis,
+    handleBack,
+    handleStartOver,
+    canNavigateToStep
+  } = useWizardStore();
 
-  const logAnalytics = async (eventName: string, properties?: Record<string, any>) => {
+  const { saveToProject } = useProjectWizardState();
+
+  // Save progress when state changes
+  const saveProgress = useCallback(async (data: any) => {
     try {
-      if (typeof window !== 'undefined' && (window as any).posthog) {
-        await (window as any).posthog.capture(eventName, properties);
-      }
-    } catch (error) {
-      console.warn('Analytics error:', error);
-    }
-  };
-
-  const canNavigateToStep = useCallback((step: number): boolean => {
-    switch (step) {
-      case 1:
-        return true;
-      case 2:
-        return !!businessIdea;
-      case 3:
-        return !!businessIdea && !!targetAudience;
-      case 4:
-        return !!businessIdea && !!targetAudience && !!audienceAnalysis;
-      default:
-        return false;
-    }
-  }, [businessIdea, targetAudience, audienceAnalysis]);
-
-  const saveProgress = useCallback(async (data: Partial<WizardData>) => {
-    if (!user) return;
-
-    const save = async () => {
-      try {
-        setIsLoading(true);
-
-        const { data: current, error: fetchError } = await supabase
-          .from('wizard_progress')
-          .select('version')
-          .eq('user_id', user.id)
-          .maybeSingle();
-
-        if (fetchError) throw fetchError;
-
-        const currentVersion = current?.version || 0;
-        const newVersion = currentVersion + 1;
-
-        const { error } = await supabase
-          .from('wizard_progress')
-          .upsert({
-            user_id: user.id,
-            ...data,
-            version: newVersion,
-            updated_at: new Date().toISOString()
-          })
-          .match({ user_id: user.id, version: currentVersion });
-
-        if (error) {
-          if (error.message.includes('Concurrent save detected') && retryCount.current < MAX_RETRIES) {
-            retryCount.current++;
-            await new Promise(resolve => setTimeout(resolve, RETRY_DELAY * retryCount.current));
-            return save();
-          }
-          throw error;
-        }
-
-        retryCount.current = 0;
-        
-        logAnalytics('wizard_progress_saved', {
-          step: data.current_step,
-          retries: retryCount.current
-        }).catch(() => {});
-        
-      } catch (error) {
-        console.error('Error saving progress:', error);
-        toast({
-          title: "Error saving progress",
-          description: "Your changes may not be saved. Please try again.",
-          variant: "destructive",
-        });
-        throw error;
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    return saveQueue.add(save);
-  }, [user, toast]);
-
-  // Load initial state
-  useEffect(() => {
-    const loadInitialState = async () => {
+      console.log('[WizardStateProvider] Saving progress:', data);
+      const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
+      const { error } = await supabase
+        .from('wizard_progress')
+        .upsert({
+          user_id: user.id,
+          ...data,
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'user_id'
+        });
+
+      if (error) throw error;
+
+      await saveToProject(data);
+      console.log('[WizardStateProvider] Progress saved successfully');
+    } catch (error) {
+      console.error('[WizardStateProvider] Error saving progress:', error);
+    }
+  }, [saveToProject]);
+
+  // Load saved progress on mount and handle auth state changes
+  useEffect(() => {
+    const loadProgress = async () => {
       try {
-        setIsLoading(true);
-        const { data, error } = await supabase
+        console.log('[WizardStateProvider] Loading progress');
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const { data: progress, error } = await supabase
           .from('wizard_progress')
           .select('*')
           .eq('user_id', user.id)
@@ -134,100 +83,94 @@ export const WizardStateProvider = ({ children }: { children: React.ReactNode })
 
         if (error) throw error;
 
-        if (data) {
-          if (data.business_idea) setStoreBusinessIdea(data.business_idea);
-          if (data.target_audience) setStoreTargetAudience(data.target_audience);
-          if (data.audience_analysis) setStoreAudienceAnalysis(data.audience_analysis);
-          if (data.current_step) setStoreCurrentStep(data.current_step as Step);
+        if (progress && isMounted.current) {
+          console.log('[WizardStateProvider] Found existing progress:', progress);
+          if (progress.business_idea && isBusinessIdea(progress.business_idea)) {
+            setStoreBusinessIdea(progress.business_idea);
+          }
+          if (progress.target_audience && isTargetAudience(progress.target_audience)) {
+            setStoreTargetAudience(progress.target_audience);
+          }
+          if (progress.audience_analysis && isAudienceAnalysis(progress.audience_analysis)) {
+            setStoreAudienceAnalysis(progress.audience_analysis);
+          }
+          if (progress.current_step) setCurrentStep(progress.current_step);
         }
       } catch (error) {
-        console.error('Error loading initial state:', error);
+        console.error('[WizardStateProvider] Error loading progress:', error);
         toast({
-          title: "Error loading data",
-          description: "Failed to load your previous progress.",
+          title: "Error loading progress",
+          description: "There was an error loading your progress. Please try again.",
           variant: "destructive",
         });
-      } finally {
-        setIsLoading(false);
       }
     };
 
-    loadInitialState();
-  }, [user, toast]);
+    loadProgress();
 
-  // Save state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('[WizardStateProvider] Auth state changed:', event);
+      if (event === 'SIGNED_IN' && session?.user) {
+        loadProgress();
+      }
+    });
+
+    return () => {
+      isMounted.current = false;
+      subscription.unsubscribe();
+    };
+  }, [setStoreBusinessIdea, setStoreTargetAudience, setStoreAudienceAnalysis, setCurrentStep, toast]);
+
+  // Save progress before unmounting
   useEffect(() => {
-    if (!businessIdea && !targetAudience && !audienceAnalysis) return;
-
-    const saveState = async () => {
-      try {
-        await saveProgress({
+    const saveCurrentProgress = () => {
+      if (businessIdea || targetAudience || audienceAnalysis) {
+        console.log('[WizardStateProvider] Saving progress before unmount');
+        saveProgress({
           business_idea: businessIdea,
           target_audience: targetAudience,
           audience_analysis: audienceAnalysis,
           current_step: currentStep
         });
-      } catch (error) {
-        // Error is already handled in saveProgress
-        console.error('Error in save effect:', error);
       }
     };
 
-    saveState();
-  }, [businessIdea, targetAudience, audienceAnalysis, currentStep, saveProgress, toast]);
+    window.addEventListener('beforeunload', saveCurrentProgress);
+    return () => {
+      window.removeEventListener('beforeunload', saveCurrentProgress);
+      saveCurrentProgress();
+    };
+  }, [businessIdea, targetAudience, audienceAnalysis, currentStep, saveProgress]);
 
+  // Wrap state setters to include persistence
   const setBusinessIdea = useCallback((idea: BusinessIdea) => {
     setStoreBusinessIdea(idea);
-    const promise = saveProgress({ business_idea: idea });
-    saveInProgress.current = promise;
-  }, [saveProgress]);
+    saveProgress({ business_idea: idea, current_step: currentStep });
+  }, [currentStep, setStoreBusinessIdea, saveProgress]);
 
   const setTargetAudience = useCallback((audience: TargetAudience) => {
     setStoreTargetAudience(audience);
-    const promise = saveProgress({ target_audience: audience });
-    saveInProgress.current = promise;
-  }, [saveProgress]);
+    saveProgress({ target_audience: audience, current_step: currentStep });
+  }, [currentStep, setStoreTargetAudience, saveProgress]);
 
   const setAudienceAnalysis = useCallback((analysis: AudienceAnalysis) => {
     setStoreAudienceAnalysis(analysis);
-    const promise = saveProgress({ audience_analysis: analysis });
-    saveInProgress.current = promise;
-  }, [saveProgress]);
-
-  const setCurrentStep = useCallback((step: Step) => {
-    setStoreCurrentStep(step);
-    const promise = saveProgress({ current_step: step });
-    saveInProgress.current = promise;
-  }, [saveProgress]);
-
-  // Cleanup function
-  useEffect(() => {
-    const handleBeforeUnload = async (e: BeforeUnloadEvent) => {
-      if (saveInProgress.current) {
-        e.preventDefault();
-        e.returnValue = '';
-      }
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-    };
-  }, []);
+    saveProgress({ audience_analysis: analysis, current_step: currentStep });
+  }, [currentStep, setStoreAudienceAnalysis, saveProgress]);
 
   return (
     <WizardContext.Provider
       value={{
+        currentStep,
         businessIdea,
         targetAudience,
         audienceAnalysis,
-        currentStep,
+        setCurrentStep,
         setBusinessIdea,
         setTargetAudience,
         setAudienceAnalysis,
-        setCurrentStep,
-        isLoading,
+        handleBack,
+        handleStartOver,
         canNavigateToStep,
       }}
     >
