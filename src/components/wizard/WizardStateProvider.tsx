@@ -25,6 +25,7 @@ const WizardContext = createContext<WizardContextType | undefined>(undefined);
 export const WizardStateProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { toast } = useToast();
   const isMounted = useRef(true);
+  const saveInProgress = useRef<Promise<void> | null>(null);
   const {
     currentStep,
     businessIdea,
@@ -64,6 +65,7 @@ export const WizardStateProvider: React.FC<{ children: React.ReactNode }> = ({ c
       console.log('[WizardStateProvider] Progress saved successfully');
     } catch (error) {
       console.error('[WizardStateProvider] Error saving progress:', error);
+      throw error; // Re-throw to handle in cleanup
     }
   }, [saveToProject]);
 
@@ -121,41 +123,66 @@ export const WizardStateProvider: React.FC<{ children: React.ReactNode }> = ({ c
     };
   }, [setStoreBusinessIdea, setStoreTargetAudience, setStoreAudienceAnalysis, setCurrentStep, toast]);
 
-  // Save progress before unmounting
+  // Save progress before unmounting with proper cleanup
   useEffect(() => {
-    const saveCurrentProgress = () => {
+    const saveCurrentProgress = async () => {
       if (businessIdea || targetAudience || audienceAnalysis) {
         console.log('[WizardStateProvider] Saving progress before unmount');
-        saveProgress({
-          business_idea: businessIdea,
-          target_audience: targetAudience,
-          audience_analysis: audienceAnalysis,
-          current_step: currentStep
-        });
+        try {
+          const savePromise = saveProgress({
+            business_idea: businessIdea,
+            target_audience: targetAudience,
+            audience_analysis: audienceAnalysis,
+            current_step: currentStep
+          });
+          saveInProgress.current = savePromise;
+          await savePromise;
+          saveInProgress.current = null;
+        } catch (error) {
+          console.error('[WizardStateProvider] Error in cleanup save:', error);
+          toast({
+            title: "Error saving progress",
+            description: "There was an error saving your progress. Please try again.",
+            variant: "destructive",
+          });
+        }
       }
     };
 
-    window.addEventListener('beforeunload', saveCurrentProgress);
-    return () => {
-      window.removeEventListener('beforeunload', saveCurrentProgress);
-      saveCurrentProgress();
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (saveInProgress.current) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
     };
-  }, [businessIdea, targetAudience, audienceAnalysis, currentStep, saveProgress]);
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      if (isMounted.current) {
+        saveCurrentProgress();
+      }
+    };
+  }, [businessIdea, targetAudience, audienceAnalysis, currentStep, saveProgress, toast]);
 
   // Wrap state setters to include persistence
   const setBusinessIdea = useCallback((idea: BusinessIdea) => {
     setStoreBusinessIdea(idea);
-    saveProgress({ business_idea: idea, current_step: currentStep });
+    const promise = saveProgress({ business_idea: idea, current_step: currentStep });
+    saveInProgress.current = promise;
   }, [currentStep, setStoreBusinessIdea, saveProgress]);
 
   const setTargetAudience = useCallback((audience: TargetAudience) => {
     setStoreTargetAudience(audience);
-    saveProgress({ target_audience: audience, current_step: currentStep });
+    const promise = saveProgress({ target_audience: audience, current_step: currentStep });
+    saveInProgress.current = promise;
   }, [currentStep, setStoreTargetAudience, saveProgress]);
 
   const setAudienceAnalysis = useCallback((analysis: AudienceAnalysis) => {
     setStoreAudienceAnalysis(analysis);
-    saveProgress({ audience_analysis: analysis, current_step: currentStep });
+    const promise = saveProgress({ audience_analysis: analysis, current_step: currentStep });
+    saveInProgress.current = promise;
   }, [currentStep, setStoreAudienceAnalysis, saveProgress]);
 
   return (
