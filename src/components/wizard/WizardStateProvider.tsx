@@ -26,6 +26,10 @@ export const WizardStateProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const { toast } = useToast();
   const isMounted = useRef(true);
   const saveInProgress = useRef<Promise<void> | null>(null);
+  const retryCount = useRef(0);
+  const MAX_RETRIES = 3;
+  const RETRY_DELAY = 1000;
+
   const {
     currentStep,
     businessIdea,
@@ -42,34 +46,51 @@ export const WizardStateProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   const { saveToProject } = useProjectWizardState();
 
-  // Save progress when state changes
   const saveProgress = useCallback(async (data: any) => {
     try {
       console.log('[WizardStateProvider] Saving progress:', data);
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
+      // First get the current version
+      const { data: current } = await supabase
+        .from('wizard_progress')
+        .select('version')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      const currentVersion = current?.version || 0;
+
+      // Try to update with version check
       const { error } = await supabase
         .from('wizard_progress')
         .upsert({
           user_id: user.id,
           ...data,
+          version: currentVersion + 1,
           updated_at: new Date().toISOString()
         }, {
           onConflict: 'user_id'
         });
 
-      if (error) throw error;
+      if (error) {
+        if (error.message.includes('Concurrent save detected') && retryCount.current < MAX_RETRIES) {
+          retryCount.current++;
+          await new Promise(resolve => setTimeout(resolve, RETRY_DELAY * retryCount.current));
+          return saveProgress(data);
+        }
+        throw error;
+      }
 
+      retryCount.current = 0;
       await saveToProject(data);
       console.log('[WizardStateProvider] Progress saved successfully');
     } catch (error) {
       console.error('[WizardStateProvider] Error saving progress:', error);
-      throw error; // Re-throw to handle in cleanup
+      throw error;
     }
   }, [saveToProject]);
 
-  // Load saved progress on mount and handle auth state changes
   useEffect(() => {
     const loadProgress = async () => {
       try {
@@ -123,7 +144,6 @@ export const WizardStateProvider: React.FC<{ children: React.ReactNode }> = ({ c
     };
   }, [setStoreBusinessIdea, setStoreTargetAudience, setStoreAudienceAnalysis, setCurrentStep, toast]);
 
-  // Save progress before unmounting with proper cleanup
   useEffect(() => {
     const saveCurrentProgress = async () => {
       if (businessIdea || targetAudience || audienceAnalysis) {
@@ -140,6 +160,11 @@ export const WizardStateProvider: React.FC<{ children: React.ReactNode }> = ({ c
           saveInProgress.current = null;
         } catch (error) {
           console.error('[WizardStateProvider] Error in cleanup save:', error);
+          if (retryCount.current < MAX_RETRIES) {
+            retryCount.current++;
+            await new Promise(resolve => setTimeout(resolve, RETRY_DELAY * retryCount.current));
+            return saveCurrentProgress();
+          }
           toast({
             title: "Error saving progress",
             description: "There was an error saving your progress. Please try again.",
@@ -166,7 +191,7 @@ export const WizardStateProvider: React.FC<{ children: React.ReactNode }> = ({ c
     };
   }, [businessIdea, targetAudience, audienceAnalysis, currentStep, saveProgress, toast]);
 
-  // Wrap state setters to include persistence
+  // Wrap state setters to include persistence with retry logic
   const setBusinessIdea = useCallback((idea: BusinessIdea) => {
     setStoreBusinessIdea(idea);
     const promise = saveProgress({ business_idea: idea, current_step: currentStep });
