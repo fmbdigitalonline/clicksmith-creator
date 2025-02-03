@@ -60,18 +60,18 @@ export const WizardStateProvider: React.FC<{ children: React.ReactNode }> = ({ c
         .maybeSingle();
 
       const currentVersion = current?.version || 0;
+      const newVersion = currentVersion + 1;
 
-      // Try to update with version check
+      // Try to update with version check using a match condition
       const { error } = await supabase
         .from('wizard_progress')
         .upsert({
           user_id: user.id,
           ...data,
-          version: currentVersion + 1,
+          version: newVersion,
           updated_at: new Date().toISOString()
-        }, {
-          onConflict: 'user_id'
-        });
+        })
+        .match({ user_id: user.id, version: currentVersion });
 
       if (error) {
         if (error.message.includes('Concurrent save detected') && retryCount.current < MAX_RETRIES) {
@@ -191,7 +191,6 @@ export const WizardStateProvider: React.FC<{ children: React.ReactNode }> = ({ c
     };
   }, [businessIdea, targetAudience, audienceAnalysis, currentStep, saveProgress, toast]);
 
-  // Wrap state setters to include persistence with retry logic
   const setBusinessIdea = useCallback((idea: BusinessIdea) => {
     setStoreBusinessIdea(idea);
     const promise = saveProgress({ business_idea: idea, current_step: currentStep });
