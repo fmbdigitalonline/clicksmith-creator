@@ -1,11 +1,10 @@
-import { BusinessIdea, TargetAudience, AdHook } from "@/types/adWizard";
+import { useState, useEffect } from "react";
 import { TabsContent } from "@/components/ui/tabs";
 import LoadingState from "../complete/LoadingState";
 import PlatformTabs from "./PlatformTabs";
 import PlatformContent from "./PlatformContent";
 import PlatformChangeDialog from "./PlatformChangeDialog";
 import { useAdDisplay } from "@/hooks/useAdDisplay";
-import { useState, useEffect } from "react";
 import AdGenerationControls from "./AdGenerationControls";
 import { AdSizeSelector, AD_FORMATS } from "./components/AdSizeSelector";
 import { useToast } from "@/hooks/use-toast";
@@ -91,8 +90,12 @@ const AdGalleryContent = ({
         setIsDisplayLoading(true);
         const newAds = await generateAds(value);
         if (newAds && newAds.length > 0) {
-          await saveGeneratedAds(newAds);
-          setCurrentAds(newAds);
+          const platformAds = newAds.map(ad => ({
+            ...ad,
+            platform: value.toLowerCase()
+          }));
+          await saveGeneratedAds(platformAds);
+          setCurrentAds(platformAds);
           toast({
             title: "Ads Generated",
             description: `Successfully generated ${value} ads.`,
@@ -118,8 +121,12 @@ const AdGalleryContent = ({
       
       const newAds = await generateAds(confirmedPlatform);
       if (newAds && newAds.length > 0) {
-        await saveGeneratedAds(newAds);
-        setCurrentAds(newAds);
+        const platformAds = newAds.map(ad => ({
+          ...ad,
+          platform: confirmedPlatform.toLowerCase()
+        }));
+        await saveGeneratedAds(platformAds);
+        setCurrentAds(platformAds);
         toast({
           title: "Ads Generated",
           description: `Successfully generated ${confirmedPlatform} ads.`,
@@ -138,8 +145,12 @@ const AdGalleryContent = ({
       setIsDisplayLoading(true);
       const newAds = await generateAds(currentPlatform);
       if (newAds && newAds.length > 0) {
-        await saveGeneratedAds(newAds);
-        setCurrentAds(newAds);
+        const platformAds = newAds.map(ad => ({
+          ...ad,
+          platform: currentPlatform.toLowerCase()
+        }));
+        await saveGeneratedAds(platformAds);
+        setCurrentAds(platformAds);
         toast({
           title: "Ads Regenerated",
           description: `Successfully regenerated ${currentPlatform} ads.`,
@@ -163,9 +174,13 @@ const AdGalleryContent = ({
           console.log('[AdGalleryContent] Generating initial ads for platform:', currentPlatform);
           const newAds = await generateAds(currentPlatform);
           if (newAds && newAds.length > 0) {
-            console.log('[AdGalleryContent] Successfully generated initial ads:', newAds);
-            await saveGeneratedAds(newAds);
-            setCurrentAds(newAds);
+            const platformAds = newAds.map(ad => ({
+              ...ad,
+              platform: currentPlatform.toLowerCase()
+            }));
+            console.log('[AdGalleryContent] Successfully generated initial ads:', platformAds);
+            await saveGeneratedAds(platformAds);
+            setCurrentAds(platformAds);
             setInitialGenerationDone(true);
           }
         } catch (error) {
