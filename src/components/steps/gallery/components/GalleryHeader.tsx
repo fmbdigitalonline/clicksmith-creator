@@ -1,4 +1,4 @@
-import { AdGenerationControls } from "../AdGenerationControls";
+import AdGenerationControls from "../AdGenerationControls";
 
 interface GalleryHeaderProps {
   onBack: () => void;
