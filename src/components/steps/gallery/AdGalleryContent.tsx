@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { TabsContent } from "@/components/ui/tabs";
+import { BusinessIdea, TargetAudience, AdHook } from "@/types/adWizard";
 import LoadingState from "../complete/LoadingState";
 import PlatformTabs from "./PlatformTabs";
 import PlatformContent from "./PlatformContent";
