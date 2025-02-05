@@ -22,7 +22,8 @@ export const useAdGeneration = (
 
     try {
       setIsGenerating(true);
-      setGenerationStatus(`Generating ${platform} ads...`);
+      const capitalizedPlatform = platform.charAt(0).toUpperCase() + platform.slice(1);
+      setGenerationStatus(`Generating ${capitalizedPlatform} ads...`);
 
       const hasCredits = await checkCredits(1);
       if (!hasCredits) {
