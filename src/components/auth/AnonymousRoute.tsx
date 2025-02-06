@@ -48,10 +48,7 @@ export const AnonymousRoute = ({ children }: { children: React.ReactNode }) => {
         }
 
         let sessionId = localStorage.getItem('anonymous_session_id');
-        const isNewWizard = location.pathname === '/ad-wizard/new';
-        
-        // Always allow access to /ad-wizard/new for new sessions
-        if (isNewWizard && !sessionId) {
+        if (!sessionId) {
           sessionId = uuidv4();
           localStorage.setItem('anonymous_session_id', sessionId);
           console.log('[AnonymousRoute] Created new anonymous session:', sessionId);
@@ -87,68 +84,54 @@ export const AnonymousRoute = ({ children }: { children: React.ReactNode }) => {
             }
             return;
           }
-          
+        }
+
+        const { data: usage, error: usageError } = await supabase
+          .from('anonymous_usage')
+          .select('used, wizard_data, last_completed_step, save_count, last_save_attempt')
+          .eq('session_id', sessionId)
+          .maybeSingle();
+
+        if (usageError) {
+          console.error('[AnonymousRoute] Error checking usage:', usageError);
           if (mounted) {
-            setCanAccess(true);
+            setCanAccess(false);
             setIsLoading(false);
           }
           return;
         }
 
-        if (sessionId) {
-          const { data: usage, error: usageError } = await supabase
-            .from('anonymous_usage')
-            .select('used, wizard_data, last_completed_step, save_count, last_save_attempt')
-            .eq('session_id', sessionId)
-            .maybeSingle();
+        if (!usage || !usage.used) {
+          const wizardData = {
+            ...(usage?.wizard_data as Record<string, unknown> || {}),
+            last_save_attempt: new Date().toISOString()
+          } as Json;
 
-          if (usageError) {
-            console.error('[AnonymousRoute] Error checking usage:', usageError);
-            if (mounted) {
-              setCanAccess(false);
-              setIsLoading(false);
-            }
-            return;
+          const { error: updateError } = await supabase
+            .from('anonymous_usage')
+            .update({ 
+              updated_at: new Date().toISOString(),
+              last_save_attempt: new Date().toISOString(),
+              wizard_data: wizardData,
+              save_count: ((usage as AnonymousUsage)?.save_count || 0) + 1
+            })
+            .eq('session_id', sessionId);
+
+          if (updateError) {
+            console.error('[AnonymousRoute] Error updating usage:', updateError);
           }
 
-          if (!usage || !usage.used) {
-            const wizardData = {
-              ...(usage?.wizard_data as Record<string, unknown> || {}),
-              last_save_attempt: new Date().toISOString()
-            } as Json;
-
-            const { error: updateError } = await supabase
-              .from('anonymous_usage')
-              .update({ 
-                updated_at: new Date().toISOString(),
-                last_save_attempt: new Date().toISOString(),
-                wizard_data: wizardData,
-                save_count: ((usage as AnonymousUsage)?.save_count || 0) + 1
-              })
-              .eq('session_id', sessionId);
-
-            if (updateError) {
-              console.error('[AnonymousRoute] Error updating usage:', updateError);
-            }
-
-            if (mounted) {
-              setCanAccess(true);
-              setIsLoading(false);
-            }
-          } else {
-            console.log('[AnonymousRoute] Access denied, session used');
-            toast({
-              title: "Registration Required",
-              description: "Please sign up to continue.",
-              variant: "default",
-            });
-            if (mounted) {
-              setCanAccess(false);
-              setIsLoading(false);
-            }
+          if (mounted) {
+            setCanAccess(true);
+            setIsLoading(false);
           }
         } else {
-          // No session ID and not on new wizard route
+          console.log('[AnonymousRoute] Access denied, session used');
+          toast({
+            title: "Registration Required",
+            description: "Please sign up to continue.",
+            variant: "default",
+          });
           if (mounted) {
             setCanAccess(false);
             setIsLoading(false);
