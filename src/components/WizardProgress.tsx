@@ -1,8 +1,7 @@
 import { cn } from "@/lib/utils";
 import { Check } from "lucide-react";
-import { useEffect, useCallback } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
-import { useWizardPersistence } from "@/hooks/useWizardPersistence";
+import { useEffect } from "react";
+import { useLocation } from "react-router-dom";
 
 interface WizardProgressProps {
   currentStep: number;
@@ -23,34 +22,14 @@ const WizardProgress = ({
   canNavigateToStep,
 }: WizardProgressProps) => {
   const location = useLocation();
-  const navigate = useNavigate();
-  const { saveProgress } = useWizardPersistence();
   
-  const handleStepClick = useCallback(async (step: number) => {
-    if (!canNavigateToStep(step)) return;
-    
-    // Save current progress before navigation
-    await saveProgress();
-    
-    // Update step and URL
-    onStepClick(step);
-    navigate(`/ad-wizard/step-${step}`, { replace: true });
-  }, [canNavigateToStep, onStepClick, navigate, saveProgress]);
-  
-  // Only sync URL on mount and when explicitly navigating to step 4
+  // Sync with URL state if we're on step 4
   useEffect(() => {
-    const isAdWizardRoute = location.pathname.includes('ad-wizard');
-    const isNewWizard = location.pathname.includes('new');
-    
-    // Don't sync if we're on the new wizard route
-    if (isNewWizard) return;
-    
-    // Only sync if we're on an ad-wizard route and explicitly on step 4
-    if (isAdWizardRoute && currentStep === 4) {
-      console.log('[WizardProgress] Initial sync with step 4');
-      handleStepClick(4);
+    if (location.pathname.includes('ad-wizard') && currentStep === 4) {
+      console.log('[WizardProgress] Syncing with step 4');
+      onStepClick(4);
     }
-  }, []); // Empty dependency array - only run on mount
+  }, [location.pathname, currentStep, onStepClick]);
 
   return (
     <nav aria-label="Progress">
@@ -67,7 +46,7 @@ const WizardProgress = ({
                   : "border-gray-200",
                 !canNavigateToStep(step.number) && "cursor-not-allowed opacity-50"
               )}
-              onClick={() => handleStepClick(step.number)}
+              onClick={() => canNavigateToStep(step.number) && onStepClick(step.number)}
               disabled={!canNavigateToStep(step.number)}
             >
               <span className="text-sm font-medium">

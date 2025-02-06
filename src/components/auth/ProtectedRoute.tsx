@@ -35,15 +35,8 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 
           console.log('[ProtectedRoute] Anonymous usage data:', usage);
 
-          // Only allow anonymous access to /ad-wizard/new
-          if (location.pathname === '/ad-wizard/new') {
-            setIsAuthenticated(true);
-            setIsLoading(false);
-            return;
-          }
-
-          // If not on /ad-wizard/new and has unused anonymous session, redirect
-          if (usage && !usage.used) {
+          // Only redirect if we're not already on /ad-wizard/new
+          if (usage && !usage.used && location.pathname !== '/ad-wizard/new') {
             console.log('[ProtectedRoute] Redirecting to new wizard');
             navigate('/ad-wizard/new', { replace: true });
             return;
@@ -78,9 +71,22 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
               throw refreshError;
             }
 
+            // Initialize free tier usage for new users
             if (user) {
               setIsAuthenticated(true);
-              console.log('[ProtectedRoute] User authenticated:', user.id);
+              console.log('[ProtectedRoute] Checking free tier usage for user:', user.id);
+              const { data: existingUsage } = await supabase
+                .from('free_tier_usage')
+                .select('*')
+                .eq('user_id', user.id)
+                .maybeSingle();
+
+              if (!existingUsage) {
+                console.log('[ProtectedRoute] Creating new free tier usage record');
+                await supabase
+                  .from('free_tier_usage')
+                  .insert([{ user_id: user.id, generations_used: 0 }]);
+              }
             }
           } catch (error) {
             console.error("[ProtectedRoute] Token refresh error:", error);

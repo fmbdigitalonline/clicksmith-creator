@@ -2,7 +2,6 @@ import React, { createContext, useContext, useCallback, useEffect, useRef } from
 import { BusinessIdea, TargetAudience, AudienceAnalysis } from '@/types/adWizard';
 import { useWizardStore } from '@/stores/wizardStore';
 import { useProjectWizardState } from '@/hooks/useProjectWizardState';
-import { useWizardPersistence } from '@/hooks/useWizardPersistence';
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { isBusinessIdea, isTargetAudience, isAudienceAnalysis } from "@/utils/typeGuards";
@@ -41,7 +40,32 @@ export const WizardStateProvider: React.FC<{ children: React.ReactNode }> = ({ c
   } = useWizardStore();
 
   const { saveToProject } = useProjectWizardState();
-  const { saveProgress } = useWizardPersistence();
+
+  // Save progress when state changes
+  const saveProgress = useCallback(async (data: any) => {
+    try {
+      console.log('[WizardStateProvider] Saving progress:', data);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { error } = await supabase
+        .from('wizard_progress')
+        .upsert({
+          user_id: user.id,
+          ...data,
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'user_id'
+        });
+
+      if (error) throw error;
+
+      await saveToProject(data);
+      console.log('[WizardStateProvider] Progress saved successfully');
+    } catch (error) {
+      console.error('[WizardStateProvider] Error saving progress:', error);
+    }
+  }, [saveToProject]);
 
   // Load saved progress on mount and handle auth state changes
   useEffect(() => {
@@ -97,21 +121,42 @@ export const WizardStateProvider: React.FC<{ children: React.ReactNode }> = ({ c
     };
   }, [setStoreBusinessIdea, setStoreTargetAudience, setStoreAudienceAnalysis, setCurrentStep, toast]);
 
+  // Save progress before unmounting
+  useEffect(() => {
+    const saveCurrentProgress = () => {
+      if (businessIdea || targetAudience || audienceAnalysis) {
+        console.log('[WizardStateProvider] Saving progress before unmount');
+        saveProgress({
+          business_idea: businessIdea,
+          target_audience: targetAudience,
+          audience_analysis: audienceAnalysis,
+          current_step: currentStep
+        });
+      }
+    };
+
+    window.addEventListener('beforeunload', saveCurrentProgress);
+    return () => {
+      window.removeEventListener('beforeunload', saveCurrentProgress);
+      saveCurrentProgress();
+    };
+  }, [businessIdea, targetAudience, audienceAnalysis, currentStep, saveProgress]);
+
   // Wrap state setters to include persistence
   const setBusinessIdea = useCallback((idea: BusinessIdea) => {
     setStoreBusinessIdea(idea);
-    saveProgress();
-  }, [setStoreBusinessIdea, saveProgress]);
+    saveProgress({ business_idea: idea, current_step: currentStep });
+  }, [currentStep, setStoreBusinessIdea, saveProgress]);
 
   const setTargetAudience = useCallback((audience: TargetAudience) => {
     setStoreTargetAudience(audience);
-    saveProgress();
-  }, [setStoreTargetAudience, saveProgress]);
+    saveProgress({ target_audience: audience, current_step: currentStep });
+  }, [currentStep, setStoreTargetAudience, saveProgress]);
 
   const setAudienceAnalysis = useCallback((analysis: AudienceAnalysis) => {
     setStoreAudienceAnalysis(analysis);
-    saveProgress();
-  }, [setStoreAudienceAnalysis, saveProgress]);
+    saveProgress({ audience_analysis: analysis, current_step: currentStep });
+  }, [currentStep, setStoreAudienceAnalysis, saveProgress]);
 
   return (
     <WizardContext.Provider
