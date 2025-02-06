@@ -23,11 +23,12 @@ const WizardProgress = ({
 }: WizardProgressProps) => {
   const location = useLocation();
   
-  // Sync with URL state if we're on step 4
+  // Sync with URL state if we're on step 4 or not on the "new" route
   useEffect(() => {
-    if (location.pathname.includes('ad-wizard') && currentStep === 4) {
-      console.log('[WizardProgress] Syncing with step 4');
-      onStepClick(4);
+    if (location.pathname.includes('ad-wizard') && 
+       (currentStep === 4 || !location.pathname.includes('/new'))) {
+      console.log('[WizardProgress] Syncing with step:', currentStep);
+      onStepClick(currentStep);
     }
   }, [location.pathname, currentStep, onStepClick]);
 

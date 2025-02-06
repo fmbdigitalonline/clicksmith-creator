@@ -48,7 +48,10 @@ export const AnonymousRoute = ({ children }: { children: React.ReactNode }) => {
         }
 
         let sessionId = localStorage.getItem('anonymous_session_id');
-        if (!sessionId) {
+        const isNewWizard = location.pathname === '/ad-wizard/new';
+        
+        // Always allow access to /ad-wizard/new for new sessions
+        if (isNewWizard && !sessionId) {
           sessionId = uuidv4();
           localStorage.setItem('anonymous_session_id', sessionId);
           console.log('[AnonymousRoute] Created new anonymous session:', sessionId);
@@ -84,54 +87,68 @@ export const AnonymousRoute = ({ children }: { children: React.ReactNode }) => {
             }
             return;
           }
-        }
-
-        const { data: usage, error: usageError } = await supabase
-          .from('anonymous_usage')
-          .select('used, wizard_data, last_completed_step, save_count, last_save_attempt')
-          .eq('session_id', sessionId)
-          .maybeSingle();
-
-        if (usageError) {
-          console.error('[AnonymousRoute] Error checking usage:', usageError);
+          
           if (mounted) {
-            setCanAccess(false);
+            setCanAccess(true);
             setIsLoading(false);
           }
           return;
         }
 
-        if (!usage || !usage.used) {
-          const wizardData = {
-            ...(usage?.wizard_data as Record<string, unknown> || {}),
-            last_save_attempt: new Date().toISOString()
-          } as Json;
-
-          const { error: updateError } = await supabase
+        if (sessionId) {
+          const { data: usage, error: usageError } = await supabase
             .from('anonymous_usage')
-            .update({ 
-              updated_at: new Date().toISOString(),
-              last_save_attempt: new Date().toISOString(),
-              wizard_data: wizardData,
-              save_count: ((usage as AnonymousUsage)?.save_count || 0) + 1
-            })
-            .eq('session_id', sessionId);
+            .select('used, wizard_data, last_completed_step, save_count, last_save_attempt')
+            .eq('session_id', sessionId)
+            .maybeSingle();
 
-          if (updateError) {
-            console.error('[AnonymousRoute] Error updating usage:', updateError);
+          if (usageError) {
+            console.error('[AnonymousRoute] Error checking usage:', usageError);
+            if (mounted) {
+              setCanAccess(false);
+              setIsLoading(false);
+            }
+            return;
           }
 
-          if (mounted) {
-            setCanAccess(true);
-            setIsLoading(false);
+          if (!usage || !usage.used) {
+            const wizardData = {
+              ...(usage?.wizard_data as Record<string, unknown> || {}),
+              last_save_attempt: new Date().toISOString()
+            } as Json;
+
+            const { error: updateError } = await supabase
+              .from('anonymous_usage')
+              .update({ 
+                updated_at: new Date().toISOString(),
+                last_save_attempt: new Date().toISOString(),
+                wizard_data: wizardData,
+                save_count: ((usage as AnonymousUsage)?.save_count || 0) + 1
+              })
+              .eq('session_id', sessionId);
+
+            if (updateError) {
+              console.error('[AnonymousRoute] Error updating usage:', updateError);
+            }
+
+            if (mounted) {
+              setCanAccess(true);
+              setIsLoading(false);
+            }
+          } else {
+            console.log('[AnonymousRoute] Access denied, session used');
+            toast({
+              title: "Registration Required",
+              description: "Please sign up to continue.",
+              variant: "default",
+            });
+            if (mounted) {
+              setCanAccess(false);
+              setIsLoading(false);
+            }
           }
         } else {
-          console.log('[AnonymousRoute] Access denied, session used');
-          toast({
-            title: "Registration Required",
-            description: "Please sign up to continue.",
-            variant: "default",
-          });
+          // No session ID and not on new wizard route
           if (mounted) {
             setCanAccess(false);
             setIsLoading(false);
