@@ -19,17 +19,16 @@ export const usePlatformGeneration = (
   );
 
   const handleGenerateAdsForPlatform = async (platform: string) => {
-    console.log(`[usePlatformGeneration] Starting generation for platform: ${platform}`);
     try {
       setIsDisplayLoading(true);
-      const newAds = await generateAds(platform.toLowerCase());
+      const newAds = await generateAds(platform);
       if (newAds && newAds.length > 0) {
         const platformAds = newAds.map(ad => ({
           ...ad,
           platform: platform.toLowerCase(),
           id: ad.id || crypto.randomUUID()
         }));
-        console.log(`[usePlatformGeneration] Generated ${platformAds.length} ads for ${platform}`);
+        console.log(`[usePlatformGeneration] Generated ${platform} ads:`, platformAds);
         await saveGeneratedAds(platformAds);
         setCurrentAds(platformAds);
         toast({
