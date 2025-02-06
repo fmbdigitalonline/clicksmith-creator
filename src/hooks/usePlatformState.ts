@@ -4,35 +4,50 @@ import { useToast } from './use-toast';
 export const usePlatformState = () => {
   const [currentPlatform, setCurrentPlatform] = useState('facebook');
   const [isChangingPlatform, setIsChangingPlatform] = useState(false);
+  const [pendingPlatform, setPendingPlatform] = useState<string | null>(null);
   const { toast } = useToast();
 
   const handlePlatformChange = useCallback(async (newPlatform: string, hasExistingAds: boolean) => {
+    console.log('[usePlatformState] Handling platform change:', { newPlatform, hasExistingAds });
+    
     if (hasExistingAds) {
+      setPendingPlatform(newPlatform);
       setIsChangingPlatform(true);
-      return;
+      return currentPlatform;
     }
     
-    setCurrentPlatform(newPlatform);
+    setCurrentPlatform(newPlatform.toLowerCase());
     toast({
       title: "Platform Changed",
       description: `Switched to ${newPlatform} ads.`,
     });
-  }, [toast]);
+    
+    return newPlatform.toLowerCase();
+  }, [currentPlatform, toast]);
 
   const confirmPlatformChange = useCallback(() => {
-    setIsChangingPlatform(false);
-    setCurrentPlatform(prev => prev);
-    return currentPlatform;
-  }, [currentPlatform]);
+    console.log('[usePlatformState] Confirming platform change to:', pendingPlatform);
+    
+    if (pendingPlatform) {
+      setCurrentPlatform(pendingPlatform.toLowerCase());
+      setIsChangingPlatform(false);
+      const confirmedPlatform = pendingPlatform.toLowerCase();
+      setPendingPlatform(null);
+      return confirmedPlatform;
+    }
+    return currentPlatform.toLowerCase();
+  }, [currentPlatform, pendingPlatform]);
 
   const cancelPlatformChange = useCallback(() => {
+    console.log('[usePlatformState] Cancelling platform change');
+    setPendingPlatform(null);
     setIsChangingPlatform(false);
   }, []);
 
   return {
-    currentPlatform,
+    currentPlatform: currentPlatform.toLowerCase(),
     isChangingPlatform,
-    setIsChangingPlatform,  // Added this line to expose the setter
+    setIsChangingPlatform,
     handlePlatformChange,
     confirmPlatformChange,
     cancelPlatformChange

@@ -83,16 +83,20 @@ const AdGalleryContent = ({
     if (hasExistingAds) {
       handlePlatformChange(newPlatform, hasExistingAds);
     } else {
-      await handleGenerateAdsForPlatform(newPlatform);
+      const platform = newPlatform.toLowerCase();
+      console.log(`[AdGalleryContent] Generating ads for platform: ${platform}`);
+      await handleGenerateAdsForPlatform(platform);
     }
   };
 
   const handleConfirmPlatformChange = async () => {
     const confirmedPlatform = confirmPlatformChange();
+    console.log(`[AdGalleryContent] Confirmed platform change to: ${confirmedPlatform}`);
     await handleGenerateAdsForPlatform(confirmedPlatform);
   };
 
   const handleRegenerate = async () => {
+    console.log(`[AdGalleryContent] Regenerating ads for platform: ${currentPlatform}`);
     await handleGenerateAdsForPlatform(currentPlatform);
   };
 
@@ -104,6 +108,7 @@ const AdGalleryContent = ({
   useEffect(() => {
     const generateInitialAds = async () => {
       if (!currentAds.length && !isDisplayLoading && !isGenerating && userId && !initialGenerationDone) {
+        console.log(`[AdGalleryContent] Generating initial ads for platform: ${currentPlatform}`);
         await handleGenerateAdsForPlatform(currentPlatform);
         setInitialGenerationDone(true);
       }
