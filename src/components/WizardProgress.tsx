@@ -1,7 +1,8 @@
 import { cn } from "@/lib/utils";
 import { Check } from "lucide-react";
-import { useEffect } from "react";
-import { useLocation } from "react-router-dom";
+import { useEffect, useCallback } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { useWizardPersistence } from "@/hooks/useWizardPersistence";
 
 interface WizardProgressProps {
   currentStep: number;
@@ -22,14 +23,27 @@ const WizardProgress = ({
   canNavigateToStep,
 }: WizardProgressProps) => {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { saveProgress } = useWizardPersistence();
+  
+  const handleStepClick = useCallback(async (step: number) => {
+    if (!canNavigateToStep(step)) return;
+    
+    // Save current progress before navigation
+    await saveProgress();
+    
+    // Update step and URL
+    onStepClick(step);
+    navigate(`/ad-wizard/step-${step}`, { replace: true });
+  }, [canNavigateToStep, onStepClick, navigate, saveProgress]);
   
   // Sync with URL state if we're on step 4
   useEffect(() => {
     if (location.pathname.includes('ad-wizard') && currentStep === 4) {
       console.log('[WizardProgress] Syncing with step 4');
-      onStepClick(4);
+      handleStepClick(4);
     }
-  }, [location.pathname, currentStep, onStepClick]);
+  }, [location.pathname, currentStep, handleStepClick]);
 
   return (
     <nav aria-label="Progress">
@@ -46,7 +60,7 @@ const WizardProgress = ({
                   : "border-gray-200",
                 !canNavigateToStep(step.number) && "cursor-not-allowed opacity-50"
               )}
-              onClick={() => canNavigateToStep(step.number) && onStepClick(step.number)}
+              onClick={() => handleStepClick(step.number)}
               disabled={!canNavigateToStep(step.number)}
             >
               <span className="text-sm font-medium">
