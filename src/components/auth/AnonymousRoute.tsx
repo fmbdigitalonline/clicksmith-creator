@@ -3,6 +3,7 @@ import { Navigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { v4 as uuidv4 } from "uuid";
 import { useToast } from "@/hooks/use-toast";
+import { WizardData } from "@/types/wizardProgress";
 import { Json } from "@/integrations/supabase/types";
 
 interface AnonymousUsage {
@@ -28,7 +29,6 @@ export const AnonymousRoute = ({ children }: { children: React.ReactNode }) => {
         
         const { data: { session } } = await supabase.auth.getSession();
         
-        // If user is authenticated, always allow access
         if (session?.user) {
           console.log('[AnonymousRoute] User is already authenticated:', session.user.id);
           if (mounted) {
@@ -40,7 +40,7 @@ export const AnonymousRoute = ({ children }: { children: React.ReactNode }) => {
 
         let sessionId = localStorage.getItem('anonymous_session_id');
         
-        // Always allow access to /ad-wizard/new and create new session if needed
+        // If we're on /ad-wizard/new, always allow access and create new session if needed
         if (location.pathname === '/ad-wizard/new') {
           if (!sessionId) {
             sessionId = uuidv4();

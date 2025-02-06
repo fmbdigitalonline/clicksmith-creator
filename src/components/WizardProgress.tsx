@@ -1,35 +1,43 @@
-import { useEffect } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
-import { cn } from '@/lib/utils';
+import { cn } from "@/lib/utils";
+import { Check } from "lucide-react";
+import { useEffect, useCallback } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { useWizardPersistence } from "@/hooks/useWizardPersistence";
 
 interface WizardProgressProps {
   currentStep: number;
   onStepClick: (step: number) => void;
   canNavigateToStep: (step: number) => boolean;
-  saveProgress?: () => Promise<void>;
 }
 
-export const WizardProgress = ({
+const steps = [
+  { number: 1, title: "Business Idea" },
+  { number: 2, title: "Target Audience" },
+  { number: 3, title: "Audience Analysis" },
+  { number: 4, title: "Ad Gallery" },
+];
+
+const WizardProgress = ({
   currentStep,
   onStepClick,
   canNavigateToStep,
-  saveProgress
 }: WizardProgressProps) => {
   const location = useLocation();
   const navigate = useNavigate();
-
-  const handleStepClick = async (step: number) => {
+  const { saveProgress } = useWizardPersistence();
+  
+  const handleStepClick = useCallback(async (step: number) => {
     if (!canNavigateToStep(step)) return;
     
-    if (saveProgress) {
-      await saveProgress();
-    }
+    // Save current progress before navigation
+    await saveProgress();
     
+    // Update step and URL
     onStepClick(step);
     navigate(`/ad-wizard/step-${step}`, { replace: true });
-  };
+  }, [canNavigateToStep, onStepClick, navigate, saveProgress]);
   
-  // Sync URL state with current step
+  // Only sync URL on mount and when explicitly navigating to step 4
   useEffect(() => {
     const isAdWizardRoute = location.pathname.includes('ad-wizard');
     const isNewWizard = location.pathname.includes('new');
@@ -37,33 +45,63 @@ export const WizardProgress = ({
     // Don't sync if we're on the new wizard route
     if (isNewWizard) return;
     
-    // Only sync if we're on an ad-wizard route and on step 4
+    // Only sync if we're on an ad-wizard route and explicitly on step 4
     if (isAdWizardRoute && currentStep === 4) {
-      console.log('[WizardProgress] Syncing with step 4');
+      console.log('[WizardProgress] Initial sync with step 4');
       handleStepClick(4);
     }
-  }, [currentStep, location.pathname]); // Only re-run when these values change
+  }, []); // Empty dependency array - only run on mount
 
   return (
     <nav aria-label="Progress">
-      <ul className="flex space-x-4">
-        {Array.from({ length: 4 }, (_, index) => {
-          const step = index + 1;
-          return (
-            <li key={step}>
-              <button
-                onClick={() => handleStepClick(step)}
+      <ol role="list" className="space-y-4 md:flex md:space-x-8 md:space-y-0">
+        {steps.map((step) => (
+          <li key={step.title} className="md:flex-1">
+            <button
+              className={cn(
+                "group flex w-full flex-col border-l-4 py-2 pl-4 md:border-l-0 md:border-t-4 md:pb-0 md:pl-0 md:pt-4",
+                step.number < currentStep
+                  ? "border-facebook hover:border-facebook/80"
+                  : step.number === currentStep
+                  ? "border-facebook"
+                  : "border-gray-200",
+                !canNavigateToStep(step.number) && "cursor-not-allowed opacity-50"
+              )}
+              onClick={() => handleStepClick(step.number)}
+              disabled={!canNavigateToStep(step.number)}
+            >
+              <span className="text-sm font-medium">
+                {step.number < currentStep ? (
+                  <Check className="h-4 w-4 text-facebook" />
+                ) : (
+                  <span
+                    className={cn(
+                      "text-sm font-medium",
+                      step.number === currentStep
+                        ? "text-facebook"
+                        : "text-gray-500"
+                    )}
+                  >
+                    Step {step.number}
+                  </span>
+                )}
+              </span>
+              <span
                 className={cn(
-                  'px-4 py-2 rounded',
-                  canNavigateToStep(step) ? 'bg-blue-500 text-white' : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  "text-sm font-medium",
+                  step.number === currentStep
+                    ? "text-facebook"
+                    : "text-gray-500"
                 )}
               >
-                Step {step}
-              </button>
-            </li>
-          );
-        })}
-      </ul>
+                {step.title}
+              </span>
+            </button>
+          </li>
+        ))}
+      </ol>
     </nav>
   );
 };
+
+export default WizardProgress;
