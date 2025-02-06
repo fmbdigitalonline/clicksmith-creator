@@ -37,13 +37,20 @@ const WizardProgress = ({
     navigate(`/ad-wizard/step-${step}`, { replace: true });
   }, [canNavigateToStep, onStepClick, navigate, saveProgress]);
   
-  // Sync with URL state if we're on step 4
+  // Only sync URL on mount and when explicitly navigating to step 4
   useEffect(() => {
-    if (location.pathname.includes('ad-wizard') && currentStep === 4) {
-      console.log('[WizardProgress] Syncing with step 4');
+    const isAdWizardRoute = location.pathname.includes('ad-wizard');
+    const isNewWizard = location.pathname.includes('new');
+    
+    // Don't sync if we're on the new wizard route
+    if (isNewWizard) return;
+    
+    // Only sync if we're on an ad-wizard route and explicitly on step 4
+    if (isAdWizardRoute && currentStep === 4) {
+      console.log('[WizardProgress] Initial sync with step 4');
       handleStepClick(4);
     }
-  }, [location.pathname, currentStep, handleStepClick]);
+  }, []); // Empty dependency array - only run on mount
 
   return (
     <nav aria-label="Progress">
