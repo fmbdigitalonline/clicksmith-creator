@@ -10,7 +10,7 @@ interface AdGenerationControlsProps {
   generationStatus: string;
 }
 
-const AdGenerationControls = ({
+export const AdGenerationControls = ({
   onBack,
   onStartOver,
   onRegenerate,
@@ -44,5 +44,3 @@ const AdGenerationControls = ({
     </div>
   );
 };
-
-export default AdGenerationControls;
