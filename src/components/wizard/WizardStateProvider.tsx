@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useCallback, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useCallback, useEffect } from 'react';
 import { BusinessIdea, TargetAudience, AudienceAnalysis } from '@/types/adWizard';
 import { useWizardStore } from '@/stores/wizardStore';
 import { useProjectWizardState } from '@/hooks/useProjectWizardState';
@@ -24,7 +24,6 @@ const WizardContext = createContext<WizardContextType | undefined>(undefined);
 
 export const WizardStateProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { toast } = useToast();
-  const isMounted = useRef(true);
   const {
     currentStep,
     businessIdea,
@@ -41,50 +40,20 @@ export const WizardStateProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   const { saveToProject } = useProjectWizardState();
 
-  // Save progress when state changes
-  const saveProgress = useCallback(async (data: any) => {
-    try {
-      console.log('[WizardStateProvider] Saving progress:', data);
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { error } = await supabase
-        .from('wizard_progress')
-        .upsert({
-          user_id: user.id,
-          ...data,
-          updated_at: new Date().toISOString()
-        }, {
-          onConflict: 'user_id'
-        });
-
-      if (error) throw error;
-
-      await saveToProject(data);
-      console.log('[WizardStateProvider] Progress saved successfully');
-    } catch (error) {
-      console.error('[WizardStateProvider] Error saving progress:', error);
-    }
-  }, [saveToProject]);
-
-  // Load saved progress on mount and handle auth state changes
+  // Load saved progress on mount
   useEffect(() => {
     const loadProgress = async () => {
       try {
-        console.log('[WizardStateProvider] Loading progress');
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
 
-        const { data: progress, error } = await supabase
+        const { data: progress } = await supabase
           .from('wizard_progress')
           .select('*')
           .eq('user_id', user.id)
           .maybeSingle();
 
-        if (error) throw error;
-
-        if (progress && isMounted.current) {
-          console.log('[WizardStateProvider] Found existing progress:', progress);
+        if (progress) {
           if (progress.business_idea && isBusinessIdea(progress.business_idea)) {
             setStoreBusinessIdea(progress.business_idea);
           }
@@ -107,40 +76,29 @@ export const WizardStateProvider: React.FC<{ children: React.ReactNode }> = ({ c
     };
 
     loadProgress();
+  }, []);
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log('[WizardStateProvider] Auth state changed:', event);
-      if (event === 'SIGNED_IN' && session?.user) {
-        loadProgress();
-      }
-    });
+  // Save progress when state changes
+  const saveProgress = useCallback(async (data: any) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
 
-    return () => {
-      isMounted.current = false;
-      subscription.unsubscribe();
-    };
-  }, [setStoreBusinessIdea, setStoreTargetAudience, setStoreAudienceAnalysis, setCurrentStep, toast]);
-
-  // Save progress before unmounting
-  useEffect(() => {
-    const saveCurrentProgress = () => {
-      if (businessIdea || targetAudience || audienceAnalysis) {
-        console.log('[WizardStateProvider] Saving progress before unmount');
-        saveProgress({
-          business_idea: businessIdea,
-          target_audience: targetAudience,
-          audience_analysis: audienceAnalysis,
-          current_step: currentStep
+      await supabase
+        .from('wizard_progress')
+        .upsert({
+          user_id: user.id,
+          ...data,
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'user_id'
         });
-      }
-    };
 
-    window.addEventListener('beforeunload', saveCurrentProgress);
-    return () => {
-      window.removeEventListener('beforeunload', saveCurrentProgress);
-      saveCurrentProgress();
-    };
-  }, [businessIdea, targetAudience, audienceAnalysis, currentStep, saveProgress]);
+      await saveToProject(data);
+    } catch (error) {
+      console.error('[WizardStateProvider] Error saving progress:', error);
+    }
+  }, [saveToProject]);
 
   // Wrap state setters to include persistence
   const setBusinessIdea = useCallback((idea: BusinessIdea) => {
