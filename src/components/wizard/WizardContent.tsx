@@ -12,7 +12,7 @@ import WizardSteps from "./WizardSteps";
 import CreateProjectDialog from "../projects/CreateProjectDialog";
 import { Button } from "../ui/button";
 import { Save } from "lucide-react";
-import { isBusinessIdea, isTargetAudience, isAudienceAnalysis } from "@/utils/typeGuards";
+import { useSaveOperation } from "@/hooks/useSaveOperation";
 
 const WizardContent = () => {
   const [showCreateProject, setShowCreateProject] = useState(false);
@@ -24,6 +24,7 @@ const WizardContent = () => {
   const navigate = useNavigate();
   const { projectId } = useParams();
   const { toast } = useToast();
+  const { saveWizardState, isSaving } = useSaveOperation();
 
   const {
     currentStep,
@@ -63,13 +64,13 @@ const WizardContent = () => {
               currentUrlStep || 1
             );
             
-            if (anonymousData.business_idea && isBusinessIdea(anonymousData.business_idea)) {
+            if (anonymousData.business_idea) {
               setBusinessIdea(anonymousData.business_idea);
             }
-            if (anonymousData.target_audience && isTargetAudience(anonymousData.target_audience)) {
+            if (anonymousData.target_audience) {
               setTargetAudience(anonymousData.target_audience);
             }
-            if (anonymousData.audience_analysis && isAudienceAnalysis(anonymousData.audience_analysis)) {
+            if (anonymousData.audience_analysis) {
               setAudienceAnalysis(anonymousData.audience_analysis);
             }
             if (Array.isArray(anonymousData.generated_ads)) {
@@ -80,9 +81,8 @@ const WizardContent = () => {
             if (targetStep > 1 && canNavigateToStep(targetStep)) {
               setCurrentStep(targetStep);
               
-              // Only navigate if we're not already on the correct path and not in a new wizard
-              const currentPath = window.location.pathname;
-              if (!currentPath.includes('/ad-wizard/new') && currentPath !== `/ad-wizard/step-${targetStep}`) {
+              if (!window.location.pathname.includes('/ad-wizard/new') && 
+                  window.location.pathname !== `/ad-wizard/step-${targetStep}`) {
                 navigate(`/ad-wizard/step-${targetStep}`, { replace: true });
               }
             }
@@ -181,9 +181,10 @@ const WizardContent = () => {
           onClick={handleSaveToProject}
           className="ml-4"
           variant="outline"
+          disabled={isSaving}
         >
           <Save className="w-4 h-4 mr-2" />
-          Save to Project
+          {isSaving ? 'Saving...' : 'Save to Project'}
         </Button>
       );
     }
