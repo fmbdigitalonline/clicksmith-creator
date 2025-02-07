@@ -4,7 +4,6 @@ import { useWizardStore } from '@/stores/wizardStore';
 import { useProjectWizardState } from '@/hooks/useProjectWizardState';
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { isBusinessIdea, isTargetAudience, isAudienceAnalysis } from "@/utils/typeGuards";
 
 interface WizardContextType {
   currentStep: number;
@@ -54,15 +53,9 @@ export const WizardStateProvider: React.FC<{ children: React.ReactNode }> = ({ c
           .maybeSingle();
 
         if (progress) {
-          if (progress.business_idea && isBusinessIdea(progress.business_idea)) {
-            setStoreBusinessIdea(progress.business_idea);
-          }
-          if (progress.target_audience && isTargetAudience(progress.target_audience)) {
-            setStoreTargetAudience(progress.target_audience);
-          }
-          if (progress.audience_analysis && isAudienceAnalysis(progress.audience_analysis)) {
-            setStoreAudienceAnalysis(progress.audience_analysis);
-          }
+          if (progress.business_idea) setStoreBusinessIdea(progress.business_idea);
+          if (progress.target_audience) setStoreTargetAudience(progress.target_audience);
+          if (progress.audience_analysis) setStoreAudienceAnalysis(progress.audience_analysis);
           if (progress.current_step) setCurrentStep(progress.current_step);
         }
       } catch (error) {

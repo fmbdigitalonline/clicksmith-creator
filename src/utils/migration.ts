@@ -14,9 +14,7 @@ export const migrateUserProgress = async (
   user_id: string,
   session_id: string
 ): Promise<WizardData | null> => {
-  console.group('[Migration] Starting migration process');
-  console.log('User ID:', user_id);
-  console.log('Session ID:', session_id);
+  console.log('[Migration] Starting migration for user:', user_id);
 
   try {
     // First check if a migration is already in progress
@@ -27,12 +25,10 @@ export const migrateUserProgress = async (
       .single();
 
     if (existingLock) {
-      console.warn('[Migration] Migration already in progress');
-      console.groupEnd();
+      console.log('[Migration] Migration already in progress');
       return null;
     }
 
-    console.log('[Migration] Creating migration lock');
     // Create a migration lock with proper date format
     const { error: lockError } = await supabase
       .from('migration_locks')
@@ -45,11 +41,9 @@ export const migrateUserProgress = async (
 
     if (lockError) {
       console.error('[Migration] Error creating migration lock:', lockError);
-      console.groupEnd();
       return null;
     }
 
-    console.log('[Migration] Fetching anonymous data');
     // Get anonymous data first to calculate the step
     const { data: anonymousData } = await supabase
       .from('anonymous_usage')
@@ -58,8 +52,7 @@ export const migrateUserProgress = async (
       .single();
 
     if (!anonymousData) {
-      console.warn('[Migration] No anonymous data found');
-      console.groupEnd();
+      console.log('[Migration] No anonymous data found');
       return null;
     }
 
@@ -69,8 +62,6 @@ export const migrateUserProgress = async (
       calculatedStep,
       anonymousData.last_completed_step || 1
     );
-
-    console.log('[Migration] Calculated step:', finalStep);
 
     // Call atomic_migration with explicit parameters
     const { data, error } = await supabase
@@ -82,11 +73,8 @@ export const migrateUserProgress = async (
 
     if (error) {
       console.error('[Migration] Database error:', error);
-      console.groupEnd();
       throw error;
     }
-
-    console.log('[Migration] Migration successful:', data);
 
     // Update the anonymous usage record
     const { error: updateError } = await supabase
@@ -133,8 +121,6 @@ export const migrateUserProgress = async (
       version: data.version || 1
     };
 
-    console.log('[Migration] Final wizard data:', wizardData);
-    console.groupEnd();
     return wizardData;
   } catch (error) {
     console.error('[Migration] Error:', error);
@@ -143,7 +129,6 @@ export const migrateUserProgress = async (
       .from('migration_locks')
       .delete()
       .eq('user_id', user_id);
-    console.groupEnd();
     throw error;
   }
 };

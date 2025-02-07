@@ -10,8 +10,7 @@ export const useWizardProgress = () => {
   const [audienceAnalysis, setAudienceAnalysis] = useState<AudienceAnalysis | null>(null);
 
   const saveProgress = async (data: WizardData) => {
-    console.group('[WizardProgress Hook] Starting to save progress');
-    console.log('Data to save:', {
+    console.log('[WizardProgress] Starting to save progress:', {
       userId: data.user_id,
       step: data.current_step,
       version: data.version
@@ -51,7 +50,7 @@ export const useWizardProgress = () => {
       const duration = Math.round(performance.now() - startTime);
       
       if (error) {
-        console.error('[WizardProgress Hook] Error saving progress:', {
+        console.error('[WizardProgress] Error saving progress:', {
           error,
           duration,
           data: {
@@ -62,27 +61,25 @@ export const useWizardProgress = () => {
         throw error;
       }
 
-      console.log('[WizardProgress Hook] Successfully saved progress:', {
+      console.log('[WizardProgress] Successfully saved progress:', {
         duration,
         userId: data.user_id,
         step: data.current_step,
         version: data.version
       });
     } catch (error) {
-      console.error('[WizardProgress Hook] Unexpected error in saveProgress:', error);
+      console.error('[WizardProgress] Unexpected error in saveProgress:', error);
       throw error;
-    } finally {
-      console.groupEnd();
     }
   };
 
   const handleBack = useCallback(() => {
-    console.log('[WizardProgress Hook] Moving back from step:', currentStep);
+    console.log('[WizardProgress] Moving back from step:', currentStep);
     setCurrentStep(prev => Math.max(1, prev - 1));
   }, [currentStep]);
 
   const canNavigateToStep = useCallback((step: number): boolean => {
-    console.log('[WizardProgress Hook] Checking navigation to step:', step, {
+    console.log('[WizardProgress] Checking navigation to step:', step, {
       hasBusinessIdea: !!businessIdea,
       hasTargetAudience: !!targetAudience,
       hasAudienceAnalysis: !!audienceAnalysis
