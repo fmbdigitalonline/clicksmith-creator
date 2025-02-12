@@ -1,7 +1,5 @@
 import { cn } from "@/lib/utils";
 import { Check } from "lucide-react";
-import { useEffect } from "react";
-import { useLocation } from "react-router-dom";
 
 interface WizardProgressProps {
   currentStep: number;
@@ -21,20 +19,10 @@ const WizardProgress = ({
   onStepClick,
   canNavigateToStep,
 }: WizardProgressProps) => {
-  const location = useLocation();
-  
-  // Sync with URL state if we're on step 4
-  useEffect(() => {
-    if (location.pathname.includes('ad-wizard') && currentStep === 4) {
-      console.log('[WizardProgress] Syncing with step 4');
-      onStepClick(4);
-    }
-  }, [location.pathname, currentStep, onStepClick]);
-
   return (
     <nav aria-label="Progress">
       <ol role="list" className="space-y-4 md:flex md:space-x-8 md:space-y-0">
-        {steps.map((step) => (
+        {steps.map((step, index) => (
           <li key={step.title} className="md:flex-1">
             <button
               className={cn(

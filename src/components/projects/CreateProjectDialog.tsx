@@ -70,7 +70,7 @@ const CreateProjectDialog = ({
         .from('wizard_progress')
         .select('*')
         .eq('user_id', userId)
-        .maybeSingle();
+        .single();
 
       if (wizardProgress) {
         // Include wizard progress data in project
@@ -81,25 +81,7 @@ const CreateProjectDialog = ({
           selected_hooks: wizardProgress.selected_hooks,
           ad_format: wizardProgress.ad_format,
           video_ad_preferences: wizardProgress.video_ad_preferences,
-          generated_ads: wizardProgress.generated_ads,
         };
-
-        // After creating the project, update any existing ad_feedback entries
-        const { data: adFeedback } = await supabase
-          .from('ad_feedback')
-          .select('id')
-          .is('project_id', null)
-          .eq('user_id', userId);
-
-        if (adFeedback && adFeedback.length > 0) {
-          const feedbackIds = adFeedback.map(feedback => feedback.id);
-          
-          // Update ad_feedback entries with the new project_id
-          await supabase
-            .from('ad_feedback')
-            .update({ project_id: projectData.id })
-            .in('id', feedbackIds);
-        }
       }
     }
 

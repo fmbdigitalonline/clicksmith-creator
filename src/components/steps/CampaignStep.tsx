@@ -32,12 +32,6 @@ const CampaignStep = ({
   const { toast } = useToast();
 
   const generateCampaign = async () => {
-    console.log('Starting campaign generation with:', {
-      businessIdea,
-      targetAudience,
-      audienceAnalysis
-    });
-    
     setIsLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke('generate-ad-content', {
@@ -49,16 +43,7 @@ const CampaignStep = ({
         }
       });
 
-      if (error) {
-        console.error('Error from generate-ad-content:', error);
-        throw error;
-      }
-
-      console.log('Campaign generation response:', data);
-
-      if (!data?.campaign) {
-        throw new Error('Invalid response format from server');
-      }
+      if (error) throw error;
 
       setCampaign(data.campaign);
       toast({
@@ -105,12 +90,12 @@ const CampaignStep = ({
           disabled={!campaign || isLoading}
           className="bg-facebook hover:bg-facebook/90 text-white w-full md:w-auto"
         >
-          <span>Next Step</span>
           {isLoading ? (
-            <Loader2 className="w-4 h-4 ml-2 animate-spin" />
+            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
           ) : (
             <ArrowRight className="w-4 h-4 ml-2" />
           )}
+          <span>Next Step</span>
         </Button>
       </div>
 
@@ -157,11 +142,7 @@ const CampaignStep = ({
               <div className="space-y-4">
                 {campaign.adCopies.map((copy, index) => (
                   <div key={index} className="p-4 bg-gray-50 rounded-lg">
-                    <p className="font-medium text-facebook mb-2">
-                      {copy.type === 'story' ? 'Story-based Version' : 
-                       copy.type === 'short' ? 'Short Impact Version' : 
-                       'AIDA Framework Version'}
-                    </p>
+                    <p className="font-medium text-facebook mb-2">{copy.type === 'story' ? 'Story-based Version' : copy.type === 'short' ? 'Short Impact Version' : 'AIDA Framework Version'}</p>
                     <p className="text-gray-700 whitespace-pre-line">{copy.content}</p>
                   </div>
                 ))}

@@ -15,7 +15,6 @@ import { SavedAdsGallery } from "@/components/gallery/SavedAdsGallery";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/hooks/use-toast";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -31,56 +30,14 @@ const queryClient = new QueryClient({
 
 function App() {
   const [isLoading, setIsLoading] = useState(true);
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
-  const { toast } = useToast();
 
   useEffect(() => {
-    let mounted = true;
-
-    const checkAuth = async () => {
-      try {
-        console.log('Checking authentication status...');
-        const { data: { session }, error } = await supabase.auth.getSession();
-        
-        if (error) throw error;
-        
-        if (mounted) {
-          console.log('Auth status:', session ? 'authenticated' : 'not authenticated');
-          setIsAuthenticated(!!session);
-          setIsLoading(false);
-        }
-      } catch (error) {
-        console.error('Auth check error:', error);
-        if (mounted) {
-          setIsAuthenticated(false);
-          setIsLoading(false);
-          toast({
-            title: "Authentication Error",
-            description: "There was an error checking your authentication status.",
-            variant: "destructive",
-          });
-        }
-      }
-    };
-
-    checkAuth();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      console.log('Auth state changed:', _event);
-      if (mounted) {
-        setIsAuthenticated(!!session);
-        setIsLoading(false);
-      }
+    supabase.auth.getSession().then(() => {
+      setIsLoading(false);
     });
-
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-    };
-  }, [toast]);
+  }, []);
 
   if (isLoading) {
-    console.log('App is loading...');
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900" />
@@ -88,16 +45,12 @@ function App() {
     );
   }
 
-  console.log('Rendering app with auth status:', isAuthenticated);
-  
   return (
     <QueryClientProvider client={queryClient}>
       <SidebarProvider>
         <Router>
           <Routes>
-            <Route path="/login" element={
-              isAuthenticated ? <Navigate to="/ad-wizard/new" replace /> : <Login />
-            } />
+            <Route path="/login" element={<Login />} />
             <Route path="/pricing" element={<Pricing />} />
             <Route
               path="/"

@@ -4,11 +4,9 @@ import { useParams } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import MediaPreview from "./MediaPreview";
-import { AdSizeSelector } from "./AdSizeSelector";
-import { AdFeedbackControls } from "../components/AdFeedbackControls";
-import { PrimaryText } from "./preview/PrimaryText";
-import { HeadlineSection } from "./preview/HeadlineSection";
-import { DownloadSection } from "./preview/DownloadSection";
+import AdDetails from "./AdDetails";
+import DownloadControls from "./DownloadControls";
+import { AdFeedbackControls } from "./AdFeedbackControls";
 import { convertImage } from "@/utils/imageUtils";
 
 interface AdPreviewCardProps {
@@ -32,20 +30,14 @@ interface AdPreviewCardProps {
   onCreateProject: () => void;
   isVideo?: boolean;
   selectedFormat?: { width: number; height: number; label: string };
-  onFormatChange?: (format: { width: number; height: number; label: string }) => void;
 }
 
-const AdPreviewCard = ({ 
-  variant, 
-  onCreateProject, 
-  isVideo = false,
-  selectedFormat,
-  onFormatChange 
-}: AdPreviewCardProps) => {
+const AdPreviewCard = ({ variant, onCreateProject, isVideo = false, selectedFormat }: AdPreviewCardProps) => {
   const [downloadFormat, setDownloadFormat] = useState<"jpg" | "png" | "pdf" | "docx">("jpg");
   const [isSaving, setSaving] = useState(false);
   const { toast } = useToast();
   const { projectId } = useParams();
+
   const format = selectedFormat || variant.size;
 
   const getImageUrl = () => {
@@ -72,13 +64,16 @@ const AdPreviewCard = ({
     try {
       const response = await fetch(imageUrl);
       const blob = await response.blob();
+      
       const convertedBlob = await convertImage(URL.createObjectURL(blob), downloadFormat, variant);
+      
       const url = URL.createObjectURL(convertedBlob);
       const link = document.createElement('a');
       link.href = url;
       link.download = `${variant.platform}-${isVideo ? 'video' : 'ad'}-${format.width}x${format.height}.${downloadFormat}`;
       document.body.appendChild(link);
       link.click();
+      
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
 
@@ -105,13 +100,14 @@ const AdPreviewCard = ({
         throw new Error('User must be logged in to save ad');
       }
 
+      // Check if projectId is "new" and handle accordingly
       if (projectId === "new" && onCreateProject) {
         onCreateProject();
         return;
       }
 
+      // Validate UUID format if projectId exists and isn't "new"
       const isValidUUID = projectId && 
-                         projectId !== "new" && 
                          /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(projectId);
 
       if (isValidUUID) {
@@ -148,18 +144,16 @@ const AdPreviewCard = ({
   return (
     <Card className="overflow-hidden">
       <div className="p-4 space-y-4">
-        {onFormatChange && (
-          <AdSizeSelector
-            selectedFormat={format}
-            onFormatChange={onFormatChange}
-          />
-        )}
+        {/* Primary Text Section - First */}
+        <div className="space-y-2">
+          <p className="text-sm font-medium text-gray-600">Primary Text:</p>
+          <p className="text-gray-800">{variant.description}</p>
+        </div>
 
-        <PrimaryText description={variant.description} />
-
+        {/* Image Preview - Second */}
         <div 
           style={{ 
-            aspectRatio: `${format.width}/${format.height}`,
+            aspectRatio: `${format.width} / ${format.height}`,
             maxHeight: '600px',
             transition: 'aspect-ratio 0.3s ease-in-out'
           }} 
@@ -173,16 +167,24 @@ const AdPreviewCard = ({
         </div>
 
         <CardContent className="p-4 space-y-4">
-          <HeadlineSection headline={variant.headline} />
+          {/* Headline Section - Third */}
+          <div className="space-y-2">
+            <p className="text-sm font-medium text-gray-600">Headline:</p>
+            <h3 className="text-lg font-semibold text-facebook">
+              {variant.headline}
+            </h3>
+          </div>
 
-          <DownloadSection
+          {/* Download Controls - Fourth */}
+          <DownloadControls
             downloadFormat={downloadFormat}
-            onFormatChange={setDownloadFormat}
+            onFormatChange={(value) => setDownloadFormat(value as "jpg" | "png" | "pdf" | "docx")}
             onSave={handleSave}
             onDownload={handleDownload}
             isSaving={isSaving}
           />
 
+          {/* Feedback Controls - Last */}
           <AdFeedbackControls
             adId={variant.id}
             projectId={projectId}

@@ -1,10 +1,9 @@
-import { useWizardStore } from '@/stores/wizardStore';
+import { useWizardState } from "./WizardStateProvider";
 import IdeaStep from "../steps/BusinessIdeaStep";
 import AudienceStep from "../steps/AudienceStep";
 import AudienceAnalysisStep from "../steps/AudienceAnalysisStep";
 import AdGalleryStep from "../steps/AdGalleryStep";
 import RegistrationWall from "../steps/auth/RegistrationWall";
-import { useAuthStore } from '@/stores/authStore';
 
 interface WizardStepsProps {
   currentUser: any;
@@ -29,28 +28,12 @@ const WizardSteps = ({
     targetAudience,
     audienceAnalysis,
     selectedHooks,
-    setBusinessIdea,
-    setTargetAudience,
-    setAudienceAnalysis,
+    handleIdeaSubmit,
+    handleAudienceSelect,
+    handleAnalysisComplete,
     handleBack,
     handleStartOver,
-    setCurrentStep
-  } = useWizardStore();
-
-  const handleIdeaSubmit = (idea: any) => {
-    setBusinessIdea(idea);
-    setCurrentStep(2);
-  };
-
-  const handleAudienceSelect = (audience: any) => {
-    setTargetAudience(audience);
-    setCurrentStep(3);
-  };
-
-  const handleAnalysisComplete = (analysis: any) => {
-    setAudienceAnalysis(analysis);
-    setCurrentStep(4);
-  };
+  } = useWizardState();
 
   switch (currentStep) {
     case 1:

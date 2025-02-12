@@ -88,49 +88,63 @@ export const SaveAdButton = ({
       const isValidUUID = projectId && 
                          /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(projectId);
 
-      // First check if feedback already exists
-      const { data: existingFeedback } = await supabase
-        .from('ad_feedback')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('primary_text', primaryText || '')
-        .eq('headline', headline || '')
-        .single();
-
       const feedbackData = {
+        id: uuidv4(),
         user_id: user.id,
         rating: parseInt(rating, 10),
         feedback,
         saved_images: [image.url],
-        primary_text: primaryText || null,
-        headline: headline || null,
+        primary_text: primaryText || hook.text || null,
+        headline: headline || hook.description || null,
         created_at: new Date().toISOString(),
         project_id: isValidUUID ? projectId : null
       };
 
-      let saveError;
-      
-      if (existingFeedback) {
+      console.log('[SaveAdButton] Attempting to save/update feedback');
+
+      // First try to update existing feedback
+      const { data: existingData, error: checkError } = await supabase
+        .from('ad_feedback')
+        .select()
+        .match({ 
+          user_id: user.id,
+          primary_text: feedbackData.primary_text,
+          headline: feedbackData.headline 
+        })
+        .maybeSingle();
+
+      if (checkError) {
+        console.error('[SaveAdButton] Error checking existing feedback:', checkError);
+        throw checkError;
+      }
+
+      if (existingData) {
         // Update existing feedback
         const { error: updateError } = await supabase
           .from('ad_feedback')
-          .update(feedbackData)
-          .eq('id', existingFeedback.id);
-          
-        saveError = updateError;
+          .update({
+            rating: feedbackData.rating,
+            feedback: feedbackData.feedback,
+            saved_images: feedbackData.saved_images,
+            created_at: feedbackData.created_at
+          })
+          .eq('id', existingData.id);
+
+        if (updateError) {
+          console.error('[SaveAdButton] Error updating feedback:', updateError);
+          throw updateError;
+        }
       } else {
         // Insert new feedback
         const { error: insertError } = await supabase
           .from('ad_feedback')
-          .insert({
-            id: uuidv4(),
-            ...feedbackData
-          });
-          
-        saveError = insertError;
-      }
+          .insert(feedbackData);
 
-      if (saveError) throw saveError;
+        if (insertError) {
+          console.error('[SaveAdButton] Error inserting feedback:', insertError);
+          throw insertError;
+        }
+      }
 
       onSaveSuccess();
       toast({

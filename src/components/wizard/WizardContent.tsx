@@ -12,7 +12,6 @@ import WizardSteps from "./WizardSteps";
 import CreateProjectDialog from "../projects/CreateProjectDialog";
 import { Button } from "../ui/button";
 import { Save } from "lucide-react";
-import { useSaveOperation } from "@/hooks/useSaveOperation";
 
 const WizardContent = () => {
   const [showCreateProject, setShowCreateProject] = useState(false);
@@ -24,7 +23,6 @@ const WizardContent = () => {
   const navigate = useNavigate();
   const { projectId } = useParams();
   const { toast } = useToast();
-  const { saveWizardState, isSaving } = useSaveOperation();
 
   const {
     currentStep,
@@ -40,7 +38,6 @@ const WizardContent = () => {
     const loadProgress = async () => {
       try {
         console.log('[WizardContent] Starting to load progress');
-        
         if (anonymousData && currentUser) {
           console.log('[WizardContent] Checking existing progress for user:', currentUser.id);
           
@@ -50,42 +47,13 @@ const WizardContent = () => {
             .eq('user_id', currentUser.id)
             .maybeSingle();
 
-          const currentPathMatch = window.location.pathname.match(/step-(\d+)/);
-          const currentUrlStep = currentPathMatch ? parseInt(currentPathMatch[1]) : null;
-          
-          const anonymousStep = anonymousData.current_step || 1;
-          
           if (existingProgress) {
-            console.log('[WizardContent] Found existing progress with step:', existingProgress.current_step);
-            
-            const targetStep = Math.max(
-              existingProgress.current_step || 1,
-              anonymousStep,
-              currentUrlStep || 1
-            );
-            
-            if (anonymousData.business_idea) {
-              setBusinessIdea(anonymousData.business_idea);
-            }
-            if (anonymousData.target_audience) {
-              setTargetAudience(anonymousData.target_audience);
-            }
-            if (anonymousData.audience_analysis) {
-              setAudienceAnalysis(anonymousData.audience_analysis);
-            }
-            if (Array.isArray(anonymousData.generated_ads)) {
-              setGeneratedAds(anonymousData.generated_ads);
-              setHasLoadedInitialAds(true);
-            }
-            
-            if (targetStep > 1 && canNavigateToStep(targetStep)) {
-              setCurrentStep(targetStep);
-              
-              if (!window.location.pathname.includes('/ad-wizard/new') && 
-                  window.location.pathname !== `/ad-wizard/step-${targetStep}`) {
-                navigate(`/ad-wizard/step-${targetStep}`, { replace: true });
-              }
-            }
+            console.log('[WizardContent] Found existing progress');
+            if (anonymousData.business_idea) setBusinessIdea(anonymousData.business_idea);
+            if (anonymousData.target_audience) setTargetAudience(anonymousData.target_audience);
+            if (anonymousData.audience_analysis) setAudienceAnalysis(anonymousData.audience_analysis);
+            if (anonymousData.current_step) setCurrentStep(anonymousData.current_step);
+            if (anonymousData.generated_ads) setGeneratedAds(anonymousData.generated_ads);
           }
 
           setAnonymousData(null);
@@ -105,7 +73,7 @@ const WizardContent = () => {
     };
 
     loadProgress();
-  }, [projectId, navigate, toast, anonymousData, currentUser, setBusinessIdea, setTargetAudience, setAudienceAnalysis, setCurrentStep, canNavigateToStep]);
+  }, [projectId, navigate, toast, anonymousData, currentUser, setBusinessIdea, setTargetAudience, setAudienceAnalysis, setCurrentStep]);
 
   const handleCreateProject = () => setShowCreateProject(true);
   const handleProjectCreated = (projectId: string) => {
@@ -181,10 +149,9 @@ const WizardContent = () => {
           onClick={handleSaveToProject}
           className="ml-4"
           variant="outline"
-          disabled={isSaving}
         >
           <Save className="w-4 h-4 mr-2" />
-          {isSaving ? 'Saving...' : 'Save to Project'}
+          Save to Project
         </Button>
       );
     }
