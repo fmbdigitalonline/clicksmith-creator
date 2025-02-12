@@ -3,11 +3,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useEffect } from "react";
+import { useCreditsManagement } from "@/hooks/useCreditsManagement";
 
 export const CreditDisplay = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
+  const { credits, isLoadingCredits } = useCreditsManagement();
 
   const { data: user } = useQuery({
     queryKey: ["user"],
@@ -33,11 +35,6 @@ export const CreditDisplay = () => {
 
       if (error && error.code !== "PGRST116") {
         console.error('[Credits] Error checking subscription:', error);
-        toast({
-          title: "Error checking subscription",
-          description: "We couldn't verify your subscription status. Please try again.",
-          variant: "destructive",
-        });
         return null;
       }
 
@@ -45,8 +42,8 @@ export const CreditDisplay = () => {
       return data;
     },
     enabled: !!user?.id,
-    staleTime: 30000, // Consider data fresh for 30 seconds
-    refetchInterval: 30000, // Only refetch every 30 seconds
+    staleTime: 30000,
+    refetchInterval: 30000,
   });
 
   const { data: freeUsage } = useQuery({
@@ -56,53 +53,23 @@ export const CreditDisplay = () => {
       
       console.log('[Credits] Checking free tier usage for user:', user.id);
       
-      const { data: existingData, error: fetchError } = await supabase
+      const { data, error } = await supabase
         .from("free_tier_usage")
         .select("*")
         .eq("user_id", user.id)
         .maybeSingle();
 
-      if (fetchError && fetchError.code !== "PGRST116") {
-        console.error('[Credits] Error fetching free tier usage:', fetchError);
-        toast({
-          title: "Error checking usage",
-          description: "We couldn't verify your usage status. Please try again.",
-          variant: "destructive",
-        });
+      if (error && error.code !== "PGRST116") {
+        console.error('[Credits] Error fetching free tier usage:', error);
         return null;
       }
 
-      if (!existingData) {
-        console.log('[Credits] Creating new free tier usage record');
-        const { data: newData, error: insertError } = await supabase
-          .from("free_tier_usage")
-          .insert([{ 
-            user_id: user.id, 
-            generations_used: 0 
-          }])
-          .select()
-          .maybeSingle();
-
-        if (insertError) {
-          console.error('[Credits] Error creating free tier usage record:', insertError);
-          toast({
-            title: "Error creating usage record",
-            description: "We couldn't initialize your usage status. Please try again.",
-            variant: "destructive",
-          });
-          return null;
-        }
-
-        console.log('[Credits] Created new free tier usage record:', newData);
-        return newData;
-      }
-
-      console.log('[Credits] Found existing free tier usage record:', existingData);
-      return existingData;
+      console.log('[Credits] Found free tier usage:', data);
+      return data;
     },
     enabled: !!user?.id,
-    staleTime: 30000, // Consider data fresh for 30 seconds
-    refetchInterval: 30000, // Only refetch every 30 seconds
+    staleTime: 30000,
+    refetchInterval: 30000,
   });
 
   useEffect(() => {
@@ -133,13 +100,21 @@ export const CreditDisplay = () => {
       return "Unlimited credits";
     }
 
-    if (subscription?.credits_remaining !== undefined) {
-      return `${subscription.credits_remaining} credits`;
+    if (isLoadingCredits) {
+      return "Loading...";
     }
-    
-    const freeUsed = freeUsage?.generations_used || 0;
-    const freeRemaining = 12 - freeUsed;
-    return `${freeRemaining}/12 free generations`;
+
+    if (typeof credits === 'number') {
+      if (credits === -1) {
+        return "Unlimited credits";
+      }
+      if (subscription?.credits_remaining !== undefined) {
+        return `${credits} credits`;
+      }
+      return `${credits}/12 free generations`;
+    }
+
+    return "";
   };
 
   return (

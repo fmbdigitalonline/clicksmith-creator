@@ -60,6 +60,13 @@ export type Database = {
             referencedRelation: "projects"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "valid_project_reference"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
         ]
       }
       ad_image_variants: {
@@ -109,6 +116,7 @@ export type Database = {
           last_save_attempt: string | null
           save_count: number | null
           session_id: string
+          updated_at: string | null
           used: boolean | null
           wizard_data: Json | null
         }
@@ -120,6 +128,7 @@ export type Database = {
           last_save_attempt?: string | null
           save_count?: number | null
           session_id: string
+          updated_at?: string | null
           used?: boolean | null
           wizard_data?: Json | null
         }
@@ -131,6 +140,7 @@ export type Database = {
           last_save_attempt?: string | null
           save_count?: number | null
           session_id?: string
+          updated_at?: string | null
           used?: boolean | null
           wizard_data?: Json | null
         }
@@ -692,30 +702,56 @@ export type Database = {
           message: string
         }[]
       }
-      atomic_migration: {
-        Args: {
-          p_user_id: string
-          p_session_id: string
-        }
-        Returns: {
-          ad_format: Json | null
-          audience_analysis: Json | null
-          business_idea: Json | null
-          created_at: string
-          current_step: number | null
-          generated_ads: Json | null
-          id: string
-          is_migration: boolean | null
-          last_save_attempt: string | null
-          migration_token: string | null
-          selected_hooks: Json | null
-          target_audience: Json | null
-          updated_at: string
-          user_id: string
-          version: number | null
-          video_ad_preferences: Json | null
-        }
-      }
+      atomic_migration:
+        | {
+            Args: {
+              p_user_id: string
+              p_session_id: string
+            }
+            Returns: {
+              ad_format: Json | null
+              audience_analysis: Json | null
+              business_idea: Json | null
+              created_at: string
+              current_step: number | null
+              generated_ads: Json | null
+              id: string
+              is_migration: boolean | null
+              last_save_attempt: string | null
+              migration_token: string | null
+              selected_hooks: Json | null
+              target_audience: Json | null
+              updated_at: string
+              user_id: string
+              version: number | null
+              video_ad_preferences: Json | null
+            }
+          }
+        | {
+            Args: {
+              p_user_id: string
+              p_session_id: string
+              p_calculated_step?: number
+            }
+            Returns: {
+              ad_format: Json | null
+              audience_analysis: Json | null
+              business_idea: Json | null
+              created_at: string
+              current_step: number | null
+              generated_ads: Json | null
+              id: string
+              is_migration: boolean | null
+              last_save_attempt: string | null
+              migration_token: string | null
+              selected_hooks: Json | null
+              target_audience: Json | null
+              updated_at: string
+              user_id: string
+              version: number | null
+              video_ad_preferences: Json | null
+            }
+          }
       check_user_credits: {
         Args: {
           p_user_id: string
@@ -750,6 +786,21 @@ export type Database = {
           p_error_message?: string
         }
         Returns: undefined
+      }
+      migrate_anonymous_to_authenticated: {
+        Args: {
+          p_session_id: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      migrate_wizard_data: {
+        Args: {
+          p_user_id: string
+          p_session_id: string
+          p_wizard_data: Json
+        }
+        Returns: Json
       }
       migrate_wizard_progress: {
         Args: {

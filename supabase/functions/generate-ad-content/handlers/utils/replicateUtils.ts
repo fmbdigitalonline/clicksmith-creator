@@ -108,13 +108,27 @@ export async function generateWithReplicate(
         const modelId = MODELS[config.model as keyof typeof MODELS];
         console.log(`Using model: ${modelId}`);
         
+        // Add business/professional context to the prompt
+        const enhancedPrompt = `Professional business marketing content, commercial advertisement: ${prompt}`;
+        console.log('Enhanced prompt:', enhancedPrompt);
+
         const result = await replicate.run(modelId, {
           input: {
-            prompt,
+            prompt: enhancedPrompt,
             width: scaledDimensions.width,
             height: scaledDimensions.height,
             num_outputs: config.numOutputs,
             prompt_upsampling: true,
+            negative_prompt: "nsfw, inappropriate content, offensive content, controversial content, adult content, violence, gore, text, watermarks, nudity, suggestive content, drugs, weapons, disturbing imagery",
+            safety_checker: true,
+            num_inference_steps: 50,
+            guidance_scale: 8.5,
+            seed: Math.floor(Math.random() * 1000000),
+            scheduler: "K_EULER",
+            clip_skip: 2,
+            safety_filter: true,
+            remove_watermark: true,
+            style_preset: "professional"
           }
         });
 
@@ -155,6 +169,11 @@ export async function generateWithReplicate(
       prompt,
       options: config
     });
+    
+    // Provide a more user-friendly error message
+    if (error.message.includes('NSFW')) {
+      throw new Error('The generated image was flagged as inappropriate. Trying to generate a more business-appropriate image...');
+    }
     throw error;
   }
 }

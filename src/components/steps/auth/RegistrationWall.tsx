@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 
 interface RegistrationWallProps {
   onBack: () => void;
@@ -8,6 +8,13 @@ interface RegistrationWallProps {
 
 const RegistrationWall = ({ onBack }: RegistrationWallProps) => {
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const handleRegistration = () => {
+    // Store current path before redirecting
+    sessionStorage.setItem('redirectUrl', location.pathname);
+    navigate('/login');
+  };
 
   return (
     <Card className="max-w-2xl mx-auto">
@@ -33,7 +40,7 @@ const RegistrationWall = ({ onBack }: RegistrationWallProps) => {
             Go Back
           </Button>
           <Button 
-            onClick={() => navigate('/login')} 
+            onClick={handleRegistration}
             className="bg-facebook hover:bg-facebook/90"
           >
             Create Account

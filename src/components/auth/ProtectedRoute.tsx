@@ -1,14 +1,13 @@
 import { useEffect, useState } from "react";
-import { Navigate, useNavigate } from "react-router-dom";
+import { Navigate, useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-
-type AuthEvent = 'SIGNED_IN' | 'SIGNED_OUT' | 'TOKEN_REFRESHED' | 'USER_UPDATED';
 
 export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
 
   useEffect(() => {
@@ -36,7 +35,8 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 
           console.log('[ProtectedRoute] Anonymous usage data:', usage);
 
-          if (usage && !usage.used) {
+          // Only redirect if we're not already on /ad-wizard/new
+          if (usage && !usage.used && location.pathname !== '/ad-wizard/new') {
             console.log('[ProtectedRoute] Redirecting to new wizard');
             navigate('/ad-wizard/new', { replace: true });
             return;
@@ -73,6 +73,7 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 
             // Initialize free tier usage for new users
             if (user) {
+              setIsAuthenticated(true);
               console.log('[ProtectedRoute] Checking free tier usage for user:', user.id);
               const { data: existingUsage } = await supabase
                 .from('free_tier_usage')
@@ -80,57 +81,12 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
                 .eq('user_id', user.id)
                 .maybeSingle();
 
-              console.log('[ProtectedRoute] Found existing free tier usage record:', existingUsage);
-
               if (!existingUsage) {
                 console.log('[ProtectedRoute] Creating new free tier usage record');
                 await supabase
                   .from('free_tier_usage')
                   .insert([{ user_id: user.id, generations_used: 0 }]);
               }
-
-              // Check for anonymous session data to migrate
-              const anonymousSessionId = localStorage.getItem('anonymous_session_id');
-              if (anonymousSessionId) {
-                console.log('[ProtectedRoute] Starting migration for session:', anonymousSessionId);
-                try {
-                  const { data: migratedData, error: migrationError } = await supabase
-                    .rpc('atomic_migration', { 
-                      p_user_id: user.id, 
-                      p_session_id: anonymousSessionId 
-                    });
-
-                  if (migrationError) {
-                    console.error("[ProtectedRoute] Migration error:", migrationError);
-                    throw migrationError;
-                  }
-
-                  if (migratedData) {
-                    console.log("[ProtectedRoute] Successfully migrated data:", migratedData);
-                    localStorage.removeItem('anonymous_session_id');
-                    
-                    // Redirect to the appropriate step
-                    if (migratedData.current_step && migratedData.current_step > 1) {
-                      console.log('[ProtectedRoute] Redirecting to step:', migratedData.current_step);
-                      navigate(`/ad-wizard/step-${migratedData.current_step}`, { replace: true });
-                    }
-
-                    toast({
-                      title: "Progress Restored",
-                      description: "Your previous work has been saved to your account.",
-                    });
-                  }
-                } catch (error) {
-                  console.error("[ProtectedRoute] Error during migration:", error);
-                  toast({
-                    title: "Migration Error",
-                    description: "There was an error restoring your previous work. You may need to start over.",
-                    variant: "destructive",
-                  });
-                }
-              }
-              
-              setIsAuthenticated(true);
             }
           } catch (error) {
             console.error("[ProtectedRoute] Token refresh error:", error);
@@ -152,40 +108,23 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
       }
     };
 
-    // Check initial session
     checkSession();
 
-    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log("[ProtectedRoute] Auth state changed:", event);
       
-      const handleAuthEvent = (event: AuthEvent) => {
-        switch (event) {
-          case 'SIGNED_OUT':
-            setIsAuthenticated(false);
-            navigate('/login', { replace: true });
-            toast({
-              title: "Signed Out",
-              description: "You have been signed out",
-            });
-            break;
-          case 'SIGNED_IN':
-          case 'TOKEN_REFRESHED':
-            setIsAuthenticated(true);
-            break;
-          case 'USER_UPDATED':
-            setIsAuthenticated(!!session);
-            break;
-        }
-      };
-
-      handleAuthEvent(event as AuthEvent);
+      if (event === 'SIGNED_IN' && session?.user) {
+        setIsAuthenticated(true);
+      } else if (event === 'SIGNED_OUT') {
+        setIsAuthenticated(false);
+        navigate('/login', { replace: true });
+      }
     });
 
     return () => {
       subscription.unsubscribe();
     };
-  }, [navigate, toast]);
+  }, [navigate, toast, location.pathname]);
 
   if (isLoading) {
     return (
